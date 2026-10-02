@@ -1,13 +1,11 @@
-"""Tests for the TechTrade job definitions (issue #1934).
+"""Post-close jobs for canonical TechTrade EOD snapshots."""
 
-Fully offline. Asserts the two registered jobs, their schedules and default params,
-that handlers return a core ``JobResult`` (with warnings), parameter validation through
-the definition's Pydantic model, and that the pyproject advertises the
-``openbb_job_extension`` entry point.
-"""
+# ruff: noqa: D103
 
 from __future__ import annotations
 
+import inspect
+from datetime import date
 from pathlib import Path
 
 import openbb_techtrade.jobs as jobs_module
@@ -17,147 +15,259 @@ from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.schedules import DailySchedule
 from openbb_techtrade.jobs import (
     DailyScanParams,
+    EodSnapshotsParams,
     PruneSnapshotsParams,
     get_job_definitions,
 )
-from openbb_techtrade.snapshots import ScanSnapshot, SqliteScanSnapshotStore
+from openbb_techtrade.snapshot.datasets import TECHTRADE_DATASETS
+from openbb_techtrade.snapshot.refresh import ComputedSnapshot
+from openbb_techtrade.snapshot.store import SqliteSnapshotStore
 
 
 def _by_name() -> dict[str, JobDefinition]:
-    return {d.name: d for d in get_job_definitions()}
+    return {definition.name: definition for definition in get_job_definitions()}
 
 
 def _context(job_name: str) -> JobContext:
     return JobContext(run_id="r1", job_name=job_name)
 
 
-def test_get_job_definitions_returns_both_jobs():
-    """Both TechTrade jobs are defined with the expected names."""
-    names = {d.name for d in get_job_definitions()}
-    assert names == {"techtrade.daily_scan", "techtrade.prune_snapshots"}
-
-
-def test_definitions_register_without_duplicates():
-    """The definitions load cleanly into a JobRegistry (allowlist discovery)."""
+def test_get_job_definitions_returns_post_close_and_prune_jobs() -> None:
+    assert set(_by_name()) == {
+        "techtrade.daily_scan",
+        "techtrade.eod_snapshots",
+        "techtrade.prune_snapshots",
+    }
     registry = JobRegistry.discover([get_job_definitions])
-    assert "techtrade.daily_scan" in registry
-    assert "techtrade.prune_snapshots" in registry
+    assert "techtrade.eod_snapshots" in registry
 
 
-def test_daily_scan_schedule_is_weekday_0300_local():
-    """Daily scan runs weekdays at 03:00 in the resolved local zone."""
-    definition = _by_name()["techtrade.daily_scan"]
+def test_eod_schedule_is_weekday_post_close_new_york(monkeypatch) -> None:
+    monkeypatch.delenv("OPENBB_JOBS_TIMEZONE", raising=False)
+    definition = _by_name()["techtrade.eod_snapshots"]
     schedule = definition.schedule
     assert isinstance(schedule, DailySchedule)
-    assert (schedule.hour, schedule.minute) == (3, 0)
+    assert (schedule.hour, schedule.minute) == (18, 5)
+    assert schedule.timezone == "America/New_York"
     assert schedule.weekdays == (0, 1, 2, 3, 4)
-    assert definition.default_params == {"top_n": 3, "preset": "trend_follow"}
+    assert definition.default_params == {
+        "datasets": jobs_module._default_eod_datasets()
+    }
     assert definition.overlap_policy == "forbid"
 
 
-def test_prune_schedule_is_daily_0400_local():
-    """Prune runs every day at 04:00 in the resolved local zone."""
-    definition = _by_name()["techtrade.prune_snapshots"]
-    schedule = definition.schedule
-    assert isinstance(schedule, DailySchedule)
-    assert (schedule.hour, schedule.minute) == (4, 0)
-    assert schedule.weekdays == (0, 1, 2, 3, 4, 5, 6)
-    assert definition.default_params == {"keep": 10}
+def test_default_fanout_excludes_unavailable_optional_workloads(monkeypatch) -> None:
+    monkeypatch.setattr(jobs_module, "find_spec", lambda _name: None)
+
+    defaults = jobs_module._default_eod_datasets()
+
+    assert "techtrade.validate" not in defaults
+    assert "techtrade.tune" not in defaults
+    assert "techtrade.audit" not in defaults
 
 
-def test_timezone_env_override(monkeypatch):
-    """OPENBB_JOBS_TIMEZONE overrides the schedule timezone."""
+def test_timezone_env_override(monkeypatch) -> None:
     monkeypatch.setenv("OPENBB_JOBS_TIMEZONE", "Europe/London")
+    assert _by_name()["techtrade.eod_snapshots"].schedule.timezone == "Europe/London"
+
+
+def test_params_reject_unknown_or_duplicate_datasets() -> None:
+    with pytest.raises(ValueError, match="unknown snapshot dataset"):
+        EodSnapshotsParams(datasets=["techtrade.unknown"])
+    with pytest.raises(ValueError, match="duplicate snapshot dataset"):
+        EodSnapshotsParams(datasets=["techtrade.scan", "techtrade.scan"])
+    with pytest.raises(ValueError, match="Extra inputs"):
+        PruneSnapshotsParams(unknown_keep=10)
+
+
+def test_prune_accepts_legacy_keep_alias() -> None:
+    assert PruneSnapshotsParams(keep=3).keep_sessions == 3
+
+
+def test_legacy_daily_scan_definition_accepts_durable_schedule_params() -> None:
     definition = _by_name()["techtrade.daily_scan"]
-    assert definition.schedule.timezone == "Europe/London"
+    assert definition.default_params["top_n"] == 10
+    params = DailyScanParams(
+        segments=["Information Technology"],
+        top_n=5,
+        preset="trend_follow",
+        as_of="2026-09-11",
+    )
+    assert definition.params_model is DailyScanParams
+    assert params.top_n == 5
 
 
-def test_default_params_validate_against_models():
-    """Default params validate against each job's Pydantic model."""
-    definitions = _by_name()
-    DailyScanParams.model_validate(definitions["techtrade.daily_scan"].default_params)
-    PruneSnapshotsParams.model_validate(
-        definitions["techtrade.prune_snapshots"].default_params
+def test_legacy_daily_scan_forwards_all_supported_parameters(monkeypatch) -> None:
+    captured: dict = {}
+
+    def adapters(**kwargs):
+        captured["adapter_kwargs"] = kwargs
+        return {"techtrade.movers": object(), "techtrade.scan": object()}
+
+    def execute(datasets, selected_adapters, *, as_of_session=None):
+        captured["datasets"] = datasets
+        captured["adapters"] = selected_adapters
+        captured["as_of_session"] = as_of_session
+        return JobResult(summary={"datasets": {}}, warnings=[])
+
+    monkeypatch.setattr(jobs_module, "get_snapshot_adapters", adapters)
+    monkeypatch.setattr(jobs_module, "_execute_datasets", execute)
+    definition = _by_name()["techtrade.daily_scan"]
+    result = definition.handler(
+        _context(definition.name),
+        DailyScanParams(
+            segments=["Energy"],
+            top_n=5,
+            preset="breakout",
+            as_of="2026-09-11",
+        ),
     )
 
-
-@pytest.mark.parametrize(
-    ("model", "params"),
-    [
-        (DailyScanParams, {"top_n": 3, "typo": True}),
-        (PruneSnapshotsParams, {"unknown_keep": 10}),
-    ],
-)
-def test_job_params_reject_unknown_fields(model, params):
-    """Operator parameter typos fail instead of silently using defaults."""
-    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
-        model.model_validate(params)
+    assert isinstance(result, JobResult)
+    assert captured["adapter_kwargs"] == {
+        "segments": ["Energy"],
+        "movers_top_n": 5,
+        "scan_top_n": 5,
+        "preset": "breakout",
+    }
+    assert captured["as_of_session"] == date(2026, 9, 11)
 
 
-def test_daily_scan_handler_returns_job_result(monkeypatch, tmp_path):
-    """The scan handler wraps run_scan and returns a JobResult with a summary."""
-    captured = {}
-
-    def _fake_run_scan(**kwargs):
-        from datetime import date, datetime, timezone
-
-        from openbb_techtrade.engine.scan_runner import ScanRunResult
-
-        captured.update(kwargs)
-        return ScanRunResult(
-            as_of_session=date(2024, 1, 12),
-            computed_at=datetime(2024, 1, 12, 8, 0, tzinfo=timezone.utc),
-            requested_segments=["Energy"],
-            processed_segments=["Energy"],
-            segment_counts={"Energy": 2},
-            snapshot_ids={"Energy": "abc"},
-            total_rows=2,
-            warnings=["scan: skipped fills for 'AAA': boom"],
-        )
-
-    monkeypatch.setattr(jobs_module, "run_scan", _fake_run_scan)
+def test_legacy_daily_scan_rejects_future_as_of() -> None:
     definition = _by_name()["techtrade.daily_scan"]
-    params = DailyScanParams(top_n=5, preset="trend_follow")
-    result = definition.handler(_context(definition.name), params)
 
-    assert isinstance(result, JobResult)
-    assert result.summary["total_rows"] == 2
-    assert result.warnings == ["scan: skipped fills for 'AAA': boom"]
-    assert result.has_warnings
-    # Params were threaded through to run_scan.
-    assert captured["top_n"] == 5
-    assert captured["preset"] == "trend_follow"
-
-
-def test_prune_handler_deletes_and_reports(monkeypatch, tmp_path):
-    """The prune handler prunes the default store and reports the delete count."""
-    from datetime import date
-
-    db = tmp_path / "scan.db"
-    monkeypatch.setenv("OPENBB_TECHTRADE_SCAN_DB", str(db))
-
-    seed = SqliteScanSnapshotStore(db)
-    for i in range(5):
-        seed.write_snapshot(
-            ScanSnapshot(
-                kind="daily_scan",
-                segment="Energy",
-                as_of_session=date(2024, 1, 12),
-                rows=[{"symbol": f"E{i}"}],
-            )
+    with pytest.raises(ValueError, match="last completed XNYS session"):
+        definition.handler(
+            _context(definition.name),
+            DailyScanParams(as_of="2099-01-01"),
         )
-    seed.close()
 
-    definition = _by_name()["techtrade.prune_snapshots"]
-    result = definition.handler(_context(definition.name), PruneSnapshotsParams(keep=2))
+
+class _Adapter:
+    name = "techtrade.movers"
+
+    def entity_keys(self) -> list[str]:
+        return ["segment=Information Technology"]
+
+    def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        return ComputedSnapshot(
+            payload={
+                "rows": [{"symbol": "NVDA", "pct_change": 1.5}],
+                "segment": "Information Technology",
+                "as_of_session": as_of_session.isoformat(),
+                "exchange_calendar": "XNYS",
+            },
+            inputs={"entity_key": entity_key, "session": str(as_of_session)},
+            engine_version="test",
+            payload_schema_version="1",
+            row_count=1,
+        )
+
+
+class _FailingAdapter(_Adapter):
+    def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        raise RuntimeError("private provider detail")
+
+
+def test_eod_handler_runs_generic_orchestrator(monkeypatch, tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
+    monkeypatch.setattr(
+        jobs_module, "get_snapshot_adapters", lambda: {"techtrade.movers": _Adapter()}
+    )
+    definition = _by_name()["techtrade.eod_snapshots"]
+
+    result = definition.handler(
+        _context(definition.name),
+        EodSnapshotsParams(datasets=["techtrade.movers"]),
+    )
 
     assert isinstance(result, JobResult)
-    assert result.summary == {"deleted": 3, "keep": 2}
-    assert not result.has_warnings
+    assert result.summary["datasets"]["techtrade.movers"] == {
+        "state": "succeeded",
+        "n_ok": 1,
+        "n_failed": 0,
+    }
+    reopened = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    assert (
+        reopened.get_live("techtrade.movers", "segment=information technology").payload[
+            "rows"
+        ][0]["symbol"]
+        == "NVDA"
+    )
+    reopened.close()
 
 
-def test_pyproject_advertises_job_entry_point():
-    """The techtrade pyproject registers the openbb_job_extension entry point."""
+def test_prune_handler_uses_generic_store(monkeypatch, tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
+    definition = _by_name()["techtrade.prune_snapshots"]
+
+    result = definition.handler(
+        _context(definition.name), PruneSnapshotsParams(keep_sessions=2)
+    )
+
+    assert result.summary == {"deleted": 0, "keep_sessions": 2}
+
+
+def test_prune_handler_scopes_retention_to_techtrade_datasets(monkeypatch) -> None:
+    class _Store:
+        def __init__(self):
+            self.datasets: list[str] = []
+
+        def prune(self, _policy, *, dataset):
+            self.datasets.append(dataset)
+            return 1
+
+        def close(self):
+            return None
+
+    store = _Store()
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
+    definition = _by_name()["techtrade.prune_snapshots"]
+
+    result = definition.handler(
+        _context(definition.name), PruneSnapshotsParams(keep_sessions=2)
+    )
+
+    assert store.datasets == list(TECHTRADE_DATASETS)
+    assert result.summary["deleted"] == len(TECHTRADE_DATASETS)
+
+
+def test_eod_handler_raises_when_every_dataset_fails(
+    monkeypatch, tmp_path: Path
+) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
+    monkeypatch.setattr(
+        jobs_module,
+        "get_snapshot_adapters",
+        lambda: {"techtrade.movers": _FailingAdapter()},
+    )
+    definition = _by_name()["techtrade.eod_snapshots"]
+
+    with pytest.raises(RuntimeError, match="all selected snapshot datasets failed"):
+        definition.handler(
+            _context(definition.name),
+            EodSnapshotsParams(datasets=["techtrade.movers"]),
+        )
+
+
+def test_jobs_module_has_no_legacy_snapshot_store_dependency() -> None:
+    source = inspect.getsource(jobs_module)
+    assert "SqliteScanSnapshotStore" not in source
+    assert "run_scan" not in source
+
+
+def test_pyproject_advertises_job_entry_point() -> None:
     pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
     text = pyproject.read_text(encoding="utf-8")
     assert "openbb_job_extension" in text

@@ -10,6 +10,7 @@ packages = [{ include = "openbb_techtrade" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.6.10"
+openbb-fmp-cached = { path = "../../providers/fmp_cached", develop = true }
 exchange-calendars = "^4.13.2"
 pandas = "*"
 numpy = "*"
@@ -36,6 +37,17 @@ techtrade = "openbb_techtrade.techtrade_router:router"
 
 [tool.poetry.plugins."openbb_job_extension"]
 techtrade = "openbb_techtrade.jobs:get_job_definitions"
+
+[tool.poetry.plugins."openbb_snapshot_dataset"]
+techtrade_movers = "openbb_techtrade.snapshot.adapters:MoversSnapshotAdapter"
+techtrade_scan = "openbb_techtrade.snapshot.adapters:ScanSnapshotAdapter"
+techtrade_signals = "openbb_techtrade.snapshot.adapters:SignalsSnapshotAdapter"
+techtrade_plan = "openbb_techtrade.snapshot.adapters:PlanSnapshotAdapter"
+techtrade_orders = "openbb_techtrade.snapshot.adapters:OrdersSnapshotAdapter"
+techtrade_simulate = "openbb_techtrade.snapshot.adapters:SimulateSnapshotAdapter"
+techtrade_validate = "openbb_techtrade.snapshot.adapters:ValidateSnapshotAdapter"
+techtrade_tune = "openbb_techtrade.snapshot.adapters:TuneSnapshotAdapter"
+techtrade_audit = "openbb_techtrade.snapshot.adapters:AuditSnapshotAdapter"
 
 [tool.poetry.plugins."openbb_backtest_strategies"]
 # Advertise the techtrade confluence SignalStrategy to openbb-backtest's plugin discovery.

@@ -83,3 +83,24 @@ def test_eod_display_contract_always_has_disclaimer_and_optional_earnings() -> N
     assert plain.earnings_annotation is None
     assert earnings.disclaimer == EOD_DISCLAIMER
     assert earnings.earnings_annotation == EARNINGS_ANNOTATION
+
+
+def test_eod_display_names_the_stored_exchange_calendar() -> None:
+    display = build_eod_display(
+        date(2026, 9, 11),
+        datetime(2026, 9, 11, 18, tzinfo=timezone.utc),
+        calendar_name="XLON",
+    )
+
+    assert display.calendar_name == "XLON"
+    assert display.label == "As of 2026-09-11 XLON close"
+    assert display.color is StalenessColor.GREEN
+
+
+def test_unknown_exchange_calendar_is_rejected_loudly() -> None:
+    with pytest.raises(ValueError, match="unknown exchange calendar"):
+        build_eod_display(
+            date(2026, 9, 11),
+            datetime(2026, 9, 11, 22, tzinfo=timezone.utc),
+            calendar_name="NOT-A-CALENDAR",
+        )

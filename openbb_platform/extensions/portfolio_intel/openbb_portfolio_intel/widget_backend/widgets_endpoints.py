@@ -24,17 +24,26 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
-from functools import lru_cache
 
 from fastapi import HTTPException, Query, Request
 from openbb_core.api.dependency.jobs import get_job_service
-from openbb_techtrade.engine.scan_runner import DEFAULT_SEGMENTS
-from openbb_techtrade.snapshots.models import DEFAULT_SCAN_KIND, ScanSnapshot
-from openbb_techtrade.snapshots.sqlite import SqliteScanSnapshotStore
-from openbb_techtrade.snapshots.store import ScanSnapshotStore
+from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
+from openbb_techtrade.snapshot.datasets import (
+    SURVIVORSHIP_UNCORRECTED,
+    techtrade_entity_key,
+)
+from openbb_techtrade.snapshot.registry import DEFAULT_DATASET_REGISTRY
+from openbb_techtrade.snapshot.semantics import build_eod_display
+from openbb_techtrade.snapshot.store import (
+    SnapshotRow,
+    SnapshotStore,
+    SqliteSnapshotStore,
+    get_default_snapshot_store,
+)
 
 from openbb_portfolio_intel.basket_resolver import (
     BasketNotFoundError,
@@ -2297,59 +2306,207 @@ def equity_peer_multiples(
 
 
 # ---------------------------------------------------------------------------
-# Techtrade Morning Scan (#1692 T13.1, #1940, #1941)
+# Techtrade EOD snapshot consumers (#1692, #1696-#1699)
 # ---------------------------------------------------------------------------
 #
-# Reads persisted scan snapshots from ``ScanSnapshotStore.read_latest()`` —
-# no computation in the request path. Metadata fields ``computed_at``,
-# ``as_of_session``, and ``is_stale`` are exposed on every response.
-# When no snapshot exists the response is loud-empty (non-empty body
-# explaining why there are no results).
+# Reads only canonical generic LIVE pointers. No compute router is imported or
+# called from this request path.
 #
 # ``POST /tt/scan/trigger`` enqueues the registered TechTrade scan job
 # via ``JobService.enqueue`` and returns 202; it never calls
 # ``scan_segments()`` or any other computation directly.
 
-#: Staleness threshold: snapshots older than 26 hours are flagged.
-_STALE_HOURS = 26
+
+_SNAPSHOT_STORE_CACHE: tuple[SnapshotStore, float] | None = None
+_SNAPSHOT_STORE_LOCK = threading.Lock()
+_SQLITE_FALLBACK_RETRY_SECONDS = 30.0
 
 
-@lru_cache(maxsize=1)
-def _get_scan_store() -> ScanSnapshotStore:
-    """Return (or create) the module-level snapshot store singleton."""
-    return SqliteScanSnapshotStore()
+def _get_snapshot_store() -> SnapshotStore:
+    """Cache the canonical store, but retry a fallback backend periodically."""
+    global _SNAPSHOT_STORE_CACHE  # noqa: PLW0603
+    now = time.monotonic()
+    with _SNAPSHOT_STORE_LOCK:
+        cached = _SNAPSHOT_STORE_CACHE
+        if cached is not None and now < cached[1]:
+            return cached[0]
+        store = get_default_snapshot_store()
+        expires = (
+            now + _SQLITE_FALLBACK_RETRY_SECONDS
+            if isinstance(store, SqliteSnapshotStore)
+            else float("inf")
+        )
+        _SNAPSHOT_STORE_CACHE = (store, expires)
+        return store
 
 
-def _snapshot_meta(snapshots: list[ScanSnapshot]) -> dict:
-    """Build conservative metadata across the snapshots backing a response."""
+def _read_snapshot_rows(
+    dataset: str,
+    *,
+    segment: str = "",
+    symbol: str = "",
+) -> tuple[list[dict], list[SnapshotRow]]:
+    """Read a bounded set of generic LIVE rows and decode their payloads."""
+    store = _get_snapshot_store()
+    segments = (segment,) if segment else tuple(GICS_SECTOR_ETFS)
+    rows: list[dict] = []
+    snapshots: list[SnapshotRow] = []
+    available_snapshots: list[SnapshotRow] = []
+    definition = DEFAULT_DATASET_REGISTRY.require(dataset)
+    normalized_symbol = symbol.strip().upper()
+    keys = [techtrade_entity_key(candidate) for candidate in segments]
+    if hasattr(store, "get_live_many"):
+        live_rows = store.get_live_many(dataset, keys)
+    else:  # compatibility for lightweight test doubles
+        live_rows = {
+            key: snapshot
+            for key in keys
+            if (snapshot := store.get_live(dataset, key)) is not None
+        }
+    for key in keys:
+        snapshot = live_rows.get(key)
+        if snapshot is None:
+            continue
+        payload = definition.read(snapshot.payload, snapshot.payload_schema_version)
+        payload_rows = payload.get("rows")
+        if not isinstance(payload_rows, list):
+            continue
+        matched = False
+        excluded = {
+            str(item).strip().upper() for item in payload.get("excluded_symbols", [])
+        }
+        if normalized_symbol and normalized_symbol in excluded:
+            reasons = payload.get("exclusion_reasons") or {}
+            reason = (
+                str(reasons.get(normalized_symbol) or "inactive")
+                if isinstance(reasons, dict)
+                else "inactive"
+            )
+            rows.append(
+                {
+                    "symbol": normalized_symbol,
+                    "segment": payload.get("segment"),
+                    "excluded": True,
+                    "note": f"Symbol excluded from EOD snapshot ({reason}).",
+                }
+            )
+            matched = True
+        for raw in payload_rows:
+            if not isinstance(raw, dict):
+                continue
+            row_symbol = str(raw.get("symbol") or "").strip().upper()
+            if normalized_symbol and row_symbol != normalized_symbol:
+                continue
+            materialized = dict(raw)
+            materialized.setdefault("segment", payload.get("segment"))
+            rows.append(materialized)
+            matched = True
+        if not normalized_symbol or matched:
+            snapshots.append(snapshot)
+        else:
+            available_snapshots.append(snapshot)
+    if normalized_symbol and not snapshots and available_snapshots:
+        snapshots.append(
+            max(
+                available_snapshots,
+                key=lambda snapshot: (
+                    snapshot.as_of_session,
+                    snapshot.created_at,
+                ),
+            )
+        )
+    return rows, snapshots
+
+
+def _snapshot_meta(
+    snapshots: list[SnapshotRow],
+    *,
+    symbol: str = "",
+    expected_segments: tuple[str, ...] = (),
+) -> dict:
+    """Build exchange-aware, conservative metadata for a snapshot response."""
     if not snapshots:
+        display = build_eod_display(None, datetime.now(timezone.utc))
         return {
             "computed_at": None,
             "as_of_session": None,
             "is_stale": True,
+            "freshness": display.color.value,
+            "badge": display.label,
+            "disclaimer": display.disclaimer,
+            "exchange_calendar": "XNYS",
+            "earnings_annotation": None,
+            "survivorship": None,
+            "is_partial": False,
+            "missing_segments": list(expected_segments),
         }
     now = datetime.now(timezone.utc)
-    computed_at = min(snapshot.computed_at for snapshot in snapshots)
+    computed_at = min(snapshot.created_at for snapshot in snapshots)
     as_of_session = min(snapshot.as_of_session for snapshot in snapshots)
-    age = now - computed_at
+    calendars = {
+        str(snapshot.payload.get("exchange_calendar") or "XNYS")
+        for snapshot in snapshots
+    }
+    if len(calendars) != 1:
+        raise HTTPException(
+            status_code=503, detail="snapshot calendars are inconsistent"
+        )
+    calendar = calendars.pop()
+    requested_symbol = symbol.strip().upper()
+    earnings = any(
+        (
+            requested_symbol
+            in {
+                str(item).strip().upper()
+                for item in snapshot.payload.get("earnings_symbols", [])
+            }
+            if requested_symbol
+            else bool(snapshot.payload.get("earnings_symbols"))
+        )
+        for snapshot in snapshots
+    )
+    display = build_eod_display(
+        as_of_session,
+        now,
+        reports_before_next_open=earnings,
+        calendar_name=calendar,
+    )
+    survivorship_values = {
+        str(snapshot.payload.get("survivorship"))
+        for snapshot in snapshots
+        if snapshot.payload.get("survivorship")
+    }
+    present_segments = {
+        str(snapshot.payload.get("segment"))
+        for snapshot in snapshots
+        if snapshot.payload.get("segment")
+    }
+    missing_segments = [
+        segment for segment in expected_segments if segment not in present_segments
+    ]
+    is_partial = bool(missing_segments)
     return {
         "computed_at": computed_at.isoformat(),
         "as_of_session": as_of_session.isoformat(),
-        "is_stale": age.total_seconds() > _STALE_HOURS * 3600,
+        "is_stale": display.color.value != "green" or is_partial,
+        "freshness": "red" if is_partial else display.color.value,
+        "badge": (
+            f"Incomplete EOD snapshot coverage "
+            f"({len(present_segments)}/{len(expected_segments)}) · {display.label}"
+            if is_partial
+            else display.label
+        ),
+        "disclaimer": display.disclaimer,
+        "exchange_calendar": calendar,
+        "earnings_annotation": display.earnings_annotation,
+        "survivorship": (
+            SURVIVORSHIP_UNCORRECTED
+            if SURVIVORSHIP_UNCORRECTED in survivorship_values
+            else next(iter(survivorship_values), None)
+        ),
+        "is_partial": is_partial,
+        "missing_segments": missing_segments,
     }
-
-
-def _read_daily_snapshots(
-    store: ScanSnapshotStore, segment: str = ""
-) -> list[ScanSnapshot]:
-    """Read latest persisted daily snapshots without invoking scan computation."""
-    segments = (segment,) if segment else DEFAULT_SEGMENTS
-    return [
-        snapshot
-        for candidate in segments
-        if (snapshot := store.read_latest(kind=DEFAULT_SCAN_KIND, segment=candidate))
-        is not None
-    ]
 
 
 _SEGMENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 &_-]{0,63}$")
@@ -2362,17 +2519,96 @@ def _validate_segment(segment: str) -> str:
             status_code=400,
             detail=f"segment must match [A-Za-z][A-Za-z0-9 &_-]{{0,63}}; got {segment!r}",
         )
-    return segment
+    normalized = " ".join(segment.split())
+    if normalized not in GICS_SECTOR_ETFS:
+        raise HTTPException(status_code=400, detail="unsupported TechTrade segment")
+    return normalized
 
 
 def _loud_empty_rows(context: str) -> list[dict]:
     """Return a single-row loud-empty marker when no snapshot is available."""
-    return [{"note": f"No scan snapshot available ({context}). Run a scan first."}]
+    return [
+        {
+            "note": (
+                f"No EOD snapshot available ({context}) — "
+                "run the post-close snapshot job."
+            )
+        }
+    ]
 
 
 def _fresh_empty_rows(context: str) -> list[dict]:
     """Return a marker for a completed scan with no actionable rows."""
-    return [{"note": f"Latest scan completed with no actionable plans ({context})."}]
+    return [{"note": f"Latest EOD snapshot completed with no result ({context})."}]
+
+
+def _segments_for_symbol(symbol: str) -> tuple[list[str], list[SnapshotRow]]:
+    """Resolve every materialized or as-of-membership segment for a symbol."""
+    normalized = symbol.strip().upper()
+    segments: set[str] = set()
+    snapshots: list[SnapshotRow] = []
+    for dataset in (
+        "techtrade.scan",
+        "techtrade.movers",
+        "techtrade.signals",
+        "techtrade.plan",
+    ):
+        rows, source_snapshots = _read_snapshot_rows(dataset, symbol=normalized)
+        snapshots.extend(source_snapshots)
+        segments.update(
+            str(row["segment"])
+            for row in rows
+            if isinstance(row.get("segment"), str) and row["segment"]
+        )
+    store = _get_snapshot_store()
+    keys = [techtrade_entity_key(candidate) for candidate in GICS_SECTOR_ETFS]
+    if hasattr(store, "get_live_many"):
+        tuning_snapshots = store.get_live_many("techtrade.tune", keys)
+    else:
+        tuning_snapshots = {
+            key: snapshot
+            for key in keys
+            if (snapshot := store.get_live("techtrade.tune", key)) is not None
+        }
+    for candidate, key in zip(GICS_SECTOR_ETFS, keys):
+        snapshot = tuning_snapshots.get(key)
+        if snapshot is None:
+            continue
+        membership = {
+            str(item).strip().upper()
+            for item in snapshot.payload.get("universe_membership", [])
+        }
+        if normalized in membership:
+            segments.add(candidate)
+            snapshots.append(snapshot)
+    return sorted(segments), snapshots
+
+
+def _decorate_rows(rows: list[dict], meta: dict) -> list[dict]:
+    """Attach provenance fields to table/chart rows without changing their type."""
+    display = {
+        "as_of_session": meta["as_of_session"],
+        "freshness": meta["freshness"],
+        "snapshot_badge": meta["badge"],
+        "disclaimer": meta["disclaimer"],
+        "exchange_calendar": meta["exchange_calendar"],
+        "earnings_annotation": meta.get("earnings_annotation"),
+        "survivorship": meta.get("survivorship"),
+    }
+    return [{**row, **display} for row in rows]
+
+
+def _snapshot_markdown_header(meta: dict) -> str:
+    annotation = (
+        f" · **{meta['earnings_annotation']}**"
+        if meta.get("earnings_annotation")
+        else ""
+    )
+    survivorship = f"\n\n> {meta['survivorship']}" if meta.get("survivorship") else ""
+    return (
+        f"**{meta['badge']}** · `{meta['exchange_calendar']}`{annotation}\n\n"
+        f"> {meta['disclaimer']}{survivorship}"
+    )
 
 
 @app.get("/tt/scan/segment-movers")
@@ -2381,26 +2617,26 @@ def tt_scan_segment_movers(
 ) -> dict:
     """Segment Movers — top gainers/losers by segment (#1692, #1941).
 
-    Summarizes the strongest persisted daily-scan signal in each segment.
+    Summarizes the strongest persisted movers row in each segment.
     """
     _require_auth(request)
-    store = _get_scan_store()
-    snapshots = _read_daily_snapshots(store)
-    meta = _snapshot_meta(snapshots)
+    source_rows, snapshots = _read_snapshot_rows("techtrade.movers")
+    meta = _snapshot_meta(snapshots, expected_segments=tuple(GICS_SECTOR_ETFS))
     rows = []
-    for snapshot in snapshots:
-        if not snapshot.rows:
-            continue
+    by_segment: dict[str, list[dict]] = {}
+    for row in source_rows:
+        by_segment.setdefault(str(row.get("segment") or ""), []).append(row)
+    for segment_name, segment_rows in by_segment.items():
         strongest = max(
-            snapshot.rows, key=lambda row: abs(float(row.get("score") or 0))
+            segment_rows, key=lambda row: abs(float(row.get("pct_change") or 0))
         )
-        score = float(strongest.get("score") or 0)
-        signed_score = score
+        change = float(strongest.get("pct_change") or 0)
         rows.append(
             {
-                "segment": snapshot.segment,
-                "change_pct": round(signed_score * 100, 2),
-                "bucket": "loser" if signed_score < 0 else "gainer",
+                "segment": segment_name,
+                "symbol": strongest.get("symbol"),
+                "change_pct": round(change, 2),
+                "bucket": "loser" if change < 0 else "gainer",
             }
         )
     if not rows:
@@ -2409,6 +2645,7 @@ def tt_scan_segment_movers(
             if snapshots
             else _loud_empty_rows("segment movers")
         )
+    rows = _decorate_rows(rows, meta)
     return {"rows": rows, **meta}
 
 
@@ -2421,14 +2658,16 @@ def tt_scan_table(request: Request, segment: str = "") -> dict:
     """
     _require_auth(request)
     if segment:
-        _validate_segment(segment)
-    store = _get_scan_store()
-    snapshots = _read_daily_snapshots(store, segment)
-    meta = _snapshot_meta(snapshots)
-    rows = [row for snapshot in snapshots for row in snapshot.rows]
+        segment = _validate_segment(segment)
+    rows, snapshots = _read_snapshot_rows("techtrade.scan", segment=segment)
+    meta = _snapshot_meta(
+        snapshots,
+        expected_segments=(segment,) if segment else tuple(GICS_SECTOR_ETFS),
+    )
     if not rows:
         context = f"scan table{f' segment={segment}' if segment else ''}"
         rows = _fresh_empty_rows(context) if snapshots else _loud_empty_rows(context)
+    rows = _decorate_rows(rows, meta)
     return {"rows": rows, **meta}
 
 
@@ -2436,22 +2675,30 @@ def tt_scan_table(request: Request, segment: str = "") -> dict:
 def tt_scan_export(request: Request) -> str:
     """Export button markdown (#1692) — CSV export link for the scan."""
     _require_auth(request)
-    store = _get_scan_store()
-    snapshots = _read_daily_snapshots(store)
-    rows = [row for snapshot in snapshots for row in snapshot.rows]
+    rows, snapshots = _read_snapshot_rows("techtrade.plan")
+    meta = _snapshot_meta(snapshots, expected_segments=tuple(GICS_SECTOR_ETFS))
     if rows:
-        meta = _snapshot_meta(snapshots)
+        symbols = ", ".join(
+            sorted({str(row["symbol"]) for row in rows if row.get("symbol")})
+        )
         return (
             "### Export Scan\n\n"
+            f"{_snapshot_markdown_header(meta)}\n\n"
             f"- **Computed:** {meta['computed_at']}\n"
-            f"- **Session:** {meta['as_of_session']}\n"
             f"- **Rows:** {len(rows)}\n\n"
+            f"- **Symbols:** {symbols or '—'}\n\n"
             "- [Download CSV](#) — snapshot of the current scan table\n"
             "- [Copy JSON](#) — machine-readable copy\n"
         )
+    empty_message = (
+        "Latest EOD snapshot completed with no materialized plans."
+        if snapshots
+        else "No EOD snapshot available — run the post-close snapshot job."
+    )
     return (
-        "### Export Scan\n\n"
-        "> No scan snapshot available. Trigger a scan first, then refresh.\n"
+        "### Export Plans\n\n"
+        f"{_snapshot_markdown_header(meta)}\n\n"
+        f"> {empty_message}\n"
     )
 
 
@@ -2473,12 +2720,21 @@ def tt_scan_trigger(request: Request) -> dict:
         ) from None
 
     try:
-        run = service.enqueue("techtrade.daily_scan", {})
+        run = service.enqueue(
+            "techtrade.eod_snapshots",
+            {
+                "datasets": [
+                    "techtrade.movers",
+                    "techtrade.scan",
+                    "techtrade.plan",
+                ]
+            },
+        )
     except KeyError:
         raise HTTPException(
             status_code=503,
             detail=(
-                "techtrade.daily_scan job not registered. "
+                "techtrade.eod_snapshots job not registered. "
                 "Ensure the techtrade job extension is installed."
             ),
         ) from None
@@ -2856,7 +3112,7 @@ def equity_basket_analyst_consensus(
 
 
 # ---------------------------------------------------------------------------
-# Techtrade Position Workbench (#1696 T13.2) — stub-shaped
+# Techtrade Position Workbench (#1696 T13.2)
 # ---------------------------------------------------------------------------
 
 
@@ -2865,14 +3121,30 @@ def tt_position_signal_card(request: Request, symbol: str = "AAPL") -> str:
     """Return Signal Card markdown (#1696) — active signal for a symbol."""
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    # TODO(gh-1696): wire to openbb_techtrade.engine.signal_router.
+    rows, snapshots = _read_snapshot_rows("techtrade.signals", symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    if not rows:
+        message = (
+            _fresh_empty_rows(f"signal symbol={sym}")[0]["note"]
+            if snapshots
+            else "No EOD snapshot available — run the post-close snapshot job."
+        )
+        return (
+            f"## {sym} — Active Signal\n\n{_snapshot_markdown_header(meta)}\n\n"
+            f"> {message}"
+        )
+    signal = rows[0]
+    if signal.get("excluded"):
+        return (
+            f"## {sym} — Active Signal\n\n{_snapshot_markdown_header(meta)}\n\n"
+            f"> {signal['note']}"
+        )
     return (
         f"## {sym} — Active Signal\n\n"
-        "- **Type:** BREAKOUT\n"
-        "- **Direction:** LONG\n"
-        "- **Confidence:** 0.87\n"
-        "- **Trigger:** close above 20d high on 1.4x volume\n\n"
-        "> Stub — real wiring calls openbb_techtrade.engine.signal_router."
+        f"{_snapshot_markdown_header(meta)}\n\n"
+        f"- **Direction:** {str(signal.get('direction', 'unknown')).upper()}\n"
+        f"- **Score:** {signal.get('score', '—')}\n"
+        f"- **Rank:** {signal.get('rank_in_segment', '—')}"
     )
 
 
@@ -2881,65 +3153,70 @@ def tt_position_plan_card(request: Request, symbol: str = "AAPL") -> str:
     """Return Plan Card markdown (#1696) — entry/stop/target for a trade."""
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    # TODO(gh-1696): wire to openbb_techtrade.engine.plan_router.
+    rows, snapshots = _read_snapshot_rows("techtrade.plan", symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    if not rows:
+        message = (
+            _fresh_empty_rows(f"plan symbol={sym}")[0]["note"]
+            if snapshots
+            else "No EOD snapshot available — run the post-close snapshot job."
+        )
+        return (
+            f"## {sym} — Trading Plan\n\n{_snapshot_markdown_header(meta)}\n\n"
+            f"> {message}"
+        )
+    plan = rows[0]
+    if plan.get("excluded"):
+        return (
+            f"## {sym} — Trading Plan\n\n{_snapshot_markdown_header(meta)}\n\n"
+            f"> {plan['note']}"
+        )
+    recommendation = plan.get("recommendation")
+    values = recommendation if isinstance(recommendation, dict) else plan
     return (
         f"## {sym} — Trading Plan\n\n"
-        "- **Entry:** $173.50 (limit)\n"
-        "- **Stop:** $168.20 (-3.1%)\n"
-        "- **Target:** $189.00 (+8.9%)\n"
-        "- **R:R:** 2.9x\n"
-        "- **Sizing:** 2.0% of book risk\n\n"
-        "> Stub — real wiring calls openbb_techtrade.engine.plan_router."
+        f"{_snapshot_markdown_header(meta)}\n\n"
+        f"- **Entry:** {values.get('entry_price', '—')}\n"
+        f"- **Stop:** {values.get('stop_price', '—')}\n"
+        f"- **Target:** {values.get('target_price', '—')}\n"
+        f"- **R:R:** {values.get('risk_reward', '—')}"
     )
 
 
 @app.get("/tt/position/order-legs")
 def tt_position_order_legs(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float | int]]:
+) -> list[dict[str, object]]:
     """Return Order Legs rows (#1696) — proposed order legs for the plan."""
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    # TODO(gh-1696): wire to openbb_techtrade.execution.order_builder.
-    return [
-        {
-            "leg_type": "ENTRY",
-            "side": "BUY",
-            "symbol": sym,
-            "quantity": 100,
-            "price": 173.50,
-            "order_type": "LIMIT",
-        },
-        {
-            "leg_type": "STOP",
-            "side": "SELL",
-            "symbol": sym,
-            "quantity": 100,
-            "price": 168.20,
-            "order_type": "STOP_LIMIT",
-        },
-        {
-            "leg_type": "TARGET",
-            "side": "SELL",
-            "symbol": sym,
-            "quantity": 100,
-            "price": 189.00,
-            "order_type": "LIMIT",
-        },
-    ]
+    rows, snapshots = _read_snapshot_rows("techtrade.orders", symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    if not rows:
+        rows = (
+            _fresh_empty_rows(f"order legs symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"order legs symbol={sym}")
+        )
+    return _decorate_rows(rows, meta)
 
 
 @app.get("/tt/position/simulate")
 def tt_position_simulate(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float | int]]:
+) -> list[dict[str, object]]:
     """Return Simulate Result rows (#1696) — simulated P&L trajectory (chart raw)."""
     _require_auth(request)
-    _validate_symbol(symbol)
-    # TODO(gh-1696): wire to openbb_techtrade.engine.simulate_router.
-    # Deterministic stub: monotonic-ish P&L climb with two drawdown wobbles.
-    trajectory = [0, 15, 32, 28, 42, 55, 48, 63, 78, 71, 85, 100, 95, 108, 118]
-    return [{"day": d, "pnl": p} for d, p in enumerate(trajectory)]
+    sym = _validate_symbol(symbol)
+    rows, snapshots = _read_snapshot_rows("techtrade.simulate", symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    if not rows:
+        rows = (
+            _fresh_empty_rows(f"simulation symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"simulation symbol={sym}")
+        )
+    return _decorate_rows(rows, meta)
 
 
 # ---------------------------------------------------------------------------
@@ -2950,103 +3227,66 @@ def tt_position_simulate(
 @app.get("/tt/validation/verdict")
 def tt_validation_verdict(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
+) -> list[dict[str, object]]:
     """Return Validation Verdict rows (#1697) — PBO/DSR/OOS-Sharpe + verdict."""
     _require_auth(request)
-    _validate_symbol(symbol)
-    # TODO(gh-1697): wire to openbb_techtrade.engine.validate_router.
-    return [
-        {"metric": "PBO", "value": 0.18, "threshold": 0.30, "gate": "PASS"},
-        {"metric": "DSR", "value": 1.47, "threshold": 1.00, "gate": "PASS"},
-        {"metric": "OOS Sharpe", "value": 1.62, "threshold": 1.00, "gate": "PASS"},
-        {"metric": "Verdict", "value": "PASS", "threshold": "PASS", "gate": "PASS"},
-    ]
+    sym = _validate_symbol(symbol)
+    rows, snapshots = _read_snapshot_rows("techtrade.validate", symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    if not rows:
+        rows = (
+            _fresh_empty_rows(f"validation symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"validation symbol={sym}")
+        )
+    return _decorate_rows(rows, meta)
 
 
 @app.get("/tt/tuning/report")
 def tt_tuning_report(
-    request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
-    """Return Tuning Report rows (#1698) — tuneta proposal + validate gate.
-
-    Persist behavior is stub-only. Real state persistence follow-up
-    is filed under the broader techtrade epic.
-    """
+    request: Request, symbol: str = "AAPL", segment: str = ""
+) -> list[dict[str, object]]:
+    """Return the persisted tuning report rows (#1698)."""
     _require_auth(request)
-    _validate_symbol(symbol)
-    # TODO(gh-1698): wire to openbb_techtrade.engine.tune_router (tuneta).
-    return [
-        {
-            "param": "atr_period",
-            "current": 14,
-            "proposed": 20,
-            "delta": +6,
-            "validate_gate": "PASS",
-        },
-        {
-            "param": "sma_fast",
-            "current": 20,
-            "proposed": 15,
-            "delta": -5,
-            "validate_gate": "PASS",
-        },
-        {
-            "param": "sma_slow",
-            "current": 50,
-            "proposed": 55,
-            "delta": +5,
-            "validate_gate": "PASS",
-        },
-        {
-            "param": "risk_pct",
-            "current": 2.0,
-            "proposed": 1.5,
-            "delta": -0.5,
-            "validate_gate": "FAIL",
-        },
-    ]
+    sym = _validate_symbol(symbol)
+    requested_segments, source_snapshots = (
+        ([_validate_segment(segment)], []) if segment else _segments_for_symbol(sym)
+    )
+    rows: list[dict] = []
+    snapshots: list[SnapshotRow] = []
+    for requested_segment in requested_segments:
+        segment_rows, segment_snapshots = _read_snapshot_rows(
+            "techtrade.tune", segment=requested_segment
+        )
+        rows.extend(segment_rows)
+        snapshots.extend(segment_snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    source_meta = _snapshot_meta(source_snapshots, symbol=sym)
+    if source_meta.get("earnings_annotation"):
+        meta["earnings_annotation"] = source_meta["earnings_annotation"]
+    if not rows:
+        rows = (
+            _fresh_empty_rows(f"tuning symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"tuning symbol={sym}")
+        )
+    return _decorate_rows(rows, meta)
 
 
 @app.get("/tt/audit/journal")
-def tt_audit_journal(
-    request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
-    """Return Audit Journal rows (#1699) — replay vs forward P&L + deviation."""
+def tt_audit_journal(request: Request, symbol: str = "AAPL") -> list[dict[str, object]]:
+    """Return persisted Audit Journal rows (#1699)."""
     _require_auth(request)
-    _validate_symbol(symbol)
-    # TODO(gh-1699): wire to openbb_techtrade.reporting.audit.
-    return [
-        {
-            "bar_date": "2026-07-25",
-            "replay_pnl": 128.4,
-            "forward_pnl": 130.2,
-            "deviation_bps": 14.0,
-        },
-        {
-            "bar_date": "2026-07-26",
-            "replay_pnl": 132.1,
-            "forward_pnl": 131.7,
-            "deviation_bps": -3.0,
-        },
-        {
-            "bar_date": "2026-07-27",
-            "replay_pnl": 135.8,
-            "forward_pnl": 137.9,
-            "deviation_bps": 15.5,
-        },
-        {
-            "bar_date": "2026-07-28",
-            "replay_pnl": 141.3,
-            "forward_pnl": 142.0,
-            "deviation_bps": 5.0,
-        },
-        {
-            "bar_date": "2026-07-29",
-            "replay_pnl": 144.9,
-            "forward_pnl": 138.7,
-            "deviation_bps": -42.8,
-        },
-    ]
+    sym = _validate_symbol(symbol)
+    rows, snapshots = _read_snapshot_rows("techtrade.audit", symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    if not rows:
+        rows = (
+            _fresh_empty_rows(f"audit symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"audit symbol={sym}")
+        )
+    return _decorate_rows(rows, meta)
 
 
 # Capability matrix for the engine-status widget: (display label, module path

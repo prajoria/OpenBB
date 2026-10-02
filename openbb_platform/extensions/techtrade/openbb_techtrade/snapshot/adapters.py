@@ -1,0 +1,805 @@
+"""Compute adapters that materialize TechTrade results into EOD snapshots."""
+
+# pylint: disable=import-outside-toplevel
+
+from __future__ import annotations
+
+import asyncio
+import os
+import warnings
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
+from datetime import date, timedelta
+from decimal import Decimal
+from enum import Enum
+from importlib.metadata import PackageNotFoundError, version
+from typing import Any
+
+from pydantic import BaseModel
+
+from openbb_techtrade.engine.movers import list_movers
+from openbb_techtrade.engine.scan import ScanSegmentWarning
+from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
+from openbb_techtrade.models import TradePlan
+from openbb_techtrade.snapshot.datasets import (
+    DEFAULT_EXCHANGE_CALENDAR,
+    SURVIVORSHIP_SENSITIVE_DATASETS,
+    SURVIVORSHIP_UNCORRECTED,
+    TECHTRADE_DATASETS,
+    techtrade_entity_key,
+)
+from openbb_techtrade.snapshot.refresh import ComputedSnapshot
+from openbb_techtrade.snapshot.store import canonical_key
+
+MoverFetcher = Callable[..., object]
+EventFetcher = Callable[[date, list[str]], Iterable["MarketEvent"]]
+ComputeFunction = Callable[[str, date], object]
+MembershipFetcher = Callable[[str, date], "MembershipSnapshot | None"]
+EventSource = Callable[[date], Iterable[object]]
+UniverseFetcher = Callable[[str, date], Iterable[str]]
+
+
+class EventKind(str, Enum):
+    """Between-session market events that affect EOD snapshot validity."""
+
+    EARNINGS = "earnings"
+    DELISTED = "delisted"
+    HALTED = "halted"
+
+
+@dataclass(frozen=True)
+class MarketEvent:
+    """A public market event associated with one symbol."""
+
+    symbol: str
+    kind: EventKind
+
+    def __post_init__(self) -> None:
+        """Normalize the public symbol identifier."""
+        symbol = self.symbol.strip().upper()
+        if not symbol:
+            raise ValueError("event symbol must be non-empty")
+        object.__setattr__(self, "symbol", symbol)
+
+
+@dataclass(frozen=True)
+class MembershipSnapshot:
+    """Universe membership captured for an exact exchange session."""
+
+    as_of_session: date
+    exchange_calendar: str
+    symbols: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        """Normalize and de-duplicate membership symbols."""
+        if not self.exchange_calendar.strip():
+            raise ValueError("membership exchange_calendar must be non-empty")
+        symbols = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in self.symbols if symbol.strip()
+            )
+        )
+        object.__setattr__(self, "symbols", symbols)
+
+
+def _event_row(value: object) -> dict[str, Any]:
+    row = _jsonable(value)
+    if not isinstance(row, dict):
+        raise TypeError("event source rows must be JSON objects")
+    return row
+
+
+def _event_symbol(row: Mapping[str, object]) -> str:
+    return str(row.get("symbol") or row.get("ticker") or "").strip().upper()
+
+
+class PublicEventRiskProvider:
+    """Combine public earnings, delisting, and halt sources for target symbols."""
+
+    def __init__(
+        self,
+        *,
+        earnings_fetcher: EventSource,
+        delisted_fetcher: EventSource,
+        halted_fetcher: EventSource,
+    ) -> None:
+        self._earnings_fetcher = earnings_fetcher
+        self._delisted_fetcher = delisted_fetcher
+        self._halted_fetcher = halted_fetcher
+        self._cached_events: tuple[MarketEvent, ...] | None = None
+
+    def begin_refresh(self, _as_of_session: date) -> None:
+        """Clear the bounded event cache before an orchestrated refresh."""
+        self._cached_events = None
+
+    def __call__(self, session: date, symbols: list[str]) -> list[MarketEvent]:
+        """Return per-refresh cached public events for requested symbols."""
+        if self._cached_events is None:
+            events: list[MarketEvent] = []
+            for value in self._earnings_fetcher(session):
+                row = _event_row(value)
+                symbol = _event_symbol(row)
+                event_date = row.get("date") or row.get("report_date")
+                if symbol and (
+                    event_date is None or date.fromisoformat(str(event_date)) == session
+                ):
+                    events.append(MarketEvent(symbol, EventKind.EARNINGS))
+            for value in self._delisted_fetcher(session):
+                row = _event_row(value)
+                symbol = _event_symbol(row)
+                event_date = (
+                    row.get("delisted_date")
+                    or row.get("delistedDate")
+                    or row.get("date")
+                )
+                if symbol and (
+                    event_date is None or date.fromisoformat(str(event_date)) <= session
+                ):
+                    events.append(MarketEvent(symbol, EventKind.DELISTED))
+            for value in self._halted_fetcher(session):
+                symbol = _event_symbol(_event_row(value))
+                if symbol:
+                    events.append(MarketEvent(symbol, EventKind.HALTED))
+            self._cached_events = tuple(dict.fromkeys(events))
+        target = {symbol.strip().upper() for symbol in symbols}
+        return [event for event in self._cached_events if event.symbol in target]
+
+
+def _no_events(_session: date, _symbols: list[str]) -> tuple[()]:
+    return ()
+
+
+def _no_membership(_segment: str, _session: date) -> None:
+    return None
+
+
+def _segment_universe(segment: str, _session: date) -> Iterable[str]:
+    from openbb_techtrade.engine.screener import list_segments
+    from openbb_techtrade.engine.universe import resolve_universe
+
+    config = next(item for item in list_segments() if item.segment == segment)
+    return resolve_universe(config)
+
+
+def _engine_version() -> str:
+    try:
+        return version("openbb-techtrade")
+    except PackageNotFoundError:  # pragma: no cover - editable installs normally exist
+        return "source"
+
+
+def _jsonable(value: object) -> Any:
+    if isinstance(value, BaseModel):
+        return _jsonable(value.model_dump(mode="python", exclude_none=True))
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, date):
+        return value.isoformat()
+    raise TypeError(f"snapshot value is not JSON-safe: {type(value).__name__}")
+
+
+def _fetch_earnings(session: date) -> Iterable[object]:
+    from openbb import obb
+
+    equity = getattr(obb, "equity")
+    result = equity.calendar.earnings(
+        start_date=session.isoformat(),
+        end_date=session.isoformat(),
+        provider="fmp_cached",
+    )
+    return result.results or ()
+
+
+def _fetch_delisted(_session: date) -> Iterable[object]:
+    from openbb_core.app.service.user_service import UserService
+    from openbb_fmp_cached.models.w5_w6_w8_extras import (
+        FMPCachedDelistedCompaniesFetcher,
+    )
+
+    credentials = UserService().default_user_settings.credentials.model_dump(
+        mode="json"
+    )
+    return asyncio.run(FMPCachedDelistedCompaniesFetcher.fetch_data({}, credentials))
+
+
+def _configured_halts(_session: date) -> Iterable[object]:
+    return [
+        {"symbol": symbol}
+        for symbol in os.environ.get("PI_TECHTRADE_HALTED_SYMBOLS", "").split(",")
+        if symbol.strip()
+    ]
+
+
+_PUBLIC_EVENT_RISK = PublicEventRiskProvider(
+    earnings_fetcher=_fetch_earnings,
+    delisted_fetcher=_fetch_delisted,
+    halted_fetcher=_configured_halts,
+)
+
+
+def _segment_from_key(entity_key: str) -> str:
+    key = canonical_key(entity_key)
+    if not key.startswith("segment="):
+        raise ValueError("TechTrade entity key must start with segment=")
+    wanted = key.split("=", 1)[1]
+    for segment in GICS_SECTOR_ETFS:
+        if segment.casefold() == wanted:
+            return segment
+    raise ValueError("unknown TechTrade segment")
+
+
+def _mover_rows(result: object, segment: str, session: date) -> list[dict[str, Any]]:
+    materialized = _jsonable(result)
+    groups = materialized if isinstance(materialized, list) else [materialized]
+    rows: list[dict[str, Any]] = []
+    for group in groups:
+        if not isinstance(group, dict):
+            raise TypeError("mover result must contain JSON objects")
+        group_segment = str(group.get("segment") or segment)
+        group_session = str(group.get("as_of") or session.isoformat())
+        movers = group.get("movers", [])
+        if not isinstance(movers, list):
+            raise TypeError("movers must be a list")
+        for raw in movers:
+            if not isinstance(raw, dict):
+                raise TypeError("movers must contain JSON objects")
+            row = dict(raw)
+            row.setdefault("segment", group_segment)
+            row.setdefault("as_of", group_session)
+            rows.append(row)
+    return rows
+
+
+def _result_rows(result: object) -> list[dict[str, Any]]:
+    materialized = _jsonable(result)
+    if isinstance(materialized, dict) and "results" in materialized:
+        materialized = materialized["results"]
+    values = materialized if isinstance(materialized, list) else [materialized]
+    if not all(isinstance(value, dict) for value in values):
+        raise TypeError("snapshot result must contain JSON objects")
+    return [dict(value) for value in values]
+
+
+class TechTradeSnapshotAdapter:
+    """Materialize one public TechTrade dataset for every configured segment."""
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        name: str,
+        *,
+        compute_fn: ComputeFunction,
+        segments: Iterable[str] | None = None,
+        calendar: str = DEFAULT_EXCHANGE_CALENDAR,
+        event_fetcher: EventFetcher = _no_events,
+        membership_fetcher: MembershipFetcher = _no_membership,
+        universe_fetcher: UniverseFetcher | None = None,
+        payload_metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        if name not in TECHTRADE_DATASETS:
+            raise ValueError("unknown TechTrade snapshot dataset")
+        self.name = name
+        self.calendar_name = calendar
+        self._compute_fn = compute_fn
+        self._segments = tuple(GICS_SECTOR_ETFS if segments is None else segments)
+        self._calendar = calendar
+        self._event_fetcher = event_fetcher
+        self._membership_fetcher = membership_fetcher
+        self._universe_fetcher = (
+            _segment_universe
+            if universe_fetcher is None and event_fetcher is _PUBLIC_EVENT_RISK
+            else universe_fetcher
+        )
+        self._payload_metadata = dict(payload_metadata or {})
+        self._refresh_hook: Callable[[date], None] | None = None
+        for segment in self._segments:
+            techtrade_entity_key(segment)
+
+    def entity_keys(self) -> list[str]:
+        """Return one canonical key per configured GICS segment."""
+        return [techtrade_entity_key(segment) for segment in self._segments]
+
+    def begin_refresh(self, as_of_session: date) -> None:
+        """Reset any adapter-local state before one orchestrated run."""
+        reset_events = getattr(self._event_fetcher, "begin_refresh", None)
+        if callable(reset_events):
+            reset_events(as_of_session)  # pylint: disable=not-callable
+        if self._refresh_hook is not None:
+            self._refresh_hook(as_of_session)
+
+    def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        """Compute and envelope one segment without persistence side effects."""
+        segment = _segment_from_key(entity_key)
+        rows = _result_rows(self._compute_fn(segment, as_of_session))
+        symbols = [
+            str(row["symbol"]).strip().upper() for row in rows if row.get("symbol")
+        ]
+        universe_symbols = (
+            list(self._universe_fetcher(segment, as_of_session))
+            if self._universe_fetcher is not None
+            else []
+        )
+        event_symbols = list(dict.fromkeys([*symbols, *universe_symbols]))
+        events = list(self._event_fetcher(as_of_session, event_symbols))
+        inactive = {
+            event.symbol
+            for event in events
+            if event.kind in (EventKind.DELISTED, EventKind.HALTED)
+        }
+        exclusion_reasons = {
+            event.symbol: event.kind.value
+            for event in events
+            if event.kind in (EventKind.DELISTED, EventKind.HALTED)
+        }
+        earnings = sorted(
+            {event.symbol for event in events if event.kind is EventKind.EARNINGS}
+        )
+        rows = [
+            row
+            for row in rows
+            if str(row.get("symbol", "")).strip().upper() not in inactive
+        ]
+        membership = self._membership_fetcher(segment, as_of_session)
+        membership_symbols: list[str] = []
+        survivorship = "not-applicable"
+        if self.name in SURVIVORSHIP_SENSITIVE_DATASETS:
+            survivorship = SURVIVORSHIP_UNCORRECTED
+            if (
+                membership is not None
+                and membership.as_of_session == as_of_session
+                and membership.exchange_calendar == self._calendar
+            ):
+                membership_symbols = sorted(membership.symbols)
+                member_set = set(membership_symbols)
+                rows = [
+                    row
+                    for row in rows
+                    if not row.get("symbol")
+                    or str(row["symbol"]).strip().upper() in member_set
+                ]
+                survivorship = "corrected"
+        event_inputs = [
+            {"kind": event.kind.value, "symbol": event.symbol} for event in events
+        ]
+        payload = {
+            "rows": rows,
+            "segment": segment,
+            "as_of_session": as_of_session.isoformat(),
+            "exchange_calendar": self._calendar,
+            "earnings_symbols": earnings,
+            "excluded_symbols": sorted(inactive),
+            "exclusion_reasons": exclusion_reasons,
+            "survivorship": survivorship,
+            "universe_membership": membership_symbols,
+            **_jsonable(self._payload_metadata),
+        }
+        return ComputedSnapshot(
+            payload=payload,
+            inputs={
+                "dataset": self.name,
+                "segment": segment,
+                "session": as_of_session.isoformat(),
+                "calendar": self._calendar,
+                "events": event_inputs,
+                "membership": membership_symbols,
+                "rows": rows,
+            },
+            engine_version=_engine_version(),
+            payload_schema_version="1",
+            row_count=len(rows),
+        )
+
+
+class MoversSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Compute one `techtrade.movers` payload per configured GICS segment."""
+
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        top_n: int = 10,
+        calendar: str = DEFAULT_EXCHANGE_CALENDAR,
+        mover_fetcher: MoverFetcher = list_movers,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
+        def compute_movers(segment: str, session: date) -> list[dict[str, Any]]:
+            result = mover_fetcher(
+                segment=segment,
+                metric="pct_change",
+                top_n=top_n,
+                as_of=session,
+                calendar=calendar,
+            )
+            return _mover_rows(result, segment, session)
+
+        super().__init__(
+            "techtrade.movers",
+            compute_fn=compute_movers,
+            segments=segments,
+            calendar=calendar,
+            event_fetcher=event_fetcher,
+        )
+        self._top_n = top_n
+
+    def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        """Compute movers and add the configured ranking limit to provenance."""
+        computed = super().compute(entity_key, as_of_session)
+        inputs_value = _jsonable(computed.inputs)
+        if not isinstance(inputs_value, dict):
+            raise TypeError("movers inputs must be a JSON object")
+        inputs = dict(inputs_value)
+        inputs["top_n"] = self._top_n
+        return ComputedSnapshot(
+            payload=computed.payload,
+            inputs=inputs,
+            engine_version=computed.engine_version,
+            payload_schema_version=computed.payload_schema_version,
+            row_count=computed.row_count,
+        )
+
+
+def _signals(segment: str, session: date) -> object:
+    from openbb_techtrade.engine.signals import build_signals
+
+    return build_signals(segment=segment, as_of=session)
+
+
+def _plans(segment: str, session: date) -> list[TradePlan]:
+    from openbb_techtrade.engine.plan import build_plans
+
+    return build_plans(segment=segment, as_of=session)
+
+
+def _forward_bars(symbol: str, start_session: date, end_session: date) -> list[object]:
+    from openbb import obb
+
+    equity = getattr(obb, "equity")
+    result = equity.price.historical(
+        symbol=symbol,
+        start_date=start_session.isoformat(),
+        end_date=end_session.isoformat(),
+        provider="fmp_cached",
+    )
+    return list(result.results or ())
+
+
+def _simulated_plans(segment: str, session: date) -> list[TradePlan]:
+    from openbb_techtrade.engine.movers import resolve_session
+    from openbb_techtrade.execution.broker import simulate
+
+    signal_session = resolve_session(session - timedelta(days=45), "XNYS")
+    simulated: list[TradePlan] = []
+    for plan in _plans(segment, signal_session):
+        bars = _forward_bars(
+            plan.symbol,
+            signal_session + timedelta(days=1),
+            session,
+        )
+        time_stop_bars = plan.recommendation.time_stop_bars
+        if (
+            time_stop_bars is not None and len(bars) < time_stop_bars
+        ) or not plan.orders:
+            continue
+        window = bars if time_stop_bars is None else bars[:time_stop_bars]
+        fills = simulate(plan.orders, window)
+        if fills:
+            simulated.append(plan.model_copy(update={"simulated_fills": fills}))
+    return simulated
+
+
+def _orders(segment: str, session: date) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for plan in _result_rows(_plans(segment, session)):
+        for order in plan.get("orders", []):
+            row = dict(order)
+            row.setdefault("symbol", plan.get("symbol"))
+            row.setdefault("segment", segment)
+            row.setdefault("as_of", session.isoformat())
+            rows.append(row)
+    return rows
+
+
+def _planned_trajectories(plans: Iterable[TradePlan]) -> list[dict[str, Any]]:
+    """Build cumulative marked P&L only from actual simulation fills."""
+    rows: list[dict[str, Any]] = []
+    for plan in plans:
+        cash = 0.0
+        position = 0.0
+        for day, fill in enumerate(plan.simulated_fills):
+            quantity = float(fill.quantity)
+            price = float(fill.price)
+            commission = float(fill.commission)
+            if fill.side in ("sell", "sell_short"):
+                cash += quantity * price - commission
+                position -= quantity
+            else:
+                cash -= quantity * price + commission
+                position += quantity
+            rows.append(
+                {
+                    "symbol": plan.symbol,
+                    "segment": plan.segment,
+                    "day": day,
+                    "timestamp": fill.timestamp.isoformat(),
+                    "price": price,
+                    "pnl": round(cash + position * price, 8),
+                    "source": "simulated_fill",
+                }
+            )
+    return rows
+
+
+def _validations(segment: str, session: date) -> list[dict[str, Any]]:
+    from openbb_techtrade.validation.backtest_bridge import validate_plan
+
+    rows: list[dict[str, Any]] = []
+    for plan in _plans(segment, session):
+        _updated, report = asyncio.run(validate_plan(plan))
+        row = _jsonable(report)
+        if not isinstance(row, dict):
+            raise TypeError("validation result must be a JSON object")
+        row.setdefault("symbol", plan.symbol)
+        row.setdefault("segment", segment)
+        rows.append(row)
+    return rows
+
+
+def _tuning(segment: str, session: date) -> object:
+    from openbb_techtrade.tuning.tune_router import tune
+
+    return asyncio.run(tune(segment=segment, as_of=session, persist=False)).results
+
+
+def _audit(segment: str, session: date) -> list[dict[str, Any]]:
+    return _audit_rows(_audited_plans(segment, session), session)
+
+
+def _audited_plans(segment: str, session: date) -> list[TradePlan]:
+    from openbb_techtrade.validation.backtest_bridge import validate_plan
+
+    audited: list[TradePlan] = []
+    for plan in _simulated_plans(segment, session):
+        updated, _report = asyncio.run(validate_plan(plan))
+        audited.append(updated)
+    return audited
+
+
+def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any]]:
+    """Compare explicit replay evidence with marked forward simulation P&L."""
+    rows: list[dict[str, Any]] = []
+    for plan in plans:
+        if not plan.simulated_fills:
+            continue
+        validation = getattr(plan, "validation", None)
+        oos_metrics = (
+            validation.get("oos_metrics")
+            if isinstance(validation, Mapping)
+            else getattr(validation, "oos_metrics", None)
+        )
+        replay_cagr = (
+            oos_metrics.get("cagr")
+            if isinstance(oos_metrics, Mapping)
+            else getattr(oos_metrics, "cagr", None)
+        )
+        replay_sharpe = (
+            oos_metrics.get("sharpe")
+            if isinstance(oos_metrics, Mapping)
+            else getattr(oos_metrics, "sharpe", None)
+        )
+        if replay_cagr is None or replay_sharpe is None:
+            continue
+        notional = abs(
+            float(plan.recommendation.entry_price) * float(plan.position_size)
+        )
+        cash = 0.0
+        position = 0.0
+        mark = 0.0
+        for fill in plan.simulated_fills:
+            quantity = float(fill.quantity)
+            mark = float(fill.price)
+            if fill.side in ("sell", "sell_short"):
+                cash += quantity * mark - float(fill.commission)
+                position -= quantity
+            else:
+                cash -= quantity * mark + float(fill.commission)
+                position += quantity
+        if position != 0:
+            continue
+        forward_pnl = cash + position * mark
+        forward_return = forward_pnl / notional if notional else 0.0
+        rows.append(
+            {
+                "symbol": plan.symbol,
+                "segment": plan.segment,
+                "bar_date": session.isoformat(),
+                "replay_cagr": round(float(replay_cagr), 8),
+                "replay_sharpe": round(float(replay_sharpe), 8),
+                "forward_pnl": round(forward_pnl, 8),
+                "forward_return": round(forward_return, 8),
+                "fill_count": len(plan.simulated_fills),
+            }
+        )
+    return rows
+
+
+class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize the cross-segment scan rows."""
+
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        top_n: int = 10,
+        preset: str = "trend_follow",
+        scan_fetcher: Callable[..., list[TradePlan]] | None = None,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
+        from openbb_techtrade.engine.scan import scan_segments
+        from openbb_techtrade.snapshots.models import plan_to_row
+
+        fetcher = scan_fetcher or scan_segments
+        cached_session: date | None = None
+        cached_rows: dict[str, list[dict[str, Any]]] = {}
+        failed_segments: set[str] = set()
+
+        def compute_scan(segment: str, session: date) -> list[dict[str, Any]]:
+            nonlocal cached_session, cached_rows, failed_segments
+            if cached_session != session:
+                cached_rows = {}
+                failed_segments = set()
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    plans = fetcher(
+                        as_of=session,
+                        top_n=top_n,
+                        preset=preset,
+                    )
+                failed_segments = {
+                    item.message.segment
+                    for item in caught
+                    if isinstance(item.message, ScanSegmentWarning)
+                }
+                for plan in plans:
+                    cached_rows.setdefault(plan.segment, []).append(plan_to_row(plan))
+                cached_session = session
+            if segment in failed_segments:
+                raise RuntimeError("scan_segment_failed")
+            return list(cached_rows.get(segment, ()))
+
+        def reset_scan_cache(_session: date) -> None:
+            nonlocal cached_session, cached_rows, failed_segments
+            cached_session = None
+            cached_rows = {}
+            failed_segments = set()
+
+        super().__init__(
+            "techtrade.scan",
+            compute_fn=compute_scan,
+            segments=segments,
+            event_fetcher=event_fetcher,
+            payload_metadata={
+                "preset": preset,
+                "params": {"top_n": top_n, "preset": preset},
+            },
+        )
+        self._refresh_hook = reset_scan_cache
+
+
+class SignalsSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize ranked confluence signals."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "techtrade.signals",
+            compute_fn=_signals,
+            event_fetcher=_PUBLIC_EVENT_RISK,
+        )
+
+
+class PlanSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize full trading plans."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "techtrade.plan", compute_fn=_plans, event_fetcher=_PUBLIC_EVENT_RISK
+        )
+
+
+class OrdersSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize broker-ready order legs."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "techtrade.orders", compute_fn=_orders, event_fetcher=_PUBLIC_EVENT_RISK
+        )
+
+
+class SimulateSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize available simulation fills."""
+
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _simulated_plans,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
+        super().__init__(
+            "techtrade.simulate",
+            compute_fn=lambda segment, session: _planned_trajectories(
+                plans_fetcher(segment, session)
+            ),
+            segments=segments,
+            event_fetcher=event_fetcher,
+        )
+
+
+class ValidateSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize validation reports with survivorship labeling."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "techtrade.validate",
+            compute_fn=_validations,
+            event_fetcher=_PUBLIC_EVENT_RISK,
+        )
+
+
+class TuneSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize tuning reports with survivorship labeling."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "techtrade.tune", compute_fn=_tuning, event_fetcher=_PUBLIC_EVENT_RISK
+        )
+
+
+class AuditSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize auditable plan-state rows."""
+
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _audited_plans,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
+        super().__init__(
+            "techtrade.audit",
+            compute_fn=lambda segment, session: _audit_rows(
+                plans_fetcher(segment, session), session
+            ),
+            segments=segments,
+            event_fetcher=event_fetcher,
+        )
+
+
+def get_snapshot_adapters(
+    *,
+    segments: Iterable[str] | None = None,
+    movers_top_n: int = 10,
+    scan_top_n: int = 10,
+    preset: str = "trend_follow",
+) -> dict[str, TechTradeSnapshotAdapter]:
+    """Return the installed TechTrade snapshot adapters by dataset name."""
+    adapters: tuple[TechTradeSnapshotAdapter, ...] = (
+        MoversSnapshotAdapter(segments=segments, top_n=movers_top_n),
+        ScanSnapshotAdapter(
+            segments=segments,
+            top_n=scan_top_n,
+            preset=preset,
+        ),
+        SignalsSnapshotAdapter(),
+        PlanSnapshotAdapter(),
+        OrdersSnapshotAdapter(),
+        SimulateSnapshotAdapter(),
+        ValidateSnapshotAdapter(),
+        TuneSnapshotAdapter(),
+        AuditSnapshotAdapter(),
+    )
+    return {adapter.name: adapter for adapter in adapters}

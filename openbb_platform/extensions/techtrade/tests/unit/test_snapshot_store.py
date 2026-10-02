@@ -4089,3 +4089,52 @@ def test_snapshot_star_import_omits_the_optional_mysql_backend() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip().endswith("OK")
+
+
+def test_list_datasets_filters_by_canonical_prefix(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "datasets.db")
+    for dataset, run_id in (
+        ("techtrade.scan", "scan"),
+        ("techtrade.scan.custom", "custom"),
+        ("techtrade.plan", "plan"),
+    ):
+        store.stage(
+            dataset,
+            "segment=energy",
+            date(2026, 9, 11),
+            run_id,
+            {"rows": []},
+        )
+
+    assert store.list_datasets(prefix="techtrade.scan") == [
+        "techtrade.scan",
+        "techtrade.scan.custom",
+    ]
+    store.close()
+
+
+def test_get_live_many_returns_only_requested_live_keys(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "live-many.db")
+    for key, run_id in (("segment=energy", "energy"), ("segment=financials", "fin")):
+        store.stage(
+            "techtrade.scan",
+            key,
+            date(2026, 9, 11),
+            run_id,
+            {"rows": [{"symbol": run_id}]},
+        )
+        assert store.validate("techtrade.scan", key, date(2026, 9, 11), run_id).ok
+        assert store.promote("techtrade.scan", key, date(2026, 9, 11), run_id)
+
+    rows = store.get_live_many(
+        "techtrade.scan",
+        ["segment=ENERGY", "segment=missing"],
+    )
+
+    assert list(rows) == ["segment=energy"]
+    assert rows["segment=energy"].payload["rows"][0]["symbol"] == "energy"
+    assert store.list_entity_keys("techtrade.scan") == [
+        "segment=energy",
+        "segment=financials",
+    ]
+    store.close()

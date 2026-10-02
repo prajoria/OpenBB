@@ -32,10 +32,10 @@ _STEPS: tuple[Step, ...] = (
         tab_id="morning-scan",
         action=ActionKind.INPUT,
         human_title="Step T1 — Filter the scan table by segment",
-        human_description="Set segment=Technology on tt_scan_table.",
-        human_expected="3 rows: NVDA, AAPL, MSFT.",
+        human_description="Set segment=Information Technology on tt_scan_table.",
+        human_expected="Scan rows for the sector, or the honest no-snapshot state.",
         endpoint="tt/scan/table",
-        params={"segment": "Technology"},
+        params={"segment": "Information Technology"},
     ),
     # ==================================================================
     # Act 2 — Position Workbench (T2) — NB03

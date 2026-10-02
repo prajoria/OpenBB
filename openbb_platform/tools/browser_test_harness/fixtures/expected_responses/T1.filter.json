@@ -28,7 +28,7 @@
   },
   "endpoint": "tt/scan/table",
   "params": {
-    "segment": "Technology"
+    "segment": "Information Technology"
   },
   "status_code": 200
 }

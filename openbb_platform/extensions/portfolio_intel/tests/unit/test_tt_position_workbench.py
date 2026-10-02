@@ -9,15 +9,20 @@ techtrade-desk app. All stub-shaped; real wiring is per-widget TODOs.
 - **tt_simulate_result** (chart raw) — simulated P&L trajectory
 """
 
+# ruff: noqa: D103, PLW0108
+
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 from fastapi.testclient import TestClient
+from openbb_portfolio_intel.widget_backend import widgets_endpoints
 from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
@@ -25,6 +30,16 @@ _client = TestClient(app)
 _MANIFEST_DIR = (
     Path(__file__).resolve().parents[2] / "openbb_portfolio_intel" / "widget_backend"
 )
+
+
+class _EmptyStore:
+    def get_live(self, _dataset: str, _entity_key: str):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _empty_snapshot_store(monkeypatch):
+    monkeypatch.setattr(widgets_endpoints, "_get_snapshot_store", lambda: _EmptyStore())
 
 
 def _widgets() -> dict:
@@ -85,35 +100,31 @@ def test_signal_card_returns_markdown_with_symbol() -> None:
     assert isinstance(body, str) and "NVDA" in body
 
 
-def test_plan_card_returns_entry_stop_target() -> None:
+def test_plan_card_is_loud_when_snapshot_is_missing() -> None:
     r = _client.get("/tt/position/plan-card?symbol=NVDA")
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body, str)
-    for token in ("Entry", "Stop", "Target"):
-        assert token in body, f"missing {token} in plan card"
+    assert "No EOD snapshot available" in body
+    assert "post-close snapshot job" in body
 
 
-def test_order_legs_shape() -> None:
+def test_order_legs_cold_start_is_loud() -> None:
     r = _client.get("/tt/position/order-legs?symbol=NVDA")
     assert r.status_code == 200
     rows = r.json()
     assert rows
-    for row in rows:
-        for f in ("side", "quantity", "price", "leg_type"):
-            assert f in row, f"missing {f} in {row!r}"
-        assert row["side"] in ("BUY", "SELL")
+    assert "No EOD snapshot available" in rows[0]["note"]
+    assert rows[0]["freshness"] == "red"
 
 
-def test_simulate_result_shape() -> None:
+def test_simulate_result_cold_start_is_loud() -> None:
     r = _client.get("/tt/position/simulate?symbol=NVDA")
     assert r.status_code == 200
     rows = r.json()
     assert rows
-    for row in rows:
-        assert "day" in row
-        assert "pnl" in row
-        assert isinstance(row["pnl"], (int, float))
+    assert "No EOD snapshot available" in rows[0]["note"]
+    assert rows[0]["freshness"] == "red"
 
 
 # ---------------------------------------------------------------------------
