@@ -86,7 +86,7 @@ for this deployment.
 | #2100 | Issue | Adds privacy-safe smoke checks and the operator runbook. |
 | #2101 | Issue | Completed self-hosted connector and browser-harness acceptance. |
 | #2102 | Issue | Certifies Workspace Bench and integrated self-hosted MCP. |
-| #2103 | Issue | Later: optional Portfolio Copilot proxy validation. |
+| #2103 | Issue | Validates the optional loopback Portfolio Copilot proxy and self-hosted UI stream. |
 | #2104 | PR | Merges #2097 foundations. |
 | #2105 | PR | Merges #2098 setup. |
 | #2106 | PR | Merges #2099 launcher. |
@@ -97,7 +97,7 @@ for this deployment.
 | #2111 | Issue | Adds this durable verifier, report, and replay skill. |
 | #2112 | PR | Merges #2110 deployment and follow-up fixes. |
 
-The remaining optional step after #2102 is #2103.
+#2103 completed the optional model-proxy validation after #2102.
 
 ## Browser replay evidence (#2101)
 
@@ -295,6 +295,57 @@ not promoted into the hosted baseline.
 No MCP response body, browser cookie, credential, token, or parity transcript
 is retained in Git.
 
+## Portfolio Copilot validation (#2103)
+
+The pinned `copilot-api` source had no host option and therefore listened on all
+interfaces. It now defaults to `127.0.0.1`; the checked-in parent lifecycle
+starts it with explicit `--host 127.0.0.1 --port 4141`, records exact PID/start
+identity, performs finite sanitized listener and `/v1/models` checks, and stops
+only the matching process. Existing local authentication state is reused; no
+credential enters a tracked file or process argument.
+
+The 2026-10-02 live replay recorded only the following sanitized evidence:
+
+| Layer | Result |
+| --- | --- |
+| Focused lifecycle suite | `9 passed, 0 failed` |
+| Proxy type check | Passed |
+| Proxy listener | Exact `127.0.0.1:4141` |
+| Available model | `claude-opus-4.7` (first non-sensitive identifier returned; model list non-empty) |
+| Portfolio discovery | `portfolio_copilot_proxy` present; query URL exactly `https://127.0.0.1:6902/query` |
+| Direct query | `text/event-stream`; 615 `copilotMessageChunk` events; non-empty factual field explanation; recommendation=false |
+| Self-hosted UI | authenticated=true; agent present=true; selected=true; prompt sent=true; incremental stream=true; five factual field concepts; recommendation=false |
+| Transcript retention | none |
+
+The authoritative Workspace verifier in this target worktree returned the
+sanitized result `Workspace setup is incomplete` because its generated ignored
+setup state belongs to the already-running replay worktree. Per the local-server
+contract, setup/run/recovery were not invoked. Browser validation used that
+existing healthy `127.0.0.1:1420`/`:8000` deployment and a browser-local,
+non-persistent runtime overlay that enabled only the custom Copilot panel and
+switcher while keeping hosted OpenBB Copilot disabled.
+
+Exact proxy replay:
+
+```powershell
+git submodule update --init --recursive copilot-api
+Push-Location .\copilot-api
+bun install --frozen-lockfile
+Pop-Location
+.\scripts\run_copilot_api.ps1
+.\scripts\test_copilot_api.ps1
+
+.\scripts\run_portfolio_backend.ps1 -SkipInstall
+Invoke-RestMethod https://127.0.0.1:6902/agents.json `
+    -SkipCertificateCheck | Out-Null
+
+# Perform the documented browser steps, then stop only the owned proxy:
+.\scripts\stop_copilot_api.ps1
+```
+
+Widget context, citations, generated Copilot artifacts, and MCP execution were
+not exercised.
+
 ## Known limitations
 
 - This is a local development stack, not production deployment guidance.
@@ -381,7 +432,6 @@ dirty.
 1. Merge #2111 and retain this report as the replay source of truth.
 2. Retain the completed #2101 local UI/browser-harness validation.
 3. Retain the completed #2102 Workspace Bench and self-hosted MCP certification.
-4. Execute optional #2103 model-proxy validation only with an approved
-   loopback model service.
+4. Retain the completed #2103 loopback Portfolio Copilot validation.
 5. Run human comparative evaluation of the three checked-in skill prompts and
    refine the skill if operators find ambiguous recovery behavior.
