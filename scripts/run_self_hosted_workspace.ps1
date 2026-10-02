@@ -145,7 +145,8 @@ function Invoke-SelfHostedWorkspaceRun {
         try {
             Invoke-WorkspaceCompose -ArgumentList @(
                 "exec", "-T", "fastapi", "python", "-m", "scripts.init_users"
-            ) -FailureMessage "Workspace user and entity initialization failed."
+            ) -FailureMessage "Workspace user and entity initialization failed." `
+                -CaptureOutput | Out-Null
         } finally {
             Pop-Location
         }

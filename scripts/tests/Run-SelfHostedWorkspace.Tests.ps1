@@ -50,6 +50,39 @@ Describe "Self-hosted Workspace launcher" {
         }
     }
 
+    It "sanitizes failed user initialization output" {
+        $fakeDocker = Join-Path $TestDrive "docker.cmd"
+        @"
+@echo workspace-admin@example.com
+@echo backend failure for workspace-admin@example.com 1>&2
+@exit /b 7
+"@ | Set-Content -Path $fakeDocker -Encoding ascii
+        $originalPath = $env:PATH
+        try {
+            $env:PATH = "$TestDrive;$originalPath"
+            $captured = & {
+                try {
+                    Invoke-WorkspaceCompose -ArgumentList @(
+                        "exec", "-T", "fastapi", "python", "-m",
+                        "scripts.init_users"
+                    ) -FailureMessage (
+                        "Workspace user and entity initialization failed."
+                    ) -CaptureOutput
+                } catch {
+                    $_.Exception.Message
+                }
+            } *>&1 | Out-String
+        } finally {
+            $env:PATH = $originalPath
+        }
+
+        $captured | Should Match (
+            "Workspace user and entity initialization failed."
+        )
+        $captured | Should Not Match "workspace-admin@example.com"
+        Test-Path $fakeDocker | Should Be $true
+    }
+
     It "stores only PID metadata and sanitized logs in ignored state" {
         $ScriptText | Should Match '\.dev-cycle[\\/]workspace-2110'
         $ScriptText | Should Match 'frontend\.pid\.json'
@@ -75,6 +108,9 @@ Describe "Self-hosted Workspace launcher" {
         Mock Pop-Location {}
         Mock Write-Host {}
         Mock Invoke-WorkspaceCompose {
+            if ($ArgumentList -contains "scripts.init_users") {
+                return "workspace-admin@example.com"
+            }
             if ($CaptureOutput) {
                 return @("redis", "fastapi", "rq_worker")
             }
@@ -91,11 +127,25 @@ Describe "Self-hosted Workspace launcher" {
         Mock Set-Content { throw "PID state write failed" }
         Mock Invoke-WorkspaceOwnedCleanup {}
 
-        { Invoke-SelfHostedWorkspaceRun } | Should Throw "PID state write failed"
+        $captured = & {
+            try {
+                Invoke-SelfHostedWorkspaceRun
+            } catch {
+                $_.Exception.Message
+            }
+        } *>&1 | Out-String
+
+        $captured | Should Match "PID state write failed"
+        $captured | Should Not Match "workspace-admin@example.com"
 
         Assert-MockCalled Invoke-WorkspaceOwnedCleanup -Times 1 -Exactly `
             -ParameterFilter {
                 [object]::ReferenceEquals($FrontendProcess, $startedFrontend)
+            }
+        Assert-MockCalled Invoke-WorkspaceCompose -Times 1 -Exactly `
+            -ParameterFilter {
+                $CaptureOutput -and
+                $ArgumentList -contains "scripts.init_users"
             }
     }
 }
