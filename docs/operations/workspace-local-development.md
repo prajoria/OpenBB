@@ -83,9 +83,12 @@ For a future manual development attempt, the required sequence is:
    `python -m scripts.init_users`.
 4. Start both the RQ worker and FastAPI/Uvicorn process.
 5. In `terminalpro`, use Bun (`bun install`, then `bun run dev`) and explicitly
-   override the checked-in hosted development URLs, including
-   `VITE_PAYMENTS_URL`, `VITE_AI_API_URL`, and `VITE_PLATFORM_URL`, with the
-   self-host endpoints.
+   point only `VITE_PAYMENTS_URL` at the local backend API. Keep
+   `VITE_AI_API_URL` and `VITE_PLATFORM_URL` empty/disabled unless those
+   services are separately provisioned, matching
+   `third_party/workspace/lite/frontend.env`. Custom external agents remain
+   available through their independent `agents.json` integration; they do not
+   require the absent hosted AI service.
 
 Vite development serves port `1420`; `bun run preview` serves port `4173`.
 Port `3000` belongs to the Lite nginx container, not the Vite development
