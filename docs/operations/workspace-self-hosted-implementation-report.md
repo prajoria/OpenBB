@@ -86,7 +86,7 @@ for this deployment.
 | #2100 | Issue | Adds privacy-safe smoke checks and the operator runbook. |
 | #2101 | Issue | Completed self-hosted connector and browser-harness acceptance. |
 | #2102 | Issue | Certifies Workspace Bench and integrated self-hosted MCP. |
-| #2103 | Issue | Later: optional Portfolio Copilot proxy validation. |
+| #2103 | Issue | Validates the optional loopback Portfolio Copilot proxy and self-hosted UI stream. |
 | #2104 | PR | Merges #2097 foundations. |
 | #2105 | PR | Merges #2098 setup. |
 | #2106 | PR | Merges #2099 launcher. |
@@ -97,7 +97,7 @@ for this deployment.
 | #2111 | Issue | Adds this durable verifier, report, and replay skill. |
 | #2112 | PR | Merges #2110 deployment and follow-up fixes. |
 
-The remaining optional step after #2102 is #2103.
+#2103 completed the optional model-proxy validation after #2102.
 
 ## Browser replay evidence (#2101)
 
@@ -295,6 +295,91 @@ not promoted into the hosted baseline.
 No MCP response body, browser cookie, credential, token, or parity transcript
 is retained in Git.
 
+## Portfolio Copilot validation (#2103)
+
+The pinned `copilot-api` source had no host option and therefore listened on all
+interfaces. It now defaults to `127.0.0.1`; the checked-in parent lifecycle
+starts it with explicit `--host 127.0.0.1 --port 4141`, records exact PID/start
+identity, performs finite sanitized listener and `/v1/models` checks, and stops
+only the matching process. Existing local authentication state is reused; no
+credential enters a tracked file or process argument.
+
+The 2026-10-02 live replay recorded only the following sanitized evidence:
+
+| Layer | Result |
+| --- | --- |
+| Focused lifecycle suite | `18 passed, 0 failed` |
+| Proxy type check | Passed |
+| Proxy listener | Exact `127.0.0.1:4141` |
+| Available models | Count-only result: `46` |
+| Portfolio discovery | `portfolio_copilot_proxy` present; query URL exactly `https://127.0.0.1:6902/query` |
+| Direct query | `text/event-stream`; 615 `copilotMessageChunk` events; non-empty factual field explanation; recommendation=false |
+| Self-hosted UI | authenticated=true; agent present=true; selected=true; prompt sent=true; incremental stream=true; five factual field concepts; recommendation=false |
+| Transcript retention | none |
+
+The #2103 review-hardening replay reran all 123 parent Pester tests and all 47
+proxy tests, plus proxy typecheck, focused lint, build, and Docker image build.
+The image builder executed the deterministic entrypoint argument test. A live
+container bound internally to `0.0.0.0:4141`, published only on host
+`127.0.0.1:14141`, and returned a count of 46 models through that published
+port. Direct CLI replay remained bound exactly to `127.0.0.1:4141`.
+
+Real lifecycle execution removed crashed-process stale state during stop,
+recovered from stale state during start, and rejected a reused PID whose start
+time differed without terminating it. Proxy logs were checked for response
+bodies, prompts, completions, tokens, model lists, and transcript material;
+none was present. Startup and verification now report a model count rather
+than an identifier, while request logs bound identifiers to 80 allowlisted
+characters. Upstream failures log only a fixed category, status, and sanitized
+request ID when supplied. The unauthenticated `/token` route was removed; live
+direct and published-container checks both returned HTTP 404 for that path.
+
+The final launcher regression uses the stable relative entry
+`src\main.ts` from the proxy working directory, avoiding PowerShell
+`Start-Process` argument joining of an absolute path containing spaces.
+Execution-based Pester coverage copies only the non-secret lifecycle scripts
+into a temporary path containing spaces, runs the launcher against a fake Bun
+executable, and proves the entry arrives as one argument. The forced health
+failure also proves rollback terminates the exact started process and removes
+PID state. Final validation passed 20 focused lifecycle tests, all 125 parent
+Pester tests, and all 47 proxy tests; diff checks and the changed-diff privacy
+scan were clean.
+
+The stream and browser UI were not repeated during review hardening because
+the changes affect only startup binding, process-state recovery, bounded
+diagnostic metadata, and error logging. The request and streaming response
+paths retained their prior behavior and remained covered by the complete
+proxy suite.
+
+The authoritative Workspace verifier in this target worktree returned the
+sanitized result `Workspace setup is incomplete` because its generated ignored
+setup state belongs to the already-running replay worktree. Per the local-server
+contract, setup/run/recovery were not invoked. Browser validation used that
+existing healthy `127.0.0.1:1420`/`:8000` deployment and a browser-local,
+non-persistent runtime overlay that enabled only the custom Copilot panel and
+switcher while keeping hosted OpenBB Copilot disabled.
+
+Exact proxy replay:
+
+```powershell
+git submodule update --init --recursive copilot-api
+Push-Location .\copilot-api
+bun install --frozen-lockfile
+Pop-Location
+.\scripts\run_copilot_api.ps1
+.\scripts\test_copilot_api.ps1
+
+.\scripts\run_portfolio_backend.ps1 -SkipInstall
+Invoke-RestMethod https://127.0.0.1:6902/agents.json `
+    -SkipCertificateCheck | Out-Null
+
+# Perform the documented browser steps, then stop only the owned proxy:
+.\scripts\stop_copilot_api.ps1
+```
+
+Widget context, citations, generated Copilot artifacts, and MCP execution were
+not exercised.
+
 ## Known limitations
 
 - This is a local development stack, not production deployment guidance.
@@ -305,9 +390,11 @@ is retained in Git.
   authenticated local Workspace tab.
 - Full hosted resource-descriptor compatibility is not certified while the two
   named descriptor hashes differ from the retained hosted baseline.
-- PowerShell cannot atomically validate and terminate a PID. A narrow reuse race
-  remains between the final identity check and exact-PID termination; a Windows
-  Job Object launcher would be needed to remove it.
+- The proxy stop path explicitly opens and retains the native safe handle for
+  the process whose PID and start time were validated, then terminates through
+  that handle-backed process object rather than reopening the numeric PID.
+  PowerShell still does not provide Job Object ownership; a Job Object launcher
+  would provide a stronger parent/descendant lifetime boundary.
 - The verifier is Windows-specific because listener and owned-process checks use
   Windows facilities.
 - Skill eval prompts are checked in, but comparative human/model evaluation is
@@ -381,7 +468,6 @@ dirty.
 1. Merge #2111 and retain this report as the replay source of truth.
 2. Retain the completed #2101 local UI/browser-harness validation.
 3. Retain the completed #2102 Workspace Bench and self-hosted MCP certification.
-4. Execute optional #2103 model-proxy validation only with an approved
-   loopback model service.
+4. Retain the completed #2103 loopback Portfolio Copilot validation.
 5. Run human comparative evaluation of the three checked-in skill prompts and
    refine the skill if operators find ambiguous recovery behavior.

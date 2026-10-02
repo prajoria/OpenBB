@@ -498,12 +498,68 @@ credential. If GitHub Copilot proxying is intended, initialize the existing
 
 ```powershell
 git submodule update --init --recursive copilot-api
+Push-Location .\copilot-api
+bun install --frozen-lockfile
+Pop-Location
+
+.\scripts\run_copilot_api.ps1
+.\scripts\test_copilot_api.ps1
 ```
+
+The launcher uses only the proxy's persisted local authentication state; it
+does not accept or print a token argument. It binds exactly
+`127.0.0.1:4141`, records PID plus process start time under the ignored
+`.dev-cycle/copilot-api-2103` directory, and runs a finite `/v1/models` check.
+The verifier prints only health and the model count. It removes stale state
+when the recorded process no longer exists, but a reused PID with a different
+start time fails closed and is never terminated. Stop only that recorded
+process:
+
+```powershell
+.\scripts\stop_copilot_api.ps1
+```
+
+The direct CLI default remains `127.0.0.1`. The container entrypoint instead
+adds `--host 0.0.0.0` so Docker port publishing reaches the process inside the
+container. Publish it to host loopback for local development:
+
+```powershell
+docker build --tag copilot-api:local .\copilot-api
+docker run --rm --publish 127.0.0.1:4141:4141 copilot-api:local
+```
+
+Additional entrypoint arguments are passed through. An explicit `--host
+<address>` or `--host=<address>` overrides the container default without
+adding a duplicate host flag. Do not publish the development proxy on a host
+wildcard or public interface.
 
 Otherwise set the three process environment variables for an approved
 loopback model server. Start only after the server reports an available model.
+Start Portfolio through its launcher, then verify discovery without retaining a
+response body:
+
+```powershell
+.\scripts\run_portfolio_backend.ps1 -SkipInstall
+Invoke-RestMethod https://127.0.0.1:6902/agents.json `
+    -SkipCertificateCheck | Out-Null
+```
+
 In Workspace, add agent endpoint `https://127.0.0.1:6902`, select **Portfolio
-Copilot (local proxy)**, and verify a non-advisory streamed response.
+Copilot (local proxy)**, and send:
+
+```text
+Explain the fields in the Portfolio Summary widget without giving investment advice.
+```
+
+The self-host setup disables the Copilot panel by default because hosted AI is
+out of scope. For an isolated #2103 browser replay, enable only the Copilot
+master flag and Copilot switcher in the browser's runtime configuration while
+keeping `openbbCopilot` false. Do not edit generated `.env.local` merely to run
+this validation. Verify the `POST /query` response has
+`Content-Type: text/event-stream`, renders multiple incremental text updates,
+explains portfolio-summary field concepts, and contains no buy/sell/hold
+recommendation. Record booleans, counts, and a non-sensitive model identifier
+only; never retain the transcript.
 
 ## 12. Troubleshooting ports 3306, 6120, 6902, 4141, and TLS trust
 
@@ -593,7 +649,8 @@ in the Workspace browser profile.
 
 1. Press `Ctrl+C` in the Portfolio Intelligence terminal.
 2. Press `Ctrl+C` in the Portfolio backend terminal.
-3. Stop the optional port `4141` proxy using its documented shutdown command.
+3. Stop the optional port `4141` proxy with
+   `.\scripts\stop_copilot_api.ps1`.
 4. Close Playwright Chromium after a harness run has completed.
 5. Stop the self-hosted Workspace through its authoritative owner:
 
