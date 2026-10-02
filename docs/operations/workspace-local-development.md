@@ -308,10 +308,24 @@ $env:RUN_WORKSPACE_HARNESS = "1"
 Remove-Item Env:RUN_WORKSPACE_HARNESS
 ```
 
-The first run opens Chromium visibly. Log in manually. Later runs reuse
-`$HOME\.openbb_browser_test_harness\chrome_profile`; do not copy or commit that
-profile. See the browser harness
+For `http://127.0.0.1:1420`, `WorkspaceDriver` reads the ignored
+`third_party/workspace/backend-api/backend/workspace-admin-credentials.secrets`
+file directly, fills the source-backed Email and Password fields, and never
+prints or accepts those values as command-line arguments. The first run opens
+Chromium visibly and logs in automatically. Later runs reuse
+`$HOME\.openbb_browser_test_harness\chrome_profile`; do not copy, inspect,
+archive, or commit that profile. Hosted Workspace continues to require
+operator-managed authentication. See the browser harness
 [Workspace-mode contract](../../openbb_platform/tools/browser_test_harness/docs/workspace-mode.md).
+
+Issue #2101 validation on 2026-10-02 proved both first-run managed login and a
+second run that reused the profile without submitting the login form. The
+authoritative self-hosted verifier remained healthy. Post-login UI validation
+was blocked because the authenticated `/app` route rendered no accessible app
+controls (only the notification and portal roots); the browser also observed a
+404 for the source-excluded TradingView UDF bundle. Keep this distinct from
+authentication and script verification. Do not claim connector, six-tab, or
+widget-render success until the authenticated app shell renders.
 
 ## 9. Run deterministic Workspace Bench evaluations
 
@@ -511,7 +525,13 @@ in the Workspace browser profile.
 2. Press `Ctrl+C` in the Portfolio backend terminal.
 3. Stop the optional port `4141` proxy using its documented shutdown command.
 4. Close Playwright Chromium after a harness run has completed.
-5. Remove process-only sensitive variables:
+5. Stop the self-hosted Workspace through its authoritative owner:
+
+   ```powershell
+   .\scripts\stop_self_hosted_workspace.ps1
+   ```
+
+6. Remove process-only sensitive variables:
 
    ```powershell
    Remove-Item Env:WORKSPACE_MCP_TOKEN -ErrorAction SilentlyContinue
@@ -520,7 +540,7 @@ in the Workspace browser profile.
    Remove-Item Env:COPILOT_PROXY_API_KEY -ErrorAction SilentlyContinue
    ```
 
-6. Confirm development listeners are gone:
+7. Confirm development listeners are gone:
 
    ```powershell
    Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |

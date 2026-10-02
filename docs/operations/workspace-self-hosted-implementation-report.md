@@ -1,6 +1,6 @@
 # Self-hosted Workspace implementation report
 
-**Recorded:** 2026-10-01
+**Recorded:** 2026-10-02
 
 **Program:** [#2096](https://github.com/prajoria/OpenBB/issues/2096)
 
@@ -97,6 +97,38 @@ for this deployment.
 | #2112 | PR | Merges #2110 deployment and follow-up fixes. |
 
 The required order after #2111 is #2101, #2102, then optional #2103.
+
+## Browser replay evidence (#2101)
+
+On 2026-10-02, a fresh authoritative `setup → run → test` replay passed. A
+visible Playwright run then read the ignored managed credential JSON locally,
+submitted the source-backed Email, Password, and Login controls, and reached an
+authenticated route. A second headless run used the same existing ignored
+`$HOME\.openbb_browser_test_harness\chrome_profile` and reached the
+authenticated route without submitting the form. No credential value, cookie,
+profile content, screenshot, or response body was persisted or reported.
+
+Portfolio Intelligence and Portfolio were started through
+`run_widget_backend.ps1` and `run_portfolio_backend.ps1`. The privacy-safe
+backend verifier reported 61 Intelligence widgets, three Intelligence apps,
+17 Portfolio widgets, one Portfolio app, and one Portfolio agent. One
+Intelligence widget endpoint returned HTTP 200 with non-empty content without
+logging its body. Portfolio served HTTPS on loopback with the generated
+development certificate; the browser context was explicitly limited to
+ignoring development TLS errors.
+
+The complete UI acceptance is **blocked**. After successful authentication,
+the pinned frontend's `/app` route rendered only its empty notification and
+portal roots, with no accessible app or connection controls and no frontend
+API requests. A source-excluded TradingView UDF bundle also returned 404.
+Consequently the run could not add the 6120/6902 connectors through the UI,
+inspect Portfolio Overview's six tabs, or prove an Intelligence widget request
+originated from a rendered widget. Separately, the authoritative Portfolio
+launcher reported the exact expected data-path prerequisite blocker: no root
+`.env`, so `/portfolio/*` and `/espp/*` require the absent
+`MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DATABASE` binding. Discovery,
+stock, and API surfaces remained available; no database credentials were
+invented.
 
 ## Authoritative scripts and contracts
 

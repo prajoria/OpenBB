@@ -1,7 +1,8 @@
 # Workspace mode (Playwright driver)
 
-Workspace mode drives the real OpenBB Workspace UI at `pro.openbb.co` via a
-Playwright-controlled Chromium session with a persistent user profile.
+Workspace mode drives hosted Workspace or the self-hosted UI at
+`http://127.0.0.1:1420` via a Playwright-controlled Chromium session with a
+persistent user profile.
 
 Tracked in [#1789](https://github.com/prajoria/OpenBB/issues/1789).
 
@@ -11,6 +12,13 @@ Tracked in [#1789](https://github.com/prajoria/OpenBB/issues/1789).
   `~/.openbb_browser_test_harness/chrome_profile/`. First run opens
   Chromium visibly so the operator can log in to `pro.openbb.co`;
   subsequent runs reuse the session.
+- **Managed self-hosted login.** On a loopback Workspace URL, the driver reads
+  the ignored setup-managed credential JSON from the pinned Workspace tree and
+  uses the Email, Password, and Login controls declared by the frontend source.
+  Credential values never enter arguments, logs, screenshots, or reports.
+- **Development TLS.** `ignore_https_errors=True` is available for a browser
+  context that must validate the self-signed loopback Portfolio backend. Do not
+  use it for a hosted Workspace run.
 - **Random ephemeral backend port.** When `backend_url` is not passed,
   `WorkspaceDriver.setup()` calls `_pick_random_port()`
   (`socket.bind((127.0.0.1, 0))`) and spawns

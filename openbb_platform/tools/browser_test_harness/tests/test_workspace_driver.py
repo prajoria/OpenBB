@@ -7,6 +7,7 @@ schema, mode dispatch, and screenshot-path PII guards.
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -18,7 +19,10 @@ from openbb_browser_test_harness.drivers.workspace_driver import (
     WorkspaceDriver,
     WorkspaceDriverError,
     _default_profile_dir,
+    _is_authenticated_workspace_url,
+    _is_local_workspace_url,
     _pick_random_port,
+    _read_managed_credentials,
 )
 
 
@@ -52,6 +56,55 @@ def test_workspace_driver_stores_workspace_url() -> None:
     assert d.workspace_url == "https://pro.openbb.co"
 
 
+def test_local_workspace_url_is_recognized() -> None:
+    assert _is_local_workspace_url("http://127.0.0.1:1420")
+    assert _is_local_workspace_url("http://localhost:1420/login")
+    assert not _is_local_workspace_url("https://pro.openbb.co")
+
+
+def test_authenticated_workspace_url_excludes_initial_and_login_routes() -> None:
+    assert not _is_authenticated_workspace_url("http://127.0.0.1:1420/")
+    assert not _is_authenticated_workspace_url("http://127.0.0.1:1420/login")
+    assert _is_authenticated_workspace_url("http://127.0.0.1:1420/app")
+
+
+def test_managed_credentials_are_read_from_json_without_mutating_file(
+    tmp_path,
+) -> None:
+    path = tmp_path / "workspace-admin-credentials.secrets"
+    original = {"Email": "local@example.invalid", "Password": "not-a-real-secret"}
+    path.write_text(json.dumps(original), encoding="utf-8")
+
+    credentials = _read_managed_credentials(path)
+
+    assert credentials == ("local@example.invalid", "not-a-real-secret")
+    assert json.loads(path.read_text(encoding="utf-8")) == original
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"Email": "", "Password": "present"},
+        {"Email": "present@example.invalid", "Password": ""},
+        {"Email": 42, "Password": "present"},
+    ],
+)
+def test_managed_credentials_reject_invalid_json_shape(tmp_path, payload) -> None:
+    path = tmp_path / "workspace-admin-credentials.secrets"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(WorkspaceDriverError, match="managed credential file"):
+        _read_managed_credentials(path)
+
+
+def test_local_workspace_uses_existing_managed_credential_location() -> None:
+    d = WorkspaceDriver(workspace_url="http://127.0.0.1:1420")
+
+    assert d.managed_credentials_path.name == "workspace-admin-credentials.secrets"
+    assert d.managed_credentials_path.parent.name == "backend"
+
+
 def test_workspace_driver_stores_cdp_endpoint_default() -> None:
     d = WorkspaceDriver()
     assert d.cdp_endpoint == "http://127.0.0.1:9222"
@@ -61,6 +114,11 @@ def test_workspace_driver_screenshots_dir_none_by_default() -> None:
     """No dir means capture bytes for SHA but don't persist to disk."""
     d = WorkspaceDriver()
     assert d.screenshots_dir is None
+
+
+def test_workspace_driver_can_ignore_local_development_tls_errors() -> None:
+    d = WorkspaceDriver(ignore_https_errors=True)
+    assert d.ignore_https_errors is True
 
 
 def test_workspace_driver_error_type_exists() -> None:
