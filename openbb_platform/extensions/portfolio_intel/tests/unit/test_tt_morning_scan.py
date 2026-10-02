@@ -229,13 +229,13 @@ def test_scan_table_shape() -> None:
         assert "direction" in row
 
 
-def test_scan_table_accepts_segment_filter() -> None:
-    """/tt/scan/table?segment=Information Technology filters rows."""
+def test_scan_table_accepts_technology_alias() -> None:
+    """/tt/scan/table normalizes the legacy Technology segment label."""
     with patch(
         "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
-        r = _client.get("/tt/scan/table?segment=Information%20Technology")
+        r = _client.get("/tt/scan/table?segment=Technology")
     assert r.status_code == 200
     body = r.json()
     rows = body["rows"]
