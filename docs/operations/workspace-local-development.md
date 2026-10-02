@@ -1,8 +1,9 @@
 # Local Workspace development
 
-This runbook connects local OpenBB development services to the hosted OpenBB
-Workspace. **`http://127.0.0.1:6120/viewer` is a local preview; it is not
-OpenBB Workspace.** The real Workspace UI remains `https://pro.openbb.co`.
+This runbook covers both the pinned OpenBB Workspace source and the existing
+hosted integration path. **`http://127.0.0.1:6120/viewer` is a local preview;
+it is not OpenBB Workspace.** The source audit below does not yet prove that a
+self-hosted Workspace build or deployment succeeds.
 
 Run commands from the repository root in PowerShell 7 unless stated otherwise.
 Keep each long-running backend in its own terminal.
@@ -11,13 +12,14 @@ Keep each long-running backend in its own terminal.
 
 | Surface | Location | Purpose |
 | --- | --- | --- |
-| OpenBB Workspace | `https://pro.openbb.co` | Hosted, authenticated product UI; it does not run from this repository. |
+| OpenBB Workspace source | [`third_party/workspace`](../../third_party/workspace) | Substantial but partial self-host source; build and runtime remain unvalidated. |
+| Hosted OpenBB Workspace | `https://pro.openbb.co` | Historical hosted integration target. It currently redirects to **BQ Workspace Coming Soon**; retain it only as a record until hosted validation is revisited. |
 | Portfolio backend | `https://127.0.0.1:6902` | Local widgets, apps, agent descriptor, and query endpoint. |
 | Portfolio Intelligence backend | `http://127.0.0.1:6120` | Local widgets, apps, and API. |
 | Portfolio Intelligence viewer | `http://127.0.0.1:6120/viewer` | Local development preview only, not Workspace. |
 | Workspace Bench | local process in [`third_party/openbb-workspace-bench`](../../third_party/openbb-workspace-bench) | Deterministic simulator and graders; simulator results do not prove hosted UI parity. |
 | OpenBB MCP | `https://backend.openbb.co/mcp` | Hosted bridge used for live surface and parity checks with an operator-issued token. |
-| OpenBB Workspace MCP sidecar | unavailable locally | Separate OpenBB artifact not present in this checkout or on this machine. |
+| Workspace MCP | integrated backend routes plus standalone package in the pinned source | Source is present; operation remains unvalidated. |
 | Optional model proxy | `http://127.0.0.1:4141/v1` | Local OpenAI-compatible endpoint used only by Portfolio Copilot. |
 
 The reference repositories are pinned as submodules:
@@ -25,6 +27,86 @@ The reference repositories are pinned as submodules:
 - [OpenBB backend examples](../../third_party/backends-for-openbb)
 - [OpenBB agent examples](../../third_party/agents-for-openbb)
 - [Workspace Bench](../../third_party/openbb-workspace-bench)
+- [OpenBB Workspace source](../../third_party/workspace)
+
+## Source audit (issue #2108)
+
+The audited checkout is pinned at
+`be00e95019a55d57af146919ee46b7e1a4859226`. It is Apache-2.0 source containing
+the React/Vite frontend (`terminalpro`), FastAPI/SQLAlchemy backend
+(`backend-api/backend`), Lite container packaging, Excel add-in, custom backend
+and custom-agent support, integrated Workspace MCP routes, and a standalone
+`workspace_mcp` package. No nested submodule or Git LFS pointer was found.
+TradingView Advanced Charts assets and the hosted OpenBB AI service are not
+included, so this is **substantial/partial self-host source**, not a complete
+copy of every hosted dependency.
+
+Verify the local source without installing dependencies, creating configuration,
+or starting services:
+
+```powershell
+git submodule update --init --recursive -- third_party/workspace
+git submodule status -- third_party/workspace
+git ls-files --stage -- third_party/workspace
+git -C third_party/workspace rev-parse HEAD
+git -C third_party/workspace status --short
+git -C third_party/workspace submodule status --recursive
+git -C third_party/workspace grep -Il "version https://git-lfs.github.com/spec/v1"
+Test-Path third_party\workspace\backend-api\backend\requirements.txt
+Test-Path third_party\workspace\terminalpro\package-lock.json
+Test-Path third_party\workspace\terminalpro\bun.lock
+```
+
+Expected audit results are a mode-`160000` Gitlink and matching commit hash,
+clean submodule status, no recursive submodule or LFS output, `False` for both
+`requirements.txt` and `package-lock.json`, and `True` for `bun.lock`. These
+commands verify source state only; they do not claim that Workspace builds or
+runs.
+
+### Corrected manual-development recipe (not yet executed)
+
+Do not follow a `pip install -r requirements.txt` recipe: backend
+`requirements.txt` does not exist. The backend uses Poetry and declares
+Python `~3.13` in `pyproject.toml`. Running Uvicorn alone is also incomplete:
+the stack needs ignored environment configuration, a database, Redis, an RQ
+worker, Alembic migrations, and `python -m scripts.init_users`. The source's
+Compose workflow expresses those dependencies; use Docker Desktop with WSL2
+for development and deployment rather than treating unsupported Windows-native
+processes as a production target.
+
+For a future manual development attempt, the required sequence is:
+
+1. Create ignored backend configuration from the provided templates and supply
+   local database/Redis settings without committing credentials.
+2. Provision the Poetry environment with Python ~3.13.
+3. Start the database and Redis, apply `alembic upgrade head`, and run
+   `python -m scripts.init_users`.
+4. Start both the RQ worker and FastAPI/Uvicorn process.
+5. In `terminalpro`, use Bun (`bun install`, then `bun run dev`) and explicitly
+   point only `VITE_PAYMENTS_URL` at the local backend API. Keep
+   `VITE_AI_API_URL` and `VITE_PLATFORM_URL` empty/disabled unless those
+   services are separately provisioned, matching
+   `third_party/workspace/lite/frontend.env`. Custom external agents remain
+   available through their independent `agents.json` integration; they do not
+   require the absent hosted AI service.
+
+Vite development serves port `1420`; `bun run preview` serves port `4173`.
+Port `3000` belongs to the Lite nginx container, not the Vite development
+server. The checked-in frontend `.env` defaults to hosted `openbb.dev` URLs
+unless overridden.
+
+### Known build and access blockers
+
+- `lite/Dockerfile` copies `terminalpro/package-lock.json` and runs `npm ci`,
+  but only `terminalpro/bun.lock` is tracked. Do not generate or commit a
+  replacement lockfile merely to hide this mismatch.
+- Published Docker image references, private AWS ECR repositories, and default
+  build mirrors are not usable without the corresponding credentials or
+  repository access.
+- TradingView Advanced Charts and hosted OpenBB AI are excluded from the
+  source snapshot.
+- A successful source audit is not a successful build. Resolve these contracts
+  in a later implementation issue before claiming deployment readiness.
 
 ## 2. One-time setup
 
@@ -268,12 +350,11 @@ Keep a logged-in Workspace tab open for live parity. Review cleanup results:
 the run should remove marker-named live artifacts and restore the previously
 active dashboard. Do not commit its report if it contains response data.
 
-> The command shown upstream as
-> `workspace-mcp --cors-allow https://pro.openbb.co` requires OpenBB's
-> Workspace MCP sidecar artifact. Do not install PyPI `workspace-mcp`; that
-> package serves Google Workspace and is incompatible. Use hosted MCP live
-> parity until OpenBB supplies the correct sidecar package or source
-> repository.
+> The pinned Workspace source contains integrated MCP routes and a standalone
+> `workspace_mcp` package, but neither path has been built or run locally. Do
+> not install PyPI `workspace-mcp`; that package serves Google Workspace and
+> is incompatible. Keep hosted MCP validation separate until the self-host
+> stack is deployed and verified.
 
 ## 11. Enable the optional Portfolio Copilot
 
@@ -421,6 +502,6 @@ MySQL can remain running on the required exact loopback binding.
 - Do not treat the local viewer or benchmark simulator as the hosted Workspace.
 - Use the hosted OpenBB MCP endpoint only with an operator-issued token.
 - Do not install PyPI `workspace-mcp`; it is Google Workspace software, not the
-  unavailable OpenBB local sidecar.
+  integrated or standalone MCP implementation in the pinned Workspace source.
 - Before committing, inspect `git status --short`, run `git diff --check`, and
   scan the intended paths for credential patterns.
