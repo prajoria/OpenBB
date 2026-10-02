@@ -75,7 +75,7 @@ Docker Desktop must be running its Linux engine. Git, Docker Compose, and Bun
 must be available to PowerShell 7. Host Poetry and Python 3.13 are not required
 for this deployment.
 
-## Issue and pull-request history (#2096–#2112)
+## Issue and pull-request history (#2096–#2120)
 
 | Number | Kind | Outcome |
 | --- | --- | --- |
@@ -96,6 +96,14 @@ for this deployment.
 | #2110 | Issue | Implements the secure self-hosted development stack. |
 | #2111 | Issue | Adds this durable verifier, report, and replay skill. |
 | #2112 | PR | Merges #2110 deployment and follow-up fixes. |
+| #2113 | PR | Merges #2111 replay tooling and report. |
+| #2114 | PR | Merges secure managed login and profile reuse support. |
+| #2115 | Issue | Fixes the empty authenticated on-prem app shell. |
+| #2116 | PR | Pins the merged on-prem app-shell source fix. |
+| #2117 | PR | Completes connector, app-tab, and widget-request acceptance. |
+| #2118 | PR | Certifies self-hosted MCP and Workspace Bench parity. |
+| #2119 | PR | Validates and hardens the local Portfolio Copilot path. |
+| #2120 | Issue | Suppresses managed administrator bootstrap output. |
 
 #2103 completed the optional model-proxy validation after #2102.
 
@@ -205,6 +213,8 @@ tracked and required. `package-lock.json` must remain absent.
 - Secrets use cryptographic random generation and live only in ignored files.
 - Scripts never print credentials, tokens, response bodies, environment
   contents, or application data.
+- User/entity initialization output is captured and discarded on success so
+  backend bootstrap logs cannot expose the managed administrator identifier.
 - Every verifier Docker/Git command has a finite timeout, captures only required
   bounded stdout, discards diagnostics, and is created suspended before
   assignment to a scoped Windows Job Object. The helper resumes only after

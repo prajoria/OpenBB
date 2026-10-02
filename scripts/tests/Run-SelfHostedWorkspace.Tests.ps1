@@ -75,6 +75,9 @@ Describe "Self-hosted Workspace launcher" {
         Mock Pop-Location {}
         Mock Write-Host {}
         Mock Invoke-WorkspaceCompose {
+            if ($ArgumentList -contains "scripts.init_users") {
+                return "workspace-admin@example.com"
+            }
             if ($CaptureOutput) {
                 return @("redis", "fastapi", "rq_worker")
             }
@@ -91,11 +94,25 @@ Describe "Self-hosted Workspace launcher" {
         Mock Set-Content { throw "PID state write failed" }
         Mock Invoke-WorkspaceOwnedCleanup {}
 
-        { Invoke-SelfHostedWorkspaceRun } | Should Throw "PID state write failed"
+        $captured = & {
+            try {
+                Invoke-SelfHostedWorkspaceRun
+            } catch {
+                $_.Exception.Message
+            }
+        } *>&1 | Out-String
+
+        $captured | Should Match "PID state write failed"
+        $captured | Should Not Match "workspace-admin@example.com"
 
         Assert-MockCalled Invoke-WorkspaceOwnedCleanup -Times 1 -Exactly `
             -ParameterFilter {
                 [object]::ReferenceEquals($FrontendProcess, $startedFrontend)
+            }
+        Assert-MockCalled Invoke-WorkspaceCompose -Times 1 -Exactly `
+            -ParameterFilter {
+                $CaptureOutput -and
+                $ArgumentList -contains "scripts.init_users"
             }
     }
 }
