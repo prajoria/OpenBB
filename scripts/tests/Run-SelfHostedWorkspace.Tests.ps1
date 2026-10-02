@@ -50,6 +50,39 @@ Describe "Self-hosted Workspace launcher" {
         }
     }
 
+    It "sanitizes failed user initialization output" {
+        $fakeDocker = Join-Path $TestDrive "docker.cmd"
+        @"
+@echo workspace-admin@example.com
+@echo backend failure for workspace-admin@example.com 1>&2
+@exit /b 7
+"@ | Set-Content -Path $fakeDocker -Encoding ascii
+        $originalPath = $env:PATH
+        try {
+            $env:PATH = "$TestDrive;$originalPath"
+            $captured = & {
+                try {
+                    Invoke-WorkspaceCompose -ArgumentList @(
+                        "exec", "-T", "fastapi", "python", "-m",
+                        "scripts.init_users"
+                    ) -FailureMessage (
+                        "Workspace user and entity initialization failed."
+                    ) -CaptureOutput
+                } catch {
+                    $_.Exception.Message
+                }
+            } *>&1 | Out-String
+        } finally {
+            $env:PATH = $originalPath
+        }
+
+        $captured | Should Match (
+            "Workspace user and entity initialization failed."
+        )
+        $captured | Should Not Match "workspace-admin@example.com"
+        Test-Path $fakeDocker | Should Be $true
+    }
+
     It "stores only PID metadata and sanitized logs in ignored state" {
         $ScriptText | Should Match '\.dev-cycle[\\/]workspace-2110'
         $ScriptText | Should Match 'frontend\.pid\.json'
