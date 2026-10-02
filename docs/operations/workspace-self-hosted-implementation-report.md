@@ -24,7 +24,7 @@ credential, or health commands.
 ## Source audit and verdict
 
 `third_party/workspace` is a mode-`160000` Git submodule pinned at
-`be00e95019a55d57af146919ee46b7e1a4859226`. The #2108 audit found Apache-2.0
+`2a1d897247d42b683039e820e26c477b6f15b83d`. The #2108 audit found Apache-2.0
 source for the React/Vite frontend, FastAPI/SQLAlchemy backend, SQLite
 development Compose path, Redis/RQ, Excel add-in, custom backends and agents,
 integrated MCP routes, and a standalone MCP package. It found no nested
@@ -68,7 +68,7 @@ request without printing the response.
 | Docker Compose | `5.1.4` |
 | Bun | `1.3.14` |
 | Parent baseline | `edc999249f31` (merged PR #2112) |
-| Workspace pin | `be00e95019a55d57af146919ee46b7e1a4859226` |
+| Workspace pin | `2a1d897247d42b683039e820e26c477b6f15b83d` |
 
 Docker Desktop must be running its Linux engine. Git, Docker Compose, and Bun
 must be available to PowerShell 7. Host Poetry and Python 3.13 are not required
@@ -127,13 +127,18 @@ logging its body. Portfolio served HTTPS on loopback with the generated
 development certificate; the browser context was explicitly limited to
 ignoring development TLS errors.
 
-The complete UI acceptance is **blocked**. After successful authentication,
-the pinned frontend's `/app` route rendered only its empty notification and
-portal roots, with no accessible app or connection controls and no frontend
-API requests. A source-excluded TradingView UDF bundle also returned 404.
-Consequently the run could not add the 6120/6902 connectors through the UI,
-inspect Portfolio Overview's six tabs, or prove an Intelligence widget request
-originated from a rendered widget. Separately, the authoritative Portfolio
+The initial UI acceptance run exposed an empty authenticated `/app` shell.
+Issue #2115 traced the root cause to on-prem login state: a missing hosted
+`developer_onboarding_info` record was persisted as `needsOnboarding=true`,
+and `AuthGuard` returned `null` before the layout or redirect helper mounted.
+The source fix in `prajoria/workspace` PR #1 treats on-prem sessions as
+onboarding-complete while preserving hosted onboarding behavior. A regression
+test, focused auth tests, production build, fresh login, and profile reuse all
+passed. The source-excluded TradingView UDF bundle still returns 404, but the
+shell renders while it is absent, proving it is not the shell blocker.
+
+Connector, six-tab, and rendered-widget validation remain tracked by #2101.
+Separately, the authoritative Portfolio
 launcher reported the exact expected data-path prerequisite blocker: no root
 `.env`, so `/portfolio/*` and `/espp/*` require the absent
 `MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DATABASE` binding. Discovery,

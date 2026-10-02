@@ -327,12 +327,13 @@ hosted or non-exact Workspace URLs. See the browser harness
 
 Issue #2101 validation on 2026-10-02 proved both first-run managed login and a
 second run that reused the profile without submitting the login form. The
-authoritative self-hosted verifier remained healthy. Post-login UI validation
-was blocked because the authenticated `/app` route rendered no accessible app
-controls (only the notification and portal roots); the browser also observed a
-404 for the source-excluded TradingView UDF bundle. Keep this distinct from
-authentication and script verification. Do not claim connector, six-tab, or
-widget-render success until the authenticated app shell renders.
+authoritative self-hosted verifier remained healthy. Issue #2115 then fixed the
+empty authenticated `/app` shell in `prajoria/workspace` PR #1: on-prem login
+had incorrectly required hosted onboarding data, causing `AuthGuard` to return
+`null`. The fixed source renders the app layout after both fresh login and
+profile reuse. The source-excluded TradingView UDF bundle still returns 404 but
+does not block the shell. Connector, six-tab, and rendered-widget proof remain
+separate #2101 acceptance steps.
 
 ## 9. Run deterministic Workspace Bench evaluations
 
