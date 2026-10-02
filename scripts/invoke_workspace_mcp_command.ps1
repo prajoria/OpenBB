@@ -12,7 +12,9 @@ param(
     [string]$WorkingDirectory = (Get-Location).Path,
     [string]$BackendUrl = "http://127.0.0.1:8000",
     [ValidateRange(1, 3600)]
-    [int]$ChildTimeoutSeconds = 300
+    [int]$ChildTimeoutSeconds = 300,
+    [ValidateRange(1, 300)]
+    [int]$LifecycleLockTimeoutSeconds = 30
 )
 
 Set-StrictMode -Version Latest
@@ -46,7 +48,14 @@ function Invoke-WorkspaceMcpChildCommand {
         [int]$TimeoutSeconds = 300
     )
 
-    $command = Get-Command $FilePath -CommandType Application -ErrorAction Stop
+    $command = @(
+        Get-Command $FilePath -CommandType Application -ErrorAction Stop
+    ) | Where-Object {
+        $_.Source -and (Test-Path -LiteralPath $_.Source -PathType Leaf)
+    } | Select-Object -First 1
+    if (-not $command) {
+        throw "Workspace MCP child executable is unavailable."
+    }
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $command.Source
     $startInfo.WorkingDirectory = $WorkingDirectory
@@ -125,7 +134,7 @@ function Find-CreatedWorkspaceMcpTokenUuid {
     return $matches[0]
 }
 
-function Invoke-WorkspaceMcpChildWithToken {
+function Invoke-WorkspaceMcpChildWithTokenCore {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$WorkspaceRoot,
@@ -341,6 +350,49 @@ function Invoke-WorkspaceMcpChildWithToken {
     }
 }
 
+function Invoke-WorkspaceMcpChildWithToken {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$WorkspaceRoot,
+        [Parameter(Mandatory)][string]$FilePath,
+        [string[]]$ArgumentList = @(),
+        [string]$WorkingDirectory = (Get-Location).Path,
+        [string]$BackendUrl = "http://127.0.0.1:8000",
+        [ValidateRange(1, 3600)]
+        [int]$ChildTimeoutSeconds = 300,
+        [ValidateRange(1, 300)]
+        [int]$LifecycleLockTimeoutSeconds = 30
+    )
+
+    $mutex = [System.Threading.Mutex]::new(
+        $false,
+        "Local\OpenBBWorkspaceMcpManagedAdmin"
+    )
+    $lockAcquired = $false
+    try {
+        try {
+            $lockAcquired = $mutex.WaitOne($LifecycleLockTimeoutSeconds * 1000)
+        } catch [System.Threading.AbandonedMutexException] {
+            $lockAcquired = $true
+        }
+        if (-not $lockAcquired) {
+            throw "Workspace MCP token lifecycle is already active."
+        }
+        return Invoke-WorkspaceMcpChildWithTokenCore `
+            -WorkspaceRoot $WorkspaceRoot `
+            -FilePath $FilePath `
+            -ArgumentList $ArgumentList `
+            -WorkingDirectory $WorkingDirectory `
+            -BackendUrl $BackendUrl `
+            -ChildTimeoutSeconds $ChildTimeoutSeconds
+    } finally {
+        if ($lockAcquired) {
+            $mutex.ReleaseMutex()
+        }
+        $mutex.Dispose()
+    }
+}
+
 if ($MyInvocation.InvocationName -ne ".") {
     if (
         [string]::IsNullOrWhiteSpace($WorkspaceRoot) -or
@@ -354,6 +406,7 @@ if ($MyInvocation.InvocationName -ne ".") {
         -ArgumentList $ArgumentList `
         -WorkingDirectory $WorkingDirectory `
         -BackendUrl $BackendUrl `
-        -ChildTimeoutSeconds $ChildTimeoutSeconds
+        -ChildTimeoutSeconds $ChildTimeoutSeconds `
+        -LifecycleLockTimeoutSeconds $LifecycleLockTimeoutSeconds
     exit $exitCode
 }

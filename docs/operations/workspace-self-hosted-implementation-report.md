@@ -236,20 +236,23 @@ The following evidence was recorded on 2026-10-01:
 No response bodies, credentials, tokens, environment values, or application
 data were captured as evidence.
 
-## Self-hosted Workspace MCP certification (#2102)
+## Self-hosted Workspace MCP certification review (#2102)
 
-Certification on 2026-10-02 kept simulator, transport, and real-browser
-evidence separate:
+The reviewed replay on 2026-10-02 kept simulator, transport, and real-browser
+evidence separate. Tool schemas and live browser parity pass; full hosted
+resource-descriptor compatibility remains unclaimed because of the two exact
+drifts below.
 
 | Layer | Sanitized result |
 | --- | --- |
 | Taskset validation | Smoke `80/80` oracle pass and `80/80` no-op fail; enterprise apps `138/138` and `138/138`; Workspace tasks `120/120` and `120/120` |
-| Workspace Bench suite | `222 passed, 1 skipped` |
-| Token wrapper Pester suite | Execution coverage includes literal arguments, nonzero exit, finite timeout with exact child-tree termination, malformed-create recovery, endpoint/header contract, cleanup failure, and environment restoration. |
+| Workspace Bench suite | `224 passed, 1 skipped` |
+| Parent Pester suites | `63 passed, 0 failed` across launcher, setup, stop, verifier, and token wrapper. Execution coverage includes literal arguments, safe bare executable resolution, nonzero exit, finite timeout with exact child-tree termination, malformed-create recovery, concurrent-lifecycle exclusion, endpoint/header contract, cleanup failure, environment restoration, and companion-mode configuration. |
+| Workspace source focused suite | `34 passed`; Ruff clean; generated sidecar fixture matches the declarations. |
 | Integrated MCP transport | `http://127.0.0.1:8000/mcp`; Workspace MCP `v3.4.7` |
 | Surface audit | Original hosted baselines retained. Self-host tool declarations compare with `0` schema compatibility issues. Two resource descriptors differ: `openbb://workspace/app-builder/index` and `openbb://workspace/guides/build-an-app`; full resource compatibility is not claimed. |
-| Browser-backed parity | The exact replay runs the read-only `list_available_widgets` task twice, with independent token lifecycles, to prove the browser bridge remains connected after the first token is revoked. |
-| Cleanup | Read-only shortcut creates no dashboard; each MCP token is revoked and only its isolated automation login session is deleted. |
+| Browser-backed parity | Two consecutive runs of the read-only `list_available_widgets` task each reported mocked `2/2`, live `2/2`, agreement true, and structural agreement true. Each run had an independent token lifecycle, proving the browser bridge remained connected after the first token was revoked. |
+| Cleanup | Read-only shortcut created no dashboard; a post-replay API check found `0` active `workspace-bench-*` tokens; generated parity output was removed. |
 
 The pinned source initially required hosted
 `X-OpenBB-Authorization` service authentication on user-scoped token and bridge
@@ -263,7 +266,12 @@ all existing sessions for the requested source and a `source=pro` automation
 login would invalidate the authenticated browser. Cleanup calls generic
 `GET /logout`, which deletes only the automation session; `/pro/logout` would
 delete the browser's Pro sessions. The wrapper does not inspect browser cookies
-or profile state.
+or profile state. Local setup explicitly enables the Workspace MCP Companion;
+the browser harness enables the bridge through the application store and keeps
+the authenticated tab open throughout both token lifecycles. A named
+cross-process mutex serializes uses of the single managed automation identity,
+preventing a concurrent `source=excel` login from invalidating another
+wrapper's revocation session.
 
 The pinned Bench also exposed two local-compatibility defects. Its Windows
 integration test used POSIX shell quoting for a `cmd.exe` child command, and

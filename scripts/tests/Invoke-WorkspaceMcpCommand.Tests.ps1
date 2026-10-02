@@ -112,6 +112,18 @@ param(
         $env:WORKSPACE_MCP_URL | Should Be "prior-url"
     }
 
+    It "resolves a bare executable name to one existing application" {
+        $exitCode = Invoke-WorkspaceMcpChildCommand `
+            -FilePath "pwsh" `
+            -ArgumentList @("-NoProfile", "-Command", "exit 0") `
+            -WorkingDirectory $TestDrive `
+            -McpToken "child-token" `
+            -McpUrl "http://127.0.0.1:8000/mcp" `
+            -TimeoutSeconds 10
+
+        $exitCode | Should Be 0
+    }
+
     It "times out and terminates the exact real child process tree" {
         $probePath = Join-Path $TestDrive "hanging-child.ps1"
         $pidPath = Join-Path $TestDrive "child-pids.json"
@@ -299,6 +311,52 @@ Start-Sleep -Seconds 60
         $env:WORKSPACE_MCP_URL | Should Be "prior-url"
         Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
             $Method -eq "Get" -and $Uri -eq "http://127.0.0.1:8000/logout"
+        }
+    }
+
+    It "rejects an overlapping managed-administrator token lifecycle" {
+        $readyPath = Join-Path $TestDrive "lifecycle-lock-ready"
+        $job = Start-Job -ScriptBlock {
+            param($ReadyPath)
+            $mutex = [System.Threading.Mutex]::new(
+                $false,
+                "Local\OpenBBWorkspaceMcpManagedAdmin"
+            )
+            $acquired = $mutex.WaitOne(5000)
+            try {
+                if (-not $acquired) {
+                    throw "test lifecycle lock was not acquired"
+                }
+                Set-Content -Path $ReadyPath -Value "ready"
+                Start-Sleep -Seconds 30
+            } finally {
+                if ($acquired) {
+                    $mutex.ReleaseMutex()
+                }
+                $mutex.Dispose()
+            }
+        } -ArgumentList $readyPath
+        try {
+            for ($attempt = 0; $attempt -lt 50 -and -not (Test-Path $readyPath); $attempt++) {
+                Start-Sleep -Milliseconds 100
+            }
+            Test-Path $readyPath | Should Be $true
+
+            {
+                Invoke-WorkspaceMcpChildWithToken `
+                    -WorkspaceRoot $TestDrive `
+                    -FilePath (Get-Command pwsh).Source `
+                    -ArgumentList @("-NoProfile", "-Command", "exit 0") `
+                    -ChildTimeoutSeconds 10 `
+                    -LifecycleLockTimeoutSeconds 1
+            } | Should Throw "Workspace MCP token lifecycle is already active."
+
+            Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly -Scope It
+            $env:WORKSPACE_MCP_TOKEN | Should Be "prior-token"
+            $env:WORKSPACE_MCP_URL | Should Be "prior-url"
+        } finally {
+            Stop-Job $job -ErrorAction SilentlyContinue
+            Remove-Job $job -Force -ErrorAction SilentlyContinue
         }
     }
 }

@@ -406,13 +406,17 @@ identically. Keep generated run artifacts and response transcripts out of Git.
 
 First use the hardened persistent browser profile to open
 `http://127.0.0.1:1420`, enable **Workspace MCP Companion**, and keep that tab
-open. The integrated endpoint is `http://127.0.0.1:8000/mcp`.
+open. Self-hosted setup enables that companion control in the local frontend
+configuration. The integrated endpoint is `http://127.0.0.1:8000/mcp`.
 
 Use the checked-in wrapper to create one short-lived user-scoped token from the
 ignored managed administrator credential, expose it only to one child process,
 and revoke it in `finally`. The wrapper logs in with the isolated `excel`
 session source; using `source=pro` would invalidate the browser's authenticated
-Pro session. It never reads browser cookies or profile files.
+Pro session. A named cross-process lock serializes this managed identity's full
+login/create/child/revoke/logout lifecycle so concurrent wrappers cannot
+invalidate each other's cleanup sessions. It never reads browser cookies or
+profile files.
 
 `$WorkspaceDeploymentRoot` must be the worktree that owns the verified running
 deployment. These are the exact certification replay commands; do not add

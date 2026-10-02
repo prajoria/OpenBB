@@ -126,6 +126,7 @@ Describe "Self-hosted Workspace setup" {
         $text | Should Match 'VITE_AUTHENTICATION_ALLOW_REGISTRATION="false"'
         $text | Should Match 'VITE_AI_COPILOT_ENABLED="false"'
         $text | Should Match 'VITE_SERVICES_POSTHOG="false"'
+        $text | Should Match 'VITE_UI_SHOW_COMPANION_MCP_MODE="true"'
     }
 
     It "never prints secret values or full environment files" {
