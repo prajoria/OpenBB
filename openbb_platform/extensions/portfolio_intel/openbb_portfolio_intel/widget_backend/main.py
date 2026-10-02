@@ -77,6 +77,7 @@ def get_widgets() -> JSONResponse:
             (_MANIFEST_DIR / "widgets.json").read_text(encoding="utf-8")
         ),
         media_type="application/json; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -87,6 +88,7 @@ def get_apps() -> JSONResponse:
     return JSONResponse(
         content=json.loads((_MANIFEST_DIR / "apps.json").read_text(encoding="utf-8")),
         media_type="application/json; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
     )
 
 

@@ -8,7 +8,7 @@ portfolio_intel widget_backend server (Option A architecture):
 - **tt_export_button** — markdown-link widget for CSV export
 
 Also verifies:
-- The new "techtrade-desk" app entry exists in apps.json with a Morning
+- The new "custom-techtrade-desk" app entry exists in apps.json with a Morning
   Scan tab (T1 = first techtrade tab).
 - ``POST /tt/scan/trigger`` enqueues a job and returns 202 without
   executing any scan handler.
@@ -150,7 +150,7 @@ def _apps() -> list:
 
 def _techtrade_app() -> dict:
     for a in _apps():
-        if a.get("id") == "techtrade-desk":
+        if a.get("id") == "custom-techtrade-desk":
             return a
     return {}
 
@@ -434,14 +434,14 @@ def test_empty_endpoint_latency() -> None:
 
 
 # ---------------------------------------------------------------------------
-# techtrade-desk app entry + Morning Scan tab
+# custom-techtrade-desk app entry + Morning Scan tab
 # ---------------------------------------------------------------------------
 
 
 def test_techtrade_desk_app_declared() -> None:
-    """techtrade-desk app must exist in apps.json alongside the terminal."""
+    """custom-techtrade-desk app must exist in apps.json alongside the terminal."""
     a = _techtrade_app()
-    assert a, "techtrade-desk app entry missing from apps.json"
+    assert a, "custom-techtrade-desk app entry missing from apps.json"
 
 
 def test_techtrade_desk_has_morning_scan_tab() -> None:

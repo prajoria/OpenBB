@@ -85,7 +85,10 @@ async def root_widgets():
     assets_dir = Path(__file__).resolve().parent / "assets"
     widgets_file = assets_dir / "widgets.json"
     with open(widgets_file, encoding="utf-8") as f:
-        return JSONResponse(content=json.load(f))
+        return JSONResponse(
+            content=json.load(f),
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 @app.get("/apps.json", include_in_schema=False)
@@ -94,7 +97,10 @@ async def root_apps():
     assets_dir = Path(__file__).resolve().parent / "assets"
     apps_file = assets_dir / "apps.json"
     with open(apps_file, encoding="utf-8") as f:
-        return JSONResponse(content=json.load(f))
+        return JSONResponse(
+            content=json.load(f),
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 # `app` is the name detected by the openbb-api launcher (default name = "app")

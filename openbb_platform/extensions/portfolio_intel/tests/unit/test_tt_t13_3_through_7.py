@@ -61,7 +61,7 @@ def _apps() -> list:
 
 def _techtrade_app() -> dict:
     for a in _apps():
-        if a.get("id") == "techtrade-desk":
+        if a.get("id") == "custom-techtrade-desk":
             return a
     return {}
 
@@ -271,7 +271,7 @@ def test_execute_bridge_rejects_bad_verdict() -> None:
 
 
 # ===========================================================================
-# T13.6 tab layout — 6 tabs across techtrade-desk
+# T13.6 tab layout — 6 tabs across custom-techtrade-desk
 # ===========================================================================
 
 _EXPECTED_TECHTRADE_TABS = {
@@ -287,7 +287,7 @@ _EXPECTED_TECHTRADE_TABS = {
 def test_techtrade_desk_has_all_6_tabs() -> None:
     tabs = _techtrade_app().get("tabs", {})
     missing = _EXPECTED_TECHTRADE_TABS - set(tabs.keys())
-    assert not missing, f"techtrade-desk missing tabs: {missing!r}"
+    assert not missing, f"custom-techtrade-desk missing tabs: {missing!r}"
 
 
 def test_validation_tab_has_verdict_widget() -> None:

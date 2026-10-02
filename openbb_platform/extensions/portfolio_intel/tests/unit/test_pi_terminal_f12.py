@@ -50,7 +50,7 @@ def _apps() -> list:
 
 def _terminal_app() -> dict:
     for a in _apps():
-        if a.get("id") == "portfolio-intelligence-terminal":
+        if a.get("id") == "custom-portfolio-intelligence-terminal":
             return a
     return {}
 

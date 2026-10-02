@@ -36,7 +36,7 @@ _APPS_JSON = (
 
 def _tab_widget_ids(tab_id: str) -> set[str]:
     apps = json.loads(_APPS_JSON.read_text(encoding="utf-8"))
-    term = [a for a in apps if a.get("id") == "portfolio-intelligence-terminal"][0]
+    term = [a for a in apps if a.get("id") == "custom-portfolio-intelligence-terminal"][0]
     return {slot["i"] for slot in term["tabs"][tab_id]["layout"]}
 
 
@@ -108,7 +108,7 @@ def test_f11_alerts_tab_contains_all_required_widgets() -> None:
 def test_f9_f10_f11_tabs_have_no_slot_overlap() -> None:
     """Same (x, y, w, h) on two slots = one occludes the other."""
     apps = json.loads(_APPS_JSON.read_text(encoding="utf-8"))
-    term = [a for a in apps if a.get("id") == "portfolio-intelligence-terminal"][0]
+    term = [a for a in apps if a.get("id") == "custom-portfolio-intelligence-terminal"][0]
     for tid in ("risk", "paper", "alerts"):
         seen: set[tuple] = set()
         for slot in term["tabs"][tid]["layout"]:

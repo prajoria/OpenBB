@@ -125,7 +125,7 @@ exception string in any response field.
 **Track B (free):**  ⚠ cboe (1450ms)  ● sec  ● yfinance
 ```
 
-**Chrome placement:** the widget goes into the `portfolio-intelligence-terminal` app's top-level `params` context and is added to **every tab** at position `(0, -1, w=40, h=1)` above the existing context bars. This is the "app chrome" the issue body specifies.
+**Chrome placement:** the widget goes into the `custom-portfolio-intelligence-terminal` app's top-level `params` context and is added to **every tab** at position `(0, -1, w=40, h=1)` above the existing context bars. This is the "app chrome" the issue body specifies.
 
 ### T12.2 #1686 — Morning Review one-pager (STUB, layout only)
 
@@ -181,7 +181,7 @@ from `_ACCOUNT_ID_RE`, though the character class may end up identical).
 
 ### T12.4 #1688 — Sunday Routine guided-tour manifest (REAL, data-only)
 
-**Choice: Q1 (a)** — `guidedTour` key on the `portfolio-intelligence-terminal` app entry.
+**Choice: Q1 (a)** — `guidedTour` key on the `custom-portfolio-intelligence-terminal` app entry.
 
 Schema (private convention; Workspace may or may not consume it — a follow-on
 if not, but the data is the load-bearing part regardless):

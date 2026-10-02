@@ -1,7 +1,7 @@
 """Techtrade Position Workbench tests (#1696 T13.2).
 
 Ships 4 new tt_* widgets on a new "T2: Position Workbench" tab in the
-techtrade-desk app. All stub-shaped; real wiring is per-widget TODOs.
+custom-techtrade-desk app. All stub-shaped; real wiring is per-widget TODOs.
 
 - **tt_signal_card** (markdown) — active signal summary for a symbol
 - **tt_plan_card** (markdown) — trading plan (entry, stop, target)
@@ -53,7 +53,7 @@ def _apps() -> list:
 
 def _techtrade_app() -> dict:
     for a in _apps():
-        if a.get("id") == "techtrade-desk":
+        if a.get("id") == "custom-techtrade-desk":
             return a
     return {}
 
@@ -152,7 +152,7 @@ def test_position_workbench_tab_exists() -> None:
     tabs = _techtrade_app().get("tabs", {})
     assert (
         "position-workbench" in tabs or "position_workbench" in tabs
-    ), "Position Workbench tab missing from techtrade-desk"
+    ), "Position Workbench tab missing from custom-techtrade-desk"
 
 
 def test_position_workbench_tab_has_all_4_widgets() -> None:

@@ -1,6 +1,6 @@
 [
   {
-    "id": "portfolio-intelligence-overview",
+    "id": "custom-portfolio-intelligence-overview",
     "name": "Portfolio Intelligence - Overview",
     "img": "",
     "img_dark": "",
@@ -56,7 +56,7 @@
     "groups": []
   },
   {
-    "id": "portfolio-intelligence-terminal",
+    "id": "custom-portfolio-intelligence-terminal",
     "name": "Portfolio Intelligence - Terminal",
     "img": "",
     "img_dark": "",
@@ -1149,7 +1149,7 @@
     }
   },
   {
-    "id": "techtrade-desk",
+    "id": "custom-techtrade-desk",
     "name": "Techtrade Trading Desk",
     "img": "",
     "img_dark": "",

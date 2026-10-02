@@ -52,8 +52,8 @@ from starlette.datastructures import (  # noqa: E402  # pylint: disable=wrong-im
 
 logger = logging.getLogger(__name__)
 
-# CORS: only pro.openbb.co reaches this backend.
-_ALLOWED_ORIGINS = ["https://pro.openbb.co"]
+# CORS: exact hosted and self-hosted Workspace origins reach this backend.
+_ALLOWED_ORIGINS = ["https://pro.openbb.co", "http://127.0.0.1:1420"]
 
 # Response header carrying the provider tier that served the request
 # (e.g. ``fmp_cached`` vs ``stub``) so the local viewer can render a

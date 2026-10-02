@@ -81,7 +81,7 @@ openbb_platform/tools/browser_test_harness/
 │   ├── stories/
 │   │   ├── __init__.py
 │   │   ├── portfolio.py             # Story steps for portfolio-intel terminal
-│   │   └── techtrade.py             # Story steps for techtrade-desk
+│   │   └── techtrade.py             # Story steps for custom-techtrade-desk
 │   ├── drivers/
 │   │   ├── __init__.py
 │   │   ├── base.py                  # Driver Protocol — what each mode implements
@@ -92,7 +92,7 @@ openbb_platform/tools/browser_test_harness/
 │   └── report.py                    # report.md + report.json emitters
 ├── guides/
 │   ├── portfolio-manual-guide.md    # Human-tester walk-through for terminal
-│   └── techtrade-manual-guide.md    # Human-tester walk-through for techtrade-desk
+│   └── techtrade-manual-guide.md    # Human-tester walk-through for custom-techtrade-desk
 ├── fixtures/
 │   ├── expected_responses/          # JSON snapshots of every endpoint's stub response
 │   │   ├── pi_xray_sector_demo.json
