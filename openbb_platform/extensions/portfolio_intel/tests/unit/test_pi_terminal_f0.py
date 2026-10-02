@@ -11,7 +11,7 @@ Covers:
   ``data.chart`` mapping in the widget spec that tells Workspace how to
   render the raw records as a pie. Empty-pane bug is fixed either way;
   this test enforces one of the two contracts is in place.
-- **F0 shell (#1635-#1637)** — the ``portfolio-intelligence-terminal``
+- **F0 shell (#1635-#1637)** — the ``custom-portfolio-intelligence-terminal``
   eleven-tab app entry is declared in ``apps.json`` with both a symbol
   and a book context, and a top-level chrome test asserts every one of
   the eleven tabs is present.
@@ -117,7 +117,7 @@ def test_xray_country_declares_pie_chart_mapping() -> None:
 # ---------------------------------------------------------------------------
 
 
-_TERMINAL_APP_ID = "portfolio-intelligence-terminal"
+_TERMINAL_APP_ID = "custom-portfolio-intelligence-terminal"
 
 # Tab labels are the ones named in the EPIC #1634 body and F1..F11 issue
 # titles. We match on substrings so cosmetic renaming (e.g. adding an
@@ -138,7 +138,7 @@ _EXPECTED_TAB_SUBSTRINGS = (
 
 
 def test_terminal_app_declared() -> None:
-    """#1636 — the ``portfolio-intelligence-terminal`` app is in apps.json."""
+    """#1636 — the ``custom-portfolio-intelligence-terminal`` app is in apps.json."""
     apps = _read("apps.json")
     # apps.json is either a list-of-app-dicts or an object keyed by id.
     if isinstance(apps, dict) and "apps" in apps:

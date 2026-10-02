@@ -156,11 +156,12 @@ also use the pinned Workspace `custom-` prefix contract. Focused suites passed
 affected app layouts.
 
 The authoritative Portfolio launcher still reported the exact expected
-data-path prerequisite limitation: no root `.env`, so `/portfolio/*` and
-`/espp/*` require the absent
-`MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DATABASE` binding. Discovery,
-stock, and API surfaces remained available; no database credentials were
-invented.
+data-path prerequisite limitation: `/portfolio/*` and `/espp/*` could not
+connect because the MySQL application user's `MYSQL_USER` and `MYSQL_PASSWORD`
+credentials were absent. `MYSQL_HOST` and `MYSQL_DATABASE` already had
+application defaults; those values were not invented or presented as blockers.
+Discovery, stock, and API surfaces remained available, and no database
+credentials were invented.
 
 ## Authoritative scripts and contracts
 
