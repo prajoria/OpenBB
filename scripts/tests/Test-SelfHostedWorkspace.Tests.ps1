@@ -19,6 +19,7 @@ Describe "Self-hosted Workspace verifier" {
             Should Not Match '"(?-i:up|down|start|stop|build|run|exec)"'
         $ScriptText | Should Not Match '\b(Set|New|Remove)-Item\b'
         $ScriptText | Should Not Match 'Stop-Process'
+        $ScriptText | Should Not Match '\b(Start|Register)-Job\b'
     }
 
     It "uses the exact Compose project and expected services" {
@@ -75,6 +76,139 @@ Describe "Self-hosted Workspace verifier" {
         Assert-MockCalled Invoke-WebRequest -Times 1 -Exactly -ParameterFilter {
             $ConnectionTimeoutSeconds -eq 3 -and
             $OperationTimeoutSeconds -eq 5
+        }
+    }
+
+    It "executes a successful external command and returns only stdout" {
+        $fixture = Join-Path $TestDrive "success.ps1"
+        Set-Content -LiteralPath $fixture -Value @'
+Write-Output "alpha"
+Write-Output "beta"
+Write-Error "discarded diagnostic" -ErrorAction Continue
+exit 0
+'@
+
+        $actual = @(
+            Invoke-WorkspaceVerificationCommand -FilePath (Join-Path $PSHOME "pwsh.exe") `
+                -ArgumentList @("-NoProfile", "-File", $fixture) `
+                -FailureMessage "Logical verification failure." `
+                -TimeoutSeconds 5
+        )
+
+        $actual | Should Be @("alpha", "beta")
+    }
+
+    It "resolves applications safely and cleans up pre-assignment failures" {
+        $ScriptText |
+            Should Match 'Get-Command.*-CommandType Application'
+        $ScriptText | Should Match 'CreateProcess\(\s*filePath,'
+        $ScriptText | Should Match 'TerminateProcess'
+        $ScriptText |
+            Should Match '(?s)catch\s*\{\s*if \(assignedToJob\).*TerminateAndWait'
+    }
+
+    It "sanitizes nonzero external command output" {
+        $fixture = Join-Path $TestDrive "nonzero.ps1"
+        Set-Content -LiteralPath $fixture -Value @'
+Write-Output "private stdout"
+[Console]::Error.WriteLine("private stderr")
+exit 7
+'@
+
+        $captured = ""
+        try {
+            $null = Invoke-WorkspaceVerificationCommand `
+                -FilePath (Join-Path $PSHOME "pwsh.exe") `
+                -ArgumentList @("-NoProfile", "-File", $fixture) `
+                -FailureMessage "Logical verification failure." `
+                -TimeoutSeconds 5
+        } catch {
+            $captured = $_ | Out-String
+        }
+
+        $captured | Should Match "Logical verification failure."
+        $captured | Should Not Match "private stdout|private stderr|exit 7"
+    }
+
+    It "times out and removes the exact external command process tree" {
+        $childFixture = Join-Path $TestDrive "timeout-child.ps1"
+        $parentFixture = Join-Path $TestDrive "timeout-parent.ps1"
+        $childPidPath = Join-Path $TestDrive "timeout-child.pid"
+        Set-Content -LiteralPath $childFixture -Value @'
+Start-Sleep -Seconds 30
+'@
+        Set-Content -LiteralPath $parentFixture -Value @'
+param([string]$PwshPath, [string]$ChildScript, [string]$ChildPidPath)
+$child = Start-Process -FilePath $PwshPath -ArgumentList @(
+    "-NoProfile", "-File", $ChildScript
+) -PassThru
+Set-Content -LiteralPath $ChildPidPath -Value $child.Id
+Start-Sleep -Seconds 30
+'@
+
+        $captured = ""
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $null = Invoke-WorkspaceVerificationCommand `
+                -FilePath (Join-Path $PSHOME "pwsh.exe") `
+                -ArgumentList @(
+                    "-NoProfile", "-File", $parentFixture,
+                    (Join-Path $PSHOME "pwsh.exe"), $childFixture, $childPidPath
+                ) `
+                -FailureMessage "Logical timeout failure." `
+                -TimeoutSeconds 1
+        } catch {
+            $captured = $_ | Out-String
+        } finally {
+            $stopwatch.Stop()
+        }
+
+        $captured | Should Match "Logical timeout failure."
+        $stopwatch.Elapsed.TotalSeconds | Should BeLessThan 8
+        Test-Path $childPidPath | Should Be $true
+        $childPid = [int](Get-Content $childPidPath -Raw)
+        Get-Process -Id $childPid -ErrorAction SilentlyContinue |
+            Should BeNullOrEmpty
+    }
+
+    It "removes descendants when a failing root exits first" {
+        $childFixture = Join-Path $TestDrive "orphan-child.ps1"
+        $parentFixture = Join-Path $TestDrive "orphan-parent.ps1"
+        $childPidPath = Join-Path $TestDrive "orphan-child.pid"
+        Set-Content -LiteralPath $childFixture -Value @'
+Start-Sleep -Seconds 30
+'@
+        Set-Content -LiteralPath $parentFixture -Value @'
+param([string]$PwshPath, [string]$ChildScript, [string]$ChildPidPath)
+$child = Start-Process -FilePath $PwshPath -ArgumentList @(
+    "-NoProfile", "-File", $ChildScript
+) -PassThru
+Set-Content -LiteralPath $ChildPidPath -Value $child.Id
+exit 9
+'@
+
+        try {
+            {
+                Invoke-WorkspaceVerificationCommand `
+                    -FilePath (Join-Path $PSHOME "pwsh.exe") `
+                    -ArgumentList @(
+                        "-NoProfile", "-File", $parentFixture,
+                        (Join-Path $PSHOME "pwsh.exe"), $childFixture,
+                        $childPidPath
+                    ) `
+                    -FailureMessage "Logical root failure." `
+                    -TimeoutSeconds 5
+            } | Should Throw "Logical root failure."
+
+            Test-Path $childPidPath | Should Be $true
+            $childPid = [int](Get-Content $childPidPath -Raw)
+            Get-Process -Id $childPid -ErrorAction SilentlyContinue |
+                Should BeNullOrEmpty
+        } finally {
+            if (Test-Path $childPidPath) {
+                $childPid = [int](Get-Content $childPidPath -Raw)
+                Stop-Process -Id $childPid -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 
@@ -136,7 +270,7 @@ Describe "Self-hosted Workspace verifier" {
     It "checks clean pinned source ignored secrets and absent npm lock" {
         $ScriptText | Should Match 'ls-tree'
         $ScriptText | Should Match '"status"'
-        $ScriptText | Should Match '"--untracked-files=no"'
+        $ScriptText | Should Match '"--untracked-files=all"'
         $ScriptText | Should Match 'check-ignore'
         $ScriptText | Should Match 'package-lock\.json'
         $ScriptText | Should Match 'bun\.lock'
@@ -158,6 +292,28 @@ Describe "Self-hosted Workspace verifier" {
         }
 
         { Assert-WorkspaceSourceAndRuntimeState } | Should Not Throw
+    }
+
+    It "rejects unexpected untracked files while ignored runtime files stay hidden" {
+        $commit = "be00e95019a55d57af146919ee46b7e1a4859226"
+        Mock Invoke-WorkspaceVerificationCommand {
+            if ($ArgumentList -contains "ls-tree") {
+                return "160000 commit $commit`tthird_party/workspace"
+            }
+            if ($ArgumentList -contains "rev-parse") {
+                return $commit
+            }
+            if ($ArgumentList -contains "status") {
+                return "?? unexpected-local-file.txt"
+            }
+            return @()
+        }
+        Mock Test-Path {
+            return $Path -like "*bun.lock"
+        }
+
+        { Assert-WorkspaceSourceAndRuntimeState } |
+            Should Throw "Workspace submodule contains tracked or unexpected untracked changes."
     }
 
     It "never prints response bodies or runtime secret contents" {

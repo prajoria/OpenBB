@@ -24,23 +24,38 @@ Run from the repository root:
 
 ## Select the state-aware flow
 
+- **Preserve the requested operation.** Classify the request before recovery.
+  Never promote status, verify, or stop into setup/start/replay.
 - **First setup / fresh replay:** setup → run → test.
 - **Setup complete, currently stopped:** run → test.
 - **Status or verify only:** test. Do not start or stop anything.
 - **Already running:** test only. Do not rerun setup or run.
 - **Safe stop:** stop. Report stopped, not verified healthy.
-- **Missing setup:** if run/test reports setup incomplete, run setup → run → test.
-- **Docker stopped:** report the sanitized script failure and ask the operator to
-  start Docker Desktop's Linux engine. Then setup → run → test.
-- **Stale PID state:** when run reports existing/stale PID state, stop → run → test.
-- **Health failure:** stop → run → test once. If a checked-in script still fails,
-  perform only focused diagnosis of that failure and report the sanitized result.
+- **Missing setup during start/replay:** run setup → run → test. For status or
+  verify, report the verifier's sanitized failure instead; for stop, keep using
+  only stop.
+- **Docker stopped during setup/start/replay:** invoke setup as requested and
+  report its sanitized Docker prerequisite failure. Ask the operator to start
+  Docker Desktop's Linux engine, but never start Docker manually.
+- **Docker stopped during status/verify:** invoke only test and report its
+  sanitized Docker failure. Do not setup, run, or stop.
+- **Docker stopped during stop:** invoke only stop. If Compose cannot be
+  reached, report that Compose shutdown could not be confirmed and ask the
+  operator to start Docker Desktop's Linux engine before retrying stop. Do not
+  rotate credentials or start services.
+- **Stale PID state during start/replay:** stop → run → test. For stop, invoke
+  stop only; for status/verify, report the verifier result without recovery.
+- **Health failure during start/replay:** stop → run → test once. For
+  status/verify, report the sanitized verifier failure without changing state.
+  If a checked-in script still fails, perform only focused diagnosis of that
+  failure and report the sanitized result.
 - **Browser validation blocked:** keep script verification and browser validation
   distinct. Report the verifier result plus the browser blocker; never downgrade a
   failed verifier or claim browser success.
 
 Setup rotates managed local credentials. Do not run setup merely to check status
-or restart a healthy deployment.
+or restart a healthy deployment. Never rotate credentials as recovery for
+status, verify, or stop.
 
 ## Hard boundaries
 

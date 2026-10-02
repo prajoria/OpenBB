@@ -13,7 +13,8 @@ development deployment. On the recorded machine, the authoritative sequence
 `setup → run → test → stop` completed successfully. The verifier proved the
 exact Compose project and services, loopback listeners, backend and frontend
 health, managed administrator login, exact allowed/rejected CORS behavior,
-pinned clean source, ignored runtime state, and lockfile policy.
+pinned source with no tracked or unexpected untracked files, ignored runtime
+state, and lockfile policy.
 
 This is a **development deployment**, not a production hardening or complete
 hosted-product parity claim. Future operators and AI sessions must invoke the
@@ -103,7 +104,7 @@ The required order after #2111 is #2101, #2102, then optional #2103.
 | --- | --- | --- |
 | [`setup_self_hosted_workspace.ps1`](../../scripts/setup_self_hosted_workspace.ps1) | Yes | Validate prerequisites/pin, generate ignored local configuration and secrets, install exactly from `bun.lock`. |
 | [`run_self_hosted_workspace.ps1`](../../scripts/run_self_hosted_workspace.ps1) | Yes | Build/migrate/start the exact project, initialize users, validate login, and start loopback Vite with owned PID metadata. |
-| [`test_self_hosted_workspace.ps1`](../../scripts/test_self_hosted_workspace.ps1) | **No** | Authoritative read-only verification with finite timeouts and sanitized errors. |
+| [`test_self_hosted_workspace.ps1`](../../scripts/test_self_hosted_workspace.ps1) | **No** | Authoritative read-only verification with bounded Docker/Git process-tree cleanup, sanitized errors, and tracked/untracked source checks that permit ignored runtime files. |
 | [`stop_self_hosted_workspace.ps1`](../../scripts/stop_self_hosted_workspace.ps1) | Yes | Stop only the recorded frontend PID tree and exact Compose project. |
 
 The replay skill is
@@ -138,11 +139,16 @@ tracked and required. `package-lock.json` must remain absent.
 - Secrets use cryptographic random generation and live only in ignored files.
 - Scripts never print credentials, tokens, response bodies, environment
   contents, or application data.
-- The verifier emits fixed, finite, sanitized failure messages and does not
-  mutate startup state.
+- Every verifier Docker/Git command has a finite timeout, captures only required
+  bounded stdout, discards diagnostics, and is created suspended before
+  assignment to a scoped Windows Job Object. The helper resumes only after
+  assignment, then terminates and verifies the exact child process tree on
+  every exit path before emitting a fixed sanitized logical failure. No
+  PowerShell background job is created.
 - Stop validates PID, start time, parentage, and descendant creation time before
   exact-PID termination. It never kills by process name.
-- Setup and test reject a dirty or unpinned tracked submodule.
+- Setup rejects a dirty or unpinned tracked submodule. Test additionally rejects
+  unexpected untracked files while Git-ignored runtime files remain permitted.
 - Setup refuses to write runtime files unless Git confirms they are ignored.
 
 ## Exact validation evidence
@@ -151,8 +157,8 @@ The following evidence was recorded on 2026-10-01:
 
 | Validation | Result |
 | --- | --- |
-| Focused verifier Pester suite | `11 passed, 0 failed` after implementation, scalar-output, and CORS-sanitization coverage |
-| All self-hosted Workspace Pester suites | `48 passed, 0 failed` |
+| Focused verifier Pester suite | `17 passed, 0 failed`, including executed success, safe executable resolution, nonzero sanitization, timeout/process-tree cleanup, exited-root descendant cleanup, and unexpected-untracked coverage |
+| All self-hosted Workspace Pester suites | `54 passed, 0 failed` |
 | Setup | Completed; ignored development state generated; frozen Bun install completed |
 | Run | Images built; migrations applied; exact services started; admin initialized; frontend started |
 | Verifier | `Self-hosted Workspace verification passed: exact services, loopback listeners, health, login, CORS, and source state.` |
@@ -202,17 +208,26 @@ restarts.
 
 ## Troubleshooting decision tree
 
-1. **Need status only?** Run `test_self_hosted_workspace.ps1`.
-2. **Setup incomplete?** Run setup, then run, then test.
-3. **Docker engine unavailable?** Start Docker Desktop's Linux engine, then
-   repeat setup/run/test.
-4. **PID state already exists or may be stale?** Run stop, then run, then test.
-5. **Health or exact-state verification fails?** Run stop, run, and test once.
-6. **A checked-in script still fails?** Diagnose only that script's sanitized
+1. **Need status/verify only?** Run only `test_self_hosted_workspace.ps1` and
+   report its sanitized result; never recover by changing state.
+2. **Need stop?** Run only `stop_self_hosted_workspace.ps1`. If Docker is
+   unavailable, report that Compose shutdown could not be confirmed, ask the
+   operator to start Docker Desktop's Linux engine, and retry stop. Do not run
+   setup, rotate credentials, or start services.
+3. **Need setup/start/replay and setup is incomplete?** Run setup, then run,
+   then test.
+4. **Docker unavailable during setup/start/replay?** Report setup's sanitized
+   prerequisite failure and ask the operator to start Docker Desktop's Linux
+   engine. Never start Docker manually.
+5. **PID state already exists during start/replay?** Run stop, then run, then
+   test.
+6. **Health or exact-state verification fails during start/replay?** Run stop,
+   run, and test once.
+7. **A checked-in script still fails?** Diagnose only that script's sanitized
    failure with narrow read-only inspection. Do not replace script behavior.
-7. **Browser validation blocked but verifier passes?** Record browser validation
+8. **Browser validation blocked but verifier passes?** Record browser validation
    as blocked; do not call browser behavior verified.
-8. **Verifier fails?** Status is failed regardless of what the browser or a
+9. **Verifier fails?** Status is failed regardless of what the browser or a
    single port appears to show.
 
 ## Recovery and cleanup
@@ -224,8 +239,10 @@ name. Runtime files remain ignored for the next replay; rerun setup only when
 configuration must be regenerated or setup is incomplete.
 
 If stop reports Docker unavailable, start Docker Desktop and rerun stop so the
-owned Compose project can be removed. If tracked submodule changes exist, do
-not overwrite them; preserve or intentionally resolve that work before setup.
+owned Compose project can be removed. If tracked or unexpected untracked
+submodule changes exist, do not overwrite them; preserve or intentionally
+resolve that work before setup. Ignored runtime files do not make this check
+dirty.
 
 ## Next issue sequence
 
