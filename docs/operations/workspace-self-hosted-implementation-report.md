@@ -334,6 +334,17 @@ characters. Upstream failures log only a fixed category, status, and sanitized
 request ID when supplied. The unauthenticated `/token` route was removed; live
 direct and published-container checks both returned HTTP 404 for that path.
 
+The final launcher regression uses the stable relative entry
+`src\main.ts` from the proxy working directory, avoiding PowerShell
+`Start-Process` argument joining of an absolute path containing spaces.
+Execution-based Pester coverage copies only the non-secret lifecycle scripts
+into a temporary path containing spaces, runs the launcher against a fake Bun
+executable, and proves the entry arrives as one argument. The forced health
+failure also proves rollback terminates the exact started process and removes
+PID state. Final validation passed 20 focused lifecycle tests, all 125 parent
+Pester tests, and all 47 proxy tests; diff checks and the changed-diff privacy
+scan were clean.
+
 The stream and browser UI were not repeated during review hardening because
 the changes affect only startup binding, process-state recovery, bounded
 diagnostic metadata, and error logging. The request and streaming response

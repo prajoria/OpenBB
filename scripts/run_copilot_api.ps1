@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $proxyRoot = Join-Path $repoRoot "copilot-api"
-$proxyEntry = Join-Path $proxyRoot "src\main.ts"
+$proxyEntry = "src\main.ts"
 $runtimeRoot = Join-Path $repoRoot ".dev-cycle\copilot-api-2103"
 $pidPath = Join-Path $runtimeRoot "proxy.pid.json"
 $stdoutPath = Join-Path $runtimeRoot "proxy.stdout.log"
@@ -57,7 +57,9 @@ function Stop-CopilotApiStartedProcess {
 }
 
 function Invoke-CopilotApiStart {
-    if (-not (Test-Path $proxyEntry -PathType Leaf)) {
+    if (-not (Test-Path (
+        Join-Path $proxyRoot $proxyEntry
+    ) -PathType Leaf)) {
         throw "Pinned copilot-api source is not initialized."
     }
     if (-not (Test-Path (Join-Path $proxyRoot "node_modules"))) {

@@ -67,6 +67,84 @@ Describe "Copilot API lifecycle" {
         $RunText | Should Not Match 'github-token|show-token'
     }
 
+    It "keeps the Bun entry argument intact from a copied path with spaces" {
+        $fixtureRoot = Join-Path $TestDrive "copied repo with spaces"
+        $fixtureScripts = Join-Path $fixtureRoot "scripts"
+        $fixtureProxy = Join-Path $fixtureRoot "copilot-api"
+        $fixtureBin = Join-Path $fixtureRoot "fake bin"
+        $argumentPath = Join-Path $fixtureRoot "bun-arguments.txt"
+        $processPath = Join-Path $fixtureRoot "bun-process.txt"
+        New-Item -ItemType Directory -Path (
+            Join-Path $fixtureProxy "src"
+        ), (Join-Path $fixtureProxy "node_modules"), $fixtureScripts, $fixtureBin |
+            Out-Null
+        Set-Content (Join-Path $fixtureProxy "src\main.ts") ""
+        Copy-Item $RunScript $fixtureScripts
+        Copy-Item (
+            Join-Path $RepoRoot "scripts\copilot_api_process.ps1"
+        ) $fixtureScripts
+        @'
+function Test-CopilotApi {
+    param([int]$ExpectedPid)
+
+    Set-Content $env:COPILOT_BUN_PID_PATH $ExpectedPid
+    for ($attempt = 1; $attempt -le 50; $attempt++) {
+        if (Test-Path $env:COPILOT_BUN_ARGS_PATH -PathType Leaf) {
+            throw "forced health failure"
+        }
+        Start-Sleep -Milliseconds 20
+    }
+    throw "argument capture missing"
+}
+'@ | Set-Content (
+            Join-Path $fixtureScripts "test_copilot_api.ps1"
+        )
+        @'
+@echo off
+> "%COPILOT_BUN_ARGS_PATH%" (
+    echo %~1
+    echo %~2
+    echo %~3
+    echo %~4
+    echo %~5
+    echo %~6
+    echo %~7
+    if not "%~8"=="" echo %~8
+)
+:wait
+goto wait
+'@ | Set-Content (Join-Path $fixtureBin "bun.cmd")
+
+        $originalPath = $env:PATH
+        $env:PATH = "$fixtureBin;$originalPath"
+        $env:COPILOT_BUN_ARGS_PATH = $argumentPath
+        $env:COPILOT_BUN_PID_PATH = $processPath
+        $captured = ""
+        try {
+            & (Join-Path $fixtureScripts "run_copilot_api.ps1")
+        } catch {
+            $captured = $_ | Out-String
+        } finally {
+            $env:PATH = $originalPath
+            Remove-Item Env:\COPILOT_BUN_ARGS_PATH
+            Remove-Item Env:\COPILOT_BUN_PID_PATH
+        }
+
+        $captured | Should Match "forced health failure"
+        ((Get-Content $argumentPath) -join "|") |
+            Should Be (
+                "run|src\main.ts|start|--host|127.0.0.1|--port|4141"
+            )
+        $startedPid = [int](Get-Content $processPath -Raw)
+        (Get-Process -Id $startedPid -ErrorAction SilentlyContinue) |
+            Should BeNullOrEmpty
+        (Test-Path (
+            Join-Path $fixtureRoot (
+                ".dev-cycle\copilot-api-2103\proxy.pid.json"
+            )
+        )) | Should Be $false
+    }
+
     It "rolls startup back through only the retained process object" {
         $child = Start-Process -FilePath $PwshPath -ArgumentList @(
             "-NoLogo",
