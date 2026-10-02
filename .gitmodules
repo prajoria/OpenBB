@@ -31,3 +31,7 @@
 	path = third_party/openbb-workspace-bench
 	url = https://github.com/prajoria/openbb-workspace-bench.git
 	branch = main
+[submodule "third_party/workspace"]
+	path = third_party/workspace
+	url = https://github.com/prajoria/workspace.git
+	branch = main

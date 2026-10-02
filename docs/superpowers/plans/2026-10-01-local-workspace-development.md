@@ -2,15 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Provide a repeatable Windows development workflow that runs the portfolio backends, local viewer, custom agent, and Workspace Bench on this machine, then connects them safely to the hosted OpenBB Workspace UI.
+**Goal:** Provide a repeatable Windows development workflow that runs the portfolio backends, local viewer, custom agent, Workspace Bench, and the pinned Workspace source on this machine, with staged validation of both self-hosted and hosted integration paths.
 
-**Architecture:** OpenBB Workspace itself remains the hosted UI at `https://pro.openbb.co`; it is not shipped by these repositories as a self-hostable frontend. Local processes provide the Portfolio backend on `https://127.0.0.1:6902`, Portfolio Intelligence and its local viewer on `http://127.0.0.1:6120`, an optional OpenAI-compatible model proxy on `http://127.0.0.1:4141`, and deterministic Workspace Bench evaluations. Live Workspace automation uses the hosted OpenBB MCP endpoint and an operator-issued token unless OpenBB supplies the separate private `workspace-mcp` sidecar artifact.
+**Architecture:** The pinned [`third_party/workspace`](../../../third_party/workspace) source provides a substantial but partial self-host path: audit the source and build contracts first, then provision and build it in a supported Linux container environment, deploy it with Docker Desktop/WSL2, and only then perform runtime validation. The existing hosted path at `https://pro.openbb.co` remains a separate integration target and historical fallback; it is not evidence that the pinned source builds or runs. Local portfolio processes continue to provide the Portfolio backend on `https://127.0.0.1:6902`, Portfolio Intelligence and its local viewer on `http://127.0.0.1:6120`, an optional OpenAI-compatible model proxy on `http://127.0.0.1:4141`, and deterministic Workspace Bench evaluations. Workspace MCP validation can eventually use the integrated or standalone implementation in the pinned source after self-host deployment is proven; hosted automation still requires the hosted endpoint and an operator-issued token.
 
-**Tech Stack:** Windows 11, PowerShell 7.4, Git submodules, Python 3.12, `uv` 0.11, FastAPI/Uvicorn, MySQL 8 on `127.0.0.1:3306`, Playwright Chromium, OpenBB Workspace, Workspace Bench.
+**Tech Stack:** Windows 11, PowerShell 7.4, Git submodules, Docker Desktop/WSL2, Python 3.12 for portfolio services, Poetry with Python ~3.13 for Workspace, Bun/Vite, FastAPI/Uvicorn, Redis/RQ, MySQL 8 on `127.0.0.1:3306`, Playwright Chromium, OpenBB Workspace, Workspace Bench.
 
 ## Global Constraints
 
-- Treat `https://pro.openbb.co` as the real Workspace UI; do not claim that the UI is running locally.
+- Distinguish the hosted UI at `https://pro.openbb.co` from the unvalidated self-host source; do not claim either local build or deployment works before runtime validation.
+- Use Docker Desktop/WSL2 as the self-host deployment target; Windows-native production is unsupported.
 - Bind every development service to `127.0.0.1`; never expose portfolio services on `0.0.0.0`.
 - Keep raw financial data, account identifiers, API keys, database credentials, MCP tokens, and model-provider credentials out of Git and command output.
 - Use the existing `.venv_portfolio` for local OpenBB packages and let `uv` manage the isolated Workspace Bench environment.
@@ -38,9 +39,10 @@ verified, reviewed, merged to `portfolio`, and marked Done.
 | 2 | [#2098](https://github.com/prajoria/OpenBB/issues/2098) | Idempotent Windows setup preflight | `build/workspace-dev-setup-gh-2098` | P0 / D-Widgets+QA / Feature |
 | 3 | [#2099](https://github.com/prajoria/OpenBB/issues/2099) | Portfolio Intelligence launcher | `feat/workspace-intel-launcher-gh-2099` | P0 / D-Widgets+QA / Feature |
 | 4 | [#2100](https://github.com/prajoria/OpenBB/issues/2100) | Privacy-safe smoke checks and operator runbook | `docs/workspace-dev-runbook-gh-2100` | P0 / QA / Feature |
-| 5 | [#2101](https://github.com/prajoria/OpenBB/issues/2101) | Hosted Workspace and browser-harness validation | `test/workspace-hosted-browser-gh-2101` | P1 / QA / Task |
-| 6 | [#2102](https://github.com/prajoria/OpenBB/issues/2102) | Workspace Bench and hosted MCP certification | `test/workspace-bench-mcp-gh-2102` | P1 / QA / Task |
-| 7 | [#2103](https://github.com/prajoria/OpenBB/issues/2103) | Optional Portfolio Copilot proxy validation | `test/workspace-copilot-proxy-gh-2103` | P1 / B-Analytics / Task |
+| 5 | [#2108](https://github.com/prajoria/OpenBB/issues/2108) | Pin and audit self-hosted Workspace source | `chore/self-hosted-workspace-source-gh-2108` | P1 / Workspace+Tools / Task |
+| 6 | [#2101](https://github.com/prajoria/OpenBB/issues/2101) | Hosted Workspace and browser-harness validation | `test/workspace-hosted-browser-gh-2101` | P1 / QA / Task |
+| 7 | [#2102](https://github.com/prajoria/OpenBB/issues/2102) | Workspace Bench and hosted MCP certification | `test/workspace-bench-mcp-gh-2102` | P1 / QA / Task |
+| 8 | [#2103](https://github.com/prajoria/OpenBB/issues/2103) | Optional Portfolio Copilot proxy validation | `test/workspace-copilot-proxy-gh-2103` | P1 / B-Analytics / Task |
 
 For each issue:
 
@@ -65,14 +67,14 @@ For each issue:
 | `uv` | `0.11.26` installed |
 | PowerShell | `7.4.20` installed |
 | Node | `24.17.0` installed |
-| Docker CLI | installed, but Docker Desktop engine is not running and is not required |
+| Docker CLI | installed; Docker Desktop engine is not required for the source audit but is the recommended deployment target |
 | MySQL | `mysqld` is listening on port `3306` |
 | Portfolio venv | `.venv_portfolio` exists |
 | Root `.env` | absent |
 | Portfolio TLS certificate | absent; the existing launch script generates it |
 | Workspace browser profile | absent; first live browser run requires interactive login |
 | Ollama | installed, with no models currently present |
-| OpenBB `workspace-mcp` sidecar | unavailable on `PATH` and not publicly resolvable under an unambiguous package name |
+| Workspace MCP | integrated and standalone source is pinned under `third_party/workspace`; dependencies and runtime are not yet validated |
 
 ## File Structure
 
@@ -80,6 +82,7 @@ For each issue:
 - Add: `third_party/backends-for-openbb` — pinned backend examples submodule.
 - Add: `third_party/agents-for-openbb` — pinned custom-agent examples submodule.
 - Add: `third_party/openbb-workspace-bench` — pinned benchmark submodule.
+- Add: `third_party/workspace` — pinned substantial/partial Workspace self-host source, audited before any build or deployment attempt.
 - Create: `scripts/setup_workspace_dev.ps1` — idempotent machine/environment preflight and dependency setup.
 - Create: `scripts/run_widget_backend.ps1` — supported Portfolio Intelligence launcher for port `6120`.
 - Create: `scripts/test_workspace_dev.ps1` — endpoint and manifest smoke checks without printing response data.
@@ -712,16 +715,16 @@ try {
 
 Expected: the benchmark creates a marker-named dashboard, grades live and simulated legs, writes a parity report, then removes its live artifacts and restores the previously active dashboard.
 
-- [ ] **Step 4: Record the local-sidecar limitation**
+- [ ] **Step 4: Record the self-host MCP source boundary**
 
-Document this exact warning in the runbook:
+Document this warning in the runbook:
 
 ```text
-The command shown upstream as `workspace-mcp --cors-allow https://pro.openbb.co`
-requires OpenBB's Workspace MCP sidecar artifact. Do not install PyPI
-`workspace-mcp`; that package serves Google Workspace and is incompatible.
-Use hosted MCP live parity until OpenBB supplies the correct sidecar package
-or source repository.
+The pinned Workspace source contains integrated MCP routes and a standalone
+`workspace_mcp` package, but neither path has been built or run locally.
+Do not install PyPI `workspace-mcp`; that package serves Google Workspace and
+is incompatible. Keep hosted MCP validation separate until the self-host stack
+is deployed and verified.
 ```
 
 ### Task 9: Validate the optional custom-agent path
@@ -861,5 +864,5 @@ git commit -m "docs: add local Workspace development runbook" -m "Co-authored-by
 - All three bundled Workspace Bench tasksets validate.
 - An oracle task passes and its no-op counterpart fails.
 - Hosted MCP auditing and one eligible live parity task can run using an operator-issued token.
-- Documentation clearly distinguishes the local viewer, simulator, hosted Workspace UI, hosted MCP bridge, and unavailable OpenBB local sidecar.
+- Documentation clearly distinguishes the local viewer, simulator, historical hosted Workspace path, hosted MCP bridge, and unvalidated integrated and standalone self-host MCP source.
 - No secrets, generated certificates, browser profiles, raw financial data, or benchmark transcripts enter Git.
