@@ -24,7 +24,7 @@ credential, or health commands.
 ## Source audit and verdict
 
 `third_party/workspace` is a mode-`160000` Git submodule pinned at
-`b5f7e4d87c04a9415b080c9c61f8ca281e3696b8`. The #2108 audit found Apache-2.0
+`c373557b4b7ba6620f516085cdf675bb6a21921c`. The #2108 audit found Apache-2.0
 source for the React/Vite frontend, FastAPI/SQLAlchemy backend, SQLite
 development Compose path, Redis/RQ, Excel add-in, custom backends and agents,
 integrated MCP routes, and a standalone MCP package. It found no nested
@@ -68,7 +68,8 @@ request without printing the response.
 | Docker Compose | `5.1.4` |
 | Bun | `1.3.14` |
 | Parent baseline | `edc999249f31` (merged PR #2112) |
-| Workspace pin | `b5f7e4d87c04a9415b080c9c61f8ca281e3696b8` |
+| Workspace pin | `c373557b4b7ba6620f516085cdf675bb6a21921c` |
+| Workspace Bench pin | `0094138cbd9c8ceb16dbc1908a5a9ecb0a8736d0` |
 
 Docker Desktop must be running its Linux engine. Git, Docker Compose, and Bun
 must be available to PowerShell 7. Host Poetry and Python 3.13 are not required
