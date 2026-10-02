@@ -10,6 +10,24 @@ Describe "Workspace development setup preflight" {
             [ref]$Tokens,
             [ref]$ParseErrors
         )
+        . $ScriptPath
+    }
+
+    BeforeEach {
+        Mock Get-Command { [pscustomobject]@{ Name = $Name } }
+        Mock Test-Path { $true }
+        Mock Get-NetTCPConnection {
+            [pscustomobject]@{
+                LocalAddress = "127.0.0.1"
+                LocalPort = 3306
+                State = "Listen"
+            }
+        }
+        Mock Invoke-ExternalProcess { 0 }
+        Mock Push-Location {}
+        Mock Pop-Location {}
+        Mock Write-Host {}
+        Mock Write-Warning {}
     }
 
     It "is valid PowerShell" {
@@ -27,7 +45,7 @@ Describe "Workspace development setup preflight" {
         $ScriptText | Should Match "third_party[\\/]backends-for-openbb"
         $ScriptText | Should Match "third_party[\\/]agents-for-openbb"
         $ScriptText | Should Match "third_party[\\/]openbb-workspace-bench"
-        $ScriptText | Should Match "submodule update --init --recursive"
+        $ScriptText | Should Match '"submodule",\s*"update",\s*"--init",\s*"--recursive"'
     }
 
     It "guards package installation with SkipPackageInstall" {
@@ -43,7 +61,49 @@ Describe "Workspace development setup preflight" {
     It "checks MySQL and synchronizes Workspace Bench dependencies" {
         $ScriptText | Should Match "Get-NetTCPConnection"
         $ScriptText | Should Match "LocalPort\s+3306"
-        $ScriptText | Should Match "uv sync --extra dev --extra live"
+        $ScriptText | Should Match 'LocalAddress\s+-eq\s+"127\.0\.0\.1"'
+        $ScriptText | Should Match '"sync",\s*"--extra",\s*"dev",\s*"--extra",\s*"live"'
+    }
+
+    It "rejects a MySQL listener bound only to 0.0.0.0" {
+        Mock Get-NetTCPConnection {
+            [pscustomobject]@{
+                LocalAddress = "0.0.0.0"
+                LocalPort = 3306
+                State = "Listen"
+            }
+        }
+
+        { Invoke-WorkspaceDevSetup -SkipPackageInstall } |
+            Should Throw "MySQL is not listening on 127.0.0.1:3306"
+    }
+
+    It "accepts a MySQL listener bound to 127.0.0.1" {
+        { Invoke-WorkspaceDevSetup -SkipPackageInstall } | Should Not Throw
+    }
+
+    It "installs Chromium with the virtual environment Python when requested" {
+        $expectedPython = Join-Path $RepoRoot ".venv_portfolio\Scripts\python.exe"
+
+        Invoke-WorkspaceDevSetup -SkipPackageInstall -InstallBrowser
+
+        Assert-MockCalled Invoke-ExternalProcess -Times 1 -Exactly -ParameterFilter {
+            $FilePath -eq $expectedPython -and
+            ($ArgumentList -join " ") -eq "-m playwright install chromium"
+        }
+    }
+
+    It "fails loudly when Chromium installation exits nonzero" {
+        $expectedPython = Join-Path $RepoRoot ".venv_portfolio\Scripts\python.exe"
+        Mock Invoke-ExternalProcess {
+            23
+        } -ParameterFilter {
+            $FilePath -eq $expectedPython -and
+            ($ArgumentList -join " ") -eq "-m playwright install chromium"
+        }
+
+        { Invoke-WorkspaceDevSetup -SkipPackageInstall -InstallBrowser } |
+            Should Throw "Playwright Chromium installation failed"
     }
 
     It "never creates or populates a root environment file" {
