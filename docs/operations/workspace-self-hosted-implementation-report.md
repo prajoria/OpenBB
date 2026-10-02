@@ -24,7 +24,7 @@ credential, or health commands.
 ## Source audit and verdict
 
 `third_party/workspace` is a mode-`160000` Git submodule pinned at
-`2a1d897247d42b683039e820e26c477b6f15b83d`. The #2108 audit found Apache-2.0
+`b5f7e4d87c04a9415b080c9c61f8ca281e3696b8`. The #2108 audit found Apache-2.0
 source for the React/Vite frontend, FastAPI/SQLAlchemy backend, SQLite
 development Compose path, Redis/RQ, Excel add-in, custom backends and agents,
 integrated MCP routes, and a standalone MCP package. It found no nested
@@ -68,7 +68,7 @@ request without printing the response.
 | Docker Compose | `5.1.4` |
 | Bun | `1.3.14` |
 | Parent baseline | `edc999249f31` (merged PR #2112) |
-| Workspace pin | `2a1d897247d42b683039e820e26c477b6f15b83d` |
+| Workspace pin | `b5f7e4d87c04a9415b080c9c61f8ca281e3696b8` |
 
 Docker Desktop must be running its Linux engine. Git, Docker Compose, and Bun
 must be available to PowerShell 7. Host Poetry and Python 3.13 are not required
@@ -84,7 +84,7 @@ for this deployment.
 | #2099 | Issue | Adds the Portfolio Intelligence launcher. |
 | #2100 | Issue | Adds privacy-safe smoke checks and the operator runbook. |
 | #2101 | Issue | Completed self-hosted connector and browser-harness acceptance. |
-| #2102 | Issue | Later: Workspace Bench and hosted MCP certification. |
+| #2102 | Issue | Certifies Workspace Bench and integrated self-hosted MCP. |
 | #2103 | Issue | Later: optional Portfolio Copilot proxy validation. |
 | #2104 | PR | Merges #2097 foundations. |
 | #2105 | PR | Merges #2098 setup. |
@@ -96,7 +96,7 @@ for this deployment.
 | #2111 | Issue | Adds this durable verifier, report, and replay skill. |
 | #2112 | PR | Merges #2110 deployment and follow-up fixes. |
 
-The required order after #2111 is #2101, #2102, then optional #2103.
+The remaining optional step after #2102 is #2103.
 
 ## Browser replay evidence (#2101)
 
