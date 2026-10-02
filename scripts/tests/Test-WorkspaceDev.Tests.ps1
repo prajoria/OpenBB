@@ -90,6 +90,43 @@ Describe "Workspace development smoke checker" {
         ).Count | Should Be 0
     }
 
+    It "uses a finite timeout for every discovery request" {
+        Invoke-WorkspaceDevSmokeCheck
+
+        Assert-MockCalled Invoke-RestMethod -Times 5 -Exactly -Scope It `
+            -ParameterFilter { $ConnectionTimeoutSeconds -eq 10 }
+    }
+
+    It "sanitizes endpoint failures on every output stream" {
+        $sensitiveBody = "account=123456789&token=top-secret"
+        $script:capturedError = ""
+        Mock Invoke-RestMethod {
+            $exception = [System.Exception]::new("HTTP request failed")
+            $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                $exception,
+                "SensitiveServerResponse",
+                [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                $null
+            )
+            $errorRecord.ErrorDetails =
+                [System.Management.Automation.ErrorDetails]::new($sensitiveBody)
+            throw $errorRecord
+        }
+
+        $successOutput = & {
+            try {
+                Invoke-WorkspaceDevSmokeCheck
+            } catch {
+                $script:capturedError = $_ | Out-String
+            }
+        } *>&1 | Out-String
+
+        $successOutput | Should Not Match ([regex]::Escape($sensitiveBody))
+        $script:capturedError | Should Not Match ([regex]::Escape($sensitiveBody))
+        $script:capturedError |
+            Should Match "PortfolioWidgets request failed for https://127.0.0.1:6902/widgets.json"
+    }
+
     $emptySurfaces = @(
         @{
             Name = "Portfolio widgets"
@@ -121,7 +158,10 @@ Describe "Workspace development smoke checker" {
     It "fails when <Name> discovery is empty" -TestCases $emptySurfaces {
         param($Endpoint, $Expected)
 
-        Mock Invoke-RestMethod { @() } -ParameterFilter { $Uri -eq $Endpoint }
+        $targetEndpoint = $Endpoint
+        Mock Invoke-RestMethod { @() } -ParameterFilter {
+            $Uri -eq $targetEndpoint
+        }
 
         { Invoke-WorkspaceDevSmokeCheck } | Should Throw $Expected
     }

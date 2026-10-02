@@ -120,7 +120,15 @@ For explicit bearer authentication, read a token without echoing it:
 
 ```powershell
 $token = Read-Host -MaskInput "Portfolio Intelligence bearer token"
-.\scripts\run_widget_backend.ps1 -AuthMode required -Token $token
+$env:PI_WIDGET_BACKEND_TOKEN = $token
+Remove-Variable token
+try {
+    .\scripts\run_widget_backend.ps1 `
+        -AuthMode required `
+        -Token $env:PI_WIDGET_BACKEND_TOKEN
+} finally {
+    Remove-Item Env:PI_WIDGET_BACKEND_TOKEN -ErrorAction SilentlyContinue
+}
 ```
 
 The preview is `http://127.0.0.1:6120/viewer`. It helps inspect local widget
@@ -194,21 +202,46 @@ try {
     uv run workspace-bench validate --taskset enterprise-apps-default --min-tasks 138
     uv run workspace-bench validate --taskset workspace-tasks --min-tasks 120
 
-    uv run workspace-bench run `
+    $oracleOutput = & uv run workspace-bench run `
       --task workspace-tasks/portfolio_manager/morning_briefing_level0 `
-      --agent oracle
-    uv run workspace-bench run `
+      --agent oracle `
+      --json
+    $oracleExit = $LASTEXITCODE
+    $oracleResult = $oracleOutput | ConvertFrom-Json
+    if (
+        $oracleExit -ne 0 -or
+        $oracleResult.summary.total -ne 1 -or
+        $oracleResult.summary.passed -ne 1 -or
+        -not $oracleResult.results[0].passed
+    ) {
+        throw "Workspace Bench oracle did not return the required passing result."
+    }
+
+    $noopOutput = & uv run workspace-bench run `
       --task workspace-tasks/portfolio_manager/morning_briefing_level0 `
-      --agent noop
+      --agent noop `
+      --json
+    $noopExit = $LASTEXITCODE
+    $noopResult = $noopOutput | ConvertFrom-Json
+    if (
+        $noopExit -ne 1 -or
+        $noopResult.summary.total -ne 1 -or
+        $noopResult.summary.failed -ne 1 -or
+        $noopResult.results[0].passed
+    ) {
+        throw "Workspace Bench no-op did not return the required failing result."
+    }
 } finally {
     Pop-Location
 }
 ```
 
-The oracle run must pass and the no-op run must fail, proving the grader
-separates valid behavior from no action. These runs use a simulator; they are
-not evidence that the hosted UI behaves identically. Keep generated run
-artifacts and response transcripts out of Git.
+The CLI contract is exit code `0` plus a passing JSON result for the oracle,
+and exit code `1` plus a failing JSON result for the no-op. The explicit checks
+make an unexpected oracle failure or unexpected no-op success fail the
+procedure. These runs prove that the grader separates valid behavior from no
+action. They use a simulator; they are not evidence that the hosted UI behaves
+identically. Keep generated run artifacts and response transcripts out of Git.
 
 ## 10. Run hosted MCP surface and parity checks
 
@@ -317,6 +350,9 @@ Correct it safely:
    $mysqlService = Get-CimInstance Win32_Service |
        Where-Object ProcessId -eq $mysqlPid |
        Select-Object -First 1
+   if (-not $mysqlService) {
+       throw "No Windows service owns the selected MySQL listener process."
+   }
    $mysqlService | Select-Object Name, DisplayName, State
    ```
 

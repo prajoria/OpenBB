@@ -19,6 +19,37 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Invoke-WorkspaceDiscoveryRequest {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SurfaceName,
+        [Parameter(Mandatory)]
+        [string]$Endpoint,
+        [switch]$SkipCertificateCheck
+    )
+
+    try {
+        if ($SkipCertificateCheck) {
+            Invoke-RestMethod `
+                -Uri $Endpoint `
+                -ConnectionTimeoutSeconds 10 `
+                -SkipCertificateCheck
+        } else {
+            Invoke-RestMethod -Uri $Endpoint -ConnectionTimeoutSeconds 10
+        }
+    } catch {
+        $endpointUri = [uri]$Endpoint
+        $safeEndpoint = "{0}{1}" -f @(
+            $endpointUri.GetLeftPart([System.UriPartial]::Authority)
+            $endpointUri.AbsolutePath
+        )
+        throw [System.InvalidOperationException]::new(
+            "$SurfaceName request failed for $safeEndpoint"
+        )
+    }
+}
+
 function Invoke-WorkspaceDevSmokeCheck {
     [CmdletBinding()]
     param(
@@ -27,19 +58,25 @@ function Invoke-WorkspaceDevSmokeCheck {
 
     $portfolioBase = "https://127.0.0.1:6902"
     $intelBase = "http://127.0.0.1:6120"
-    $portfolioRequestArgs = @{}
-    if ($SkipCertificateCheck) {
-        $portfolioRequestArgs["SkipCertificateCheck"] = $true
-    }
 
-    $portfolioWidgets = Invoke-RestMethod `
-        -Uri "$portfolioBase/widgets.json" @portfolioRequestArgs
-    $portfolioApps = Invoke-RestMethod `
-        -Uri "$portfolioBase/apps.json" @portfolioRequestArgs
-    $portfolioAgents = Invoke-RestMethod `
-        -Uri "$portfolioBase/agents.json" @portfolioRequestArgs
-    $intelWidgets = Invoke-RestMethod -Uri "$intelBase/widgets.json"
-    $intelApps = Invoke-RestMethod -Uri "$intelBase/apps.json"
+    $portfolioWidgets = Invoke-WorkspaceDiscoveryRequest `
+        -SurfaceName "PortfolioWidgets" `
+        -Endpoint "$portfolioBase/widgets.json" `
+        -SkipCertificateCheck:$SkipCertificateCheck
+    $portfolioApps = Invoke-WorkspaceDiscoveryRequest `
+        -SurfaceName "PortfolioApps" `
+        -Endpoint "$portfolioBase/apps.json" `
+        -SkipCertificateCheck:$SkipCertificateCheck
+    $portfolioAgents = Invoke-WorkspaceDiscoveryRequest `
+        -SurfaceName "PortfolioAgents" `
+        -Endpoint "$portfolioBase/agents.json" `
+        -SkipCertificateCheck:$SkipCertificateCheck
+    $intelWidgets = Invoke-WorkspaceDiscoveryRequest `
+        -SurfaceName "IntelWidgets" `
+        -Endpoint "$intelBase/widgets.json"
+    $intelApps = Invoke-WorkspaceDiscoveryRequest `
+        -SurfaceName "IntelApps" `
+        -Endpoint "$intelBase/apps.json"
 
     $checks = [ordered]@{
         PortfolioWidgets = @($portfolioWidgets.PSObject.Properties).Count
