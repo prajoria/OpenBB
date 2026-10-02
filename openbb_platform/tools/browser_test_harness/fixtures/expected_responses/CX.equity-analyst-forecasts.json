@@ -17,23 +17,23 @@
     },
     {
       "metric": "Rating: Strong Buy / Buy",
-      "note": "as of 2026-07-31; n=111 firms",
+      "note": "as of 2026-09-10; n=112 firms",
       "value": "1 / 70"
     },
     {
       "metric": "Rating: Hold / Sell / Strong Sell",
       "note": "",
-      "value": "33 / 7 / 0"
+      "value": "33 / 8 / 0"
     },
     {
       "metric": "Q3 2025 EPS Surprise",
       "note": "actual 1.55 vs est 1.50",
-      "value": "+3.2%"
+      "value": "+3.3%"
     },
     {
       "metric": "Q2 2025 EPS Surprise",
       "note": "actual 1.52 vs est 1.49",
-      "value": "+1.9%"
+      "value": "+2.0%"
     },
     {
       "metric": "Historical rev estimate (last Q)",

@@ -1,34 +1,112 @@
 {
   "body": [
     {
+      "name": "Johny Srouji",
+      "pay_usd": 4162279.0,
+      "tenure_years": null,
+      "title": "Chief Hardware Officer"
+    },
+    {
+      "name": "Kevan Parekh",
+      "pay_usd": 4034174.0,
+      "tenure_years": null,
+      "title": "Senior Vice President & Chief Financial Officer"
+    },
+    {
+      "name": "Eduardo H. Cue",
+      "pay_usd": 2807461.0,
+      "tenure_years": null,
+      "title": "Senior Vice President of Services and Health"
+    },
+    {
+      "name": "John Ternus",
+      "pay_usd": 16759518.0,
+      "tenure_years": null,
+      "title": "Chief Executive Officer & Director"
+    },
+    {
       "name": "Timothy D. Cook",
-      "pay_usd": 63209845.0,
-      "tenure_years": 12.0,
-      "title": "CEO"
-    },
-    {
-      "name": "Luca Maestri",
-      "pay_usd": 27129231.0,
-      "tenure_years": 10.0,
-      "title": "CFO"
-    },
-    {
-      "name": "Jeff Williams",
-      "pay_usd": 26985763.0,
-      "tenure_years": 8.0,
-      "title": "COO"
+      "pay_usd": 16759518.0,
+      "tenure_years": null,
+      "title": "Executive Chairman of the Board"
     },
     {
       "name": "Katherine L. Adams",
-      "pay_usd": 26985763.0,
-      "tenure_years": 7.0,
-      "title": "General Counsel"
+      "pay_usd": 5022482.0,
+      "tenure_years": null,
+      "title": "Secretary"
+    },
+    {
+      "name": "Suhasini Chandramouli",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Director of Investor Relations"
+    },
+    {
+      "name": "Adrian Perica",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Vice President of Corporate Development"
+    },
+    {
+      "name": "Kristin Huguet Quayle",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Vice President of Worldwide Communications"
+    },
+    {
+      "name": "Craig Federighi",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Senior Vice President of Software Engineering"
+    },
+    {
+      "name": "Michael Fenger",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Vice President of Worldwide Sales"
+    },
+    {
+      "name": "Isabel Ge Mahe",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "VP & MD of Greater China"
+    },
+    {
+      "name": "Tara Sorensen",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Head of Kid's Programming"
+    },
+    {
+      "name": "Greg Joswiak",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Senior Vice President of Worldwide Marketing"
+    },
+    {
+      "name": "Jennifer G. Newstead",
+      "pay_usd": 5022182.0,
+      "tenure_years": null,
+      "title": "Senior Vice President & General Counsel"
+    },
+    {
+      "name": "Ben Borders",
+      "pay_usd": null,
+      "tenure_years": null,
+      "title": "Principal Accounting Officer"
+    },
+    {
+      "name": "Sabih Khan",
+      "pay_usd": 5021905.0,
+      "tenure_years": null,
+      "title": "Senior VP & Chief Operating Officer"
     },
     {
       "name": "Deirdre O'Brien",
-      "pay_usd": 26985763.0,
-      "tenure_years": 6.0,
-      "title": "SVP Retail & People"
+      "pay_usd": 5037867.0,
+      "tenure_years": null,
+      "title": "Senior Vice President of Retail & People"
     }
   ],
   "endpoint": "pi/equity/management-team",

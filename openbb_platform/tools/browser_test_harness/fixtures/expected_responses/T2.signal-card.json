@@ -1,5 +1,5 @@
 {
-  "body": "## NVDA \u2014 Active Signal\n\n- **Type:** BREAKOUT\n- **Direction:** LONG\n- **Confidence:** 0.87\n- **Trigger:** close above 20d high on 1.4x volume\n\n> Stub \u2014 real wiring calls openbb_techtrade.engine.signal_router.",
+  "body": "## NVDA \u2014 Active Signal\n\n**No EOD snapshot available** \u00b7 `XNYS`\n\n> EOD planning snapshot \u2014 not a live/intraday quote\n\n> No EOD snapshot available \u2014 run the post-close snapshot job.",
   "endpoint": "tt/position/signal-card",
   "params": {
     "symbol": "NVDA"

@@ -2,67 +2,51 @@
   "body": [
     {
       "metric": "Market Cap",
-      "value": "$3.47T"
+      "value": "$4.88T"
     },
     {
       "metric": "P/E (TTM)",
-      "value": 32.1
+      "value": 37.93
     },
     {
       "metric": "Forward P/E",
-      "value": 29.4
+      "value": 37.62
     },
     {
       "metric": "EV/EBITDA",
-      "value": 24.8
+      "value": 29.23
     },
     {
       "metric": "P/S (TTM)",
-      "value": 8.7
+      "value": 10.45
     },
     {
       "metric": "EPS (TTM)",
-      "value": 6.51
+      "value": 8.78
     },
     {
-      "metric": "Revenue (FY)",
-      "value": "$391B"
-    },
-    {
-      "metric": "Net Income (FY)",
-      "value": "$93B"
-    },
-    {
-      "metric": "Shares Float",
-      "value": "15.2B"
-    },
-    {
-      "metric": "Short Interest",
-      "value": "0.68%"
-    },
-    {
-      "metric": "Insider Ownership",
-      "value": "0.07%"
-    },
-    {
-      "metric": "Beta (1Y)",
-      "value": 1.2
+      "metric": "Beta",
+      "value": 1.08
     },
     {
       "metric": "Dividend Yield",
-      "value": "0.42%"
+      "value": "0.32%"
     },
     {
-      "metric": "Volume (today)",
-      "value": "48M"
+      "metric": "Volume",
+      "value": "50.4M"
     },
     {
-      "metric": "Volume (30d avg)",
-      "value": "52M"
+      "metric": "Shares Float",
+      "value": "14.7B"
     },
     {
-      "metric": "Next Earnings",
-      "value": "2026-07-25 (Q3 2026)"
+      "metric": "52-Week High",
+      "value": 344.57
+    },
+    {
+      "metric": "52-Week Low",
+      "value": 229.02
     },
     {
       "metric": "Symbol",

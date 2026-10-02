@@ -1,32 +1,14 @@
 {
   "body": [
     {
-      "current": 14.0,
-      "delta": 6.0,
-      "param": "atr_period",
-      "proposed": 20.0,
-      "validate_gate": "PASS"
-    },
-    {
-      "current": 20.0,
-      "delta": -5.0,
-      "param": "sma_fast",
-      "proposed": 15.0,
-      "validate_gate": "PASS"
-    },
-    {
-      "current": 50.0,
-      "delta": 5.0,
-      "param": "sma_slow",
-      "proposed": 55.0,
-      "validate_gate": "PASS"
-    },
-    {
-      "current": 2.0,
-      "delta": -0.5,
-      "param": "risk_pct",
-      "proposed": 1.5,
-      "validate_gate": "FAIL"
+      "as_of_session": null,
+      "disclaimer": "EOD planning snapshot \u2014 not a live/intraday quote",
+      "earnings_annotation": null,
+      "exchange_calendar": "XNYS",
+      "freshness": "red",
+      "note": "No EOD snapshot available (tuning symbol=AAPL) \u2014 run the post-close snapshot job.",
+      "snapshot_badge": "No EOD snapshot available",
+      "survivorship": null
     }
   ],
   "endpoint": "tt/tuning/report",
