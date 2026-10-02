@@ -90,11 +90,14 @@ Describe "Workspace development smoke checker" {
         ).Count | Should Be 0
     }
 
-    It "uses a finite timeout for every discovery request" {
+    It "uses finite connection and operation timeouts for every discovery request" {
         Invoke-WorkspaceDevSmokeCheck
 
         Assert-MockCalled Invoke-RestMethod -Times 5 -Exactly -Scope It `
-            -ParameterFilter { $ConnectionTimeoutSeconds -eq 10 }
+            -ParameterFilter {
+                $ConnectionTimeoutSeconds -eq 10 -and
+                $OperationTimeoutSeconds -eq 10
+            }
     }
 
     It "sanitizes endpoint failures on every output stream" {

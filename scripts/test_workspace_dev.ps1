@@ -34,9 +34,13 @@ function Invoke-WorkspaceDiscoveryRequest {
             Invoke-RestMethod `
                 -Uri $Endpoint `
                 -ConnectionTimeoutSeconds 10 `
+                -OperationTimeoutSeconds 10 `
                 -SkipCertificateCheck
         } else {
-            Invoke-RestMethod -Uri $Endpoint -ConnectionTimeoutSeconds 10
+            Invoke-RestMethod `
+                -Uri $Endpoint `
+                -ConnectionTimeoutSeconds 10 `
+                -OperationTimeoutSeconds 10
         }
     } catch {
         $endpointUri = [uri]$Endpoint
