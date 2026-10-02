@@ -11,6 +11,8 @@ $script:CopilotApiRuntimeRoot = Join-Path (
 ) ".dev-cycle\copilot-api-2103"
 $script:CopilotApiPidPath = Join-Path $script:CopilotApiRuntimeRoot "proxy.pid.json"
 
+. (Join-Path $PSScriptRoot "copilot_api_process.ps1")
+
 function Wait-CopilotApiProcessExit {
     param(
         [Parameter(Mandatory)]
@@ -33,30 +35,44 @@ function Wait-CopilotApiProcessExit {
 function Test-CopilotApiProcessIdentity {
     param([Parameter(Mandatory)][pscustomobject]$State)
 
-    try {
-        $process = Get-Process -Id ([int]$State.Pid) -ErrorAction Stop
-    } catch {
-        return $false
-    }
     return (
-        $process.StartTime.ToUniversalTime().Ticks -eq
-        [long]$State.StartTimeUtcTicks
+        (Get-CopilotApiProcessIdentityStatus -State $State) -eq "Match"
     )
 }
 
 function Stop-CopilotApiOwnedProcess {
-    param([Parameter(Mandatory)][pscustomobject]$State)
+    param(
+        [Parameter(Mandatory)][pscustomobject]$State,
+        [object]$Process
+    )
 
-    if (-not (Test-CopilotApiProcessIdentity -State $State)) {
-        throw "PID state does not match the running process."
-    }
+    $ownedProcess = $Process
+    try {
+        if ($null -eq $ownedProcess) {
+            $snapshot = Get-CopilotApiProcessIdentitySnapshot -State $State
+            if ($snapshot.Status -ne "Match") {
+                throw "PID state does not match the running process."
+            }
+            $ownedProcess = $snapshot.Process
+        } elseif (
+            $ownedProcess.Id -ne [int]$State.Pid -or
+            $ownedProcess.StartTime.ToUniversalTime().Ticks -ne
+                [long]$State.StartTimeUtcTicks
+        ) {
+            throw "PID state does not match the running process."
+        }
 
-    Stop-Process -Id ([int]$State.Pid) -Force -ErrorAction Stop
-    $stopped = Wait-CopilotApiProcessExit -IsOwnedProcessRunning {
-        Test-CopilotApiProcessIdentity -State $State
-    }
-    if (-not $stopped) {
-        throw "Copilot API process did not stop within the finite timeout."
+        Stop-Process -InputObject $ownedProcess -Force -ErrorAction Stop
+        $stopped = Wait-CopilotApiProcessExit -IsOwnedProcessRunning {
+            Test-CopilotApiProcessIdentity -State $State
+        }
+        if (-not $stopped) {
+            throw "Copilot API process did not stop within the finite timeout."
+        }
+    } finally {
+        if ($null -ne $ownedProcess) {
+            $ownedProcess.Dispose()
+        }
     }
 }
 
@@ -66,18 +82,19 @@ function Stop-CopilotApi {
         return
     }
 
-    try {
-        $state = Get-Content $script:CopilotApiPidPath -Raw |
-            ConvertFrom-Json
-        $state = [pscustomobject]@{
-            Pid = [int]$state.Pid
-            StartTimeUtcTicks = [long]$state.StartTimeUtcTicks
-        }
-    } catch {
-        throw "Copilot API PID state is invalid; no process was stopped."
-    }
+    $state = Read-CopilotApiPidState -Path $script:CopilotApiPidPath `
+        -InvalidMessage "Copilot API PID state is invalid; no process was stopped."
 
-    Stop-CopilotApiOwnedProcess -State $state
+    $snapshot = Get-CopilotApiProcessIdentitySnapshot -State $state
+    if ($snapshot.Status -eq "Missing") {
+        Remove-Item $script:CopilotApiPidPath -Force
+        Write-Host "Copilot API stale PID state removed; service is stopped."
+        return
+    }
+    if ($snapshot.Status -eq "Mismatch") {
+        throw "PID state does not match the running process."
+    }
+    Stop-CopilotApiOwnedProcess -State $state -Process $snapshot.Process
     Remove-Item $script:CopilotApiPidPath -Force
     Write-Host "Stopped the exact owned Copilot API process."
 }

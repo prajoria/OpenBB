@@ -308,14 +308,37 @@ The 2026-10-02 live replay recorded only the following sanitized evidence:
 
 | Layer | Result |
 | --- | --- |
-| Focused lifecycle suite | `9 passed, 0 failed` |
+| Focused lifecycle suite | `18 passed, 0 failed` |
 | Proxy type check | Passed |
 | Proxy listener | Exact `127.0.0.1:4141` |
-| Available model | `claude-opus-4.7` (first non-sensitive identifier returned; model list non-empty) |
+| Available models | Count-only result: `46` |
 | Portfolio discovery | `portfolio_copilot_proxy` present; query URL exactly `https://127.0.0.1:6902/query` |
 | Direct query | `text/event-stream`; 615 `copilotMessageChunk` events; non-empty factual field explanation; recommendation=false |
 | Self-hosted UI | authenticated=true; agent present=true; selected=true; prompt sent=true; incremental stream=true; five factual field concepts; recommendation=false |
 | Transcript retention | none |
+
+The #2103 review-hardening replay reran all 123 parent Pester tests and all 47
+proxy tests, plus proxy typecheck, focused lint, build, and Docker image build.
+The image builder executed the deterministic entrypoint argument test. A live
+container bound internally to `0.0.0.0:4141`, published only on host
+`127.0.0.1:14141`, and returned a count of 46 models through that published
+port. Direct CLI replay remained bound exactly to `127.0.0.1:4141`.
+
+Real lifecycle execution removed crashed-process stale state during stop,
+recovered from stale state during start, and rejected a reused PID whose start
+time differed without terminating it. Proxy logs were checked for response
+bodies, prompts, completions, tokens, model lists, and transcript material;
+none was present. Startup and verification now report a model count rather
+than an identifier, while request logs bound identifiers to 80 allowlisted
+characters. Upstream failures log only a fixed category, status, and sanitized
+request ID when supplied. The unauthenticated `/token` route was removed; live
+direct and published-container checks both returned HTTP 404 for that path.
+
+The stream and browser UI were not repeated during review hardening because
+the changes affect only startup binding, process-state recovery, bounded
+diagnostic metadata, and error logging. The request and streaming response
+paths retained their prior behavior and remained covered by the complete
+proxy suite.
 
 The authoritative Workspace verifier in this target worktree returned the
 sanitized result `Workspace setup is incomplete` because its generated ignored
@@ -356,9 +379,11 @@ not exercised.
   authenticated local Workspace tab.
 - Full hosted resource-descriptor compatibility is not certified while the two
   named descriptor hashes differ from the retained hosted baseline.
-- PowerShell cannot atomically validate and terminate a PID. A narrow reuse race
-  remains between the final identity check and exact-PID termination; a Windows
-  Job Object launcher would be needed to remove it.
+- The proxy stop path explicitly opens and retains the native safe handle for
+  the process whose PID and start time were validated, then terminates through
+  that handle-backed process object rather than reopening the numeric PID.
+  PowerShell still does not provide Job Object ownership; a Job Object launcher
+  would provide a stronger parent/descendant lifetime boundary.
 - The verifier is Windows-specific because listener and owned-process checks use
   Windows facilities.
 - Skill eval prompts are checked in, but comparative human/model evaluation is

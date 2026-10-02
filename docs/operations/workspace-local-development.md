@@ -510,12 +510,28 @@ The launcher uses only the proxy's persisted local authentication state; it
 does not accept or print a token argument. It binds exactly
 `127.0.0.1:4141`, records PID plus process start time under the ignored
 `.dev-cycle/copilot-api-2103` directory, and runs a finite `/v1/models` check.
-The verifier prints only health and one model identifier. Stop only that
-recorded process:
+The verifier prints only health and the model count. It removes stale state
+when the recorded process no longer exists, but a reused PID with a different
+start time fails closed and is never terminated. Stop only that recorded
+process:
 
 ```powershell
 .\scripts\stop_copilot_api.ps1
 ```
+
+The direct CLI default remains `127.0.0.1`. The container entrypoint instead
+adds `--host 0.0.0.0` so Docker port publishing reaches the process inside the
+container. Publish it to host loopback for local development:
+
+```powershell
+docker build --tag copilot-api:local .\copilot-api
+docker run --rm --publish 127.0.0.1:4141:4141 copilot-api:local
+```
+
+Additional entrypoint arguments are passed through. An explicit `--host
+<address>` or `--host=<address>` overrides the container default without
+adding a duplicate host flag. Do not publish the development proxy on a host
+wildcard or public interface.
 
 Otherwise set the three process environment variables for an approved
 loopback model server. Start only after the server reports an available model.

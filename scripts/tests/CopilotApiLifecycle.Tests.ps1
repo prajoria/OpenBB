@@ -24,10 +24,22 @@ Describe "Copilot API lifecycle" {
         ) | Out-Null
         . $TestScript
         . $StopScript
+        . $RunScript
+    }
+
+    function New-MissingProcessError {
+        return [System.Management.Automation.ErrorRecord]::new(
+            [System.ArgumentException]::new("not found"),
+            "NoProcessFoundForGivenId,Microsoft.PowerShell.Commands.GetProcessCommand",
+            [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+            41
+        )
     }
 
     It "supports an explicit loopback host" {
-        $StartSourceText | Should Match 'default:\s*"127\.0\.0\.1"'
+        $StartSourceText |
+            Should Match 'DEFAULT_HOST\s*=\s*"127\.0\.0\.1"'
+        $StartSourceText | Should Match 'default:\s*DEFAULT_HOST'
         $StartSourceText | Should Match 'hostname:\s*options\.host'
         $StartSourceText | Should Match 'description:\s*"Host to listen on"'
     }
@@ -90,11 +102,14 @@ Describe "Copilot API lifecycle" {
         }
     }
 
-    It "returns only a non-sensitive model identifier on success" {
+    It "returns only a model count on success" {
         Mock Invoke-RestMethod {
             [pscustomobject]@{
                 data = @(
-                    [pscustomobject]@{ id = "model-safe"; secret = "ignored" }
+                    [pscustomobject]@{
+                        id = ("model`r`n" + ("x" * 300))
+                        secret = "ignored"
+                    }
                 )
             }
         }
@@ -118,48 +133,140 @@ Describe "Copilot API lifecycle" {
         $result = Test-CopilotApiHealth -ExpectedPid 41 -Attempts 1
 
         $result.Healthy | Should Be $true
-        $result.ModelId | Should Be "model-safe"
+        $result.ModelCount | Should Be 1
         ($result.PSObject.Properties.Name -join ",") |
-            Should Be "Healthy,ModelId"
+            Should Be "Healthy,ModelCount"
     }
 
     It "stops only a matching recorded PID identity" {
-        Mock Get-Process {
-            [pscustomobject]@{
-                Id = 41
-                StartTime = [datetime]::new(
-                    2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
-                )
-            }
-        }
+        $script:OwnedProcessForTest =
+            [System.Diagnostics.Process]::GetProcessById($PID)
+        Mock Get-Process { $script:OwnedProcessForTest }
         Mock Stop-Process {}
         Mock Wait-CopilotApiProcessExit { $true }
         $state = [pscustomobject]@{
-            Pid = 41
-            StartTimeUtcTicks = [datetime]::new(
-                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
-            ).Ticks
+            Pid = $script:OwnedProcessForTest.Id
+            StartTimeUtcTicks =
+                $script:OwnedProcessForTest.StartTime.ToUniversalTime().Ticks
         }
 
         Stop-CopilotApiOwnedProcess -State $state
 
         Assert-MockCalled Stop-Process -Times 1 -Exactly -ParameterFilter {
-            $Id -eq 41
+            $InputObject.Id -eq $script:OwnedProcessForTest.Id
         }
     }
 
-    It "does not stop a reused PID" {
-        Mock Get-Process {
-            [pscustomobject]@{
-                Id = 41
-                StartTime = [datetime]::new(
-                    2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
-                )
-            }
-        }
+    It "terminates the retained matching process without reopening its PID" {
+        $originalPidPath = $script:CopilotApiPidPath
+        $script:CopilotApiPidPath = "TestDrive:\proxy.pid.json"
+        $script:OwnedProcessForTest =
+            [System.Diagnostics.Process]::GetProcessById($PID)
+        [ordered]@{
+            Pid = $script:OwnedProcessForTest.Id
+            StartTimeUtcTicks =
+                $script:OwnedProcessForTest.StartTime.ToUniversalTime().Ticks
+        } | ConvertTo-Json |
+            Set-Content $script:CopilotApiPidPath
+        Mock Get-Process { $script:OwnedProcessForTest }
         Mock Stop-Process {}
+        Mock Wait-CopilotApiProcessExit { $true }
+
+        Stop-CopilotApi
+
+        Assert-MockCalled Get-Process -Times 1 -Exactly -Scope It
+        Assert-MockCalled Stop-Process -Times 1 -Exactly -Scope It `
+            -ParameterFilter {
+                $InputObject -eq $script:OwnedProcessForTest -and
+                    $null -eq $Id
+            }
+        $script:CopilotApiPidPath = $originalPidPath
+    }
+
+    It "retains a native handle for the validated process" {
+        $ownedProcess = [System.Diagnostics.Process]::GetProcessById($PID)
+        $state = [pscustomobject]@{
+            Pid = $ownedProcess.Id
+            StartTimeUtcTicks =
+                $ownedProcess.StartTime.ToUniversalTime().Ticks
+        }
+        Mock Get-Process { $ownedProcess }
+
+        $snapshot = Get-CopilotApiProcessIdentitySnapshot -State $state
+        $handleField = [System.Diagnostics.Process].GetField(
+            "_haveProcessHandle",
+            [System.Reflection.BindingFlags]"Instance,NonPublic"
+        )
+
+        $snapshot.Status | Should Be "Match"
+        $handleField.GetValue($snapshot.Process) | Should Be $true
+        $snapshot.Process.Dispose()
+    }
+
+    It "opens the native handle before reading process start time" {
+        $script:ExpectedStartForOrdering = [datetime]::new(
+            2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+        )
+        $script:OrderingProcess = [pscustomobject]@{
+            Id = 41
+            HandleOpened = $false
+        }
+        $script:OrderingProcess | Add-Member -MemberType ScriptProperty `
+            -Name SafeHandle -Value {
+                $this.HandleOpened = $true
+                return 1
+            }
+        $script:OrderingProcess | Add-Member -MemberType ScriptProperty `
+            -Name StartTime -Value {
+                if (-not $this.HandleOpened) {
+                    throw "StartTime read before SafeHandle."
+                }
+                return $script:ExpectedStartForOrdering
+            }
+        Mock Get-Process { $script:OrderingProcess }
         $state = [pscustomobject]@{
             Pid = 41
+            StartTimeUtcTicks = $script:ExpectedStartForOrdering.Ticks
+        }
+
+        $snapshot = Get-CopilotApiProcessIdentitySnapshot -State $state
+
+        $snapshot.Status | Should Be "Match"
+        $snapshot.Process.HandleOpened | Should Be $true
+    }
+
+    It "disposes a supplied process when its identity mismatches" {
+        $suppliedProcess = [pscustomobject]@{
+            Id = 42
+            StartTime = [datetime]::new(
+                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+            )
+            Disposed = $false
+        }
+        $suppliedProcess | Add-Member -MemberType ScriptMethod `
+            -Name Dispose -Value {
+                $this.Disposed = $true
+            }
+        $state = [pscustomobject]@{
+            Pid = 41
+            StartTimeUtcTicks = $suppliedProcess.StartTime.Ticks
+        }
+
+        {
+            Stop-CopilotApiOwnedProcess -State $state `
+                -Process $suppliedProcess
+        } | Should Throw "PID state does not match the running process."
+
+        $suppliedProcess.Disposed | Should Be $true
+    }
+
+    It "does not stop a reused PID" {
+        $script:ReusedProcessForTest =
+            [System.Diagnostics.Process]::GetProcessById($PID)
+        Mock Get-Process { $script:ReusedProcessForTest }
+        Mock Stop-Process {}
+        $state = [pscustomobject]@{
+            Pid = $script:ReusedProcessForTest.Id
             StartTimeUtcTicks = 1
         }
 
@@ -169,8 +276,85 @@ Describe "Copilot API lifecycle" {
         Assert-MockCalled Stop-Process -Times 0 -Scope It
     }
 
+    It "removes crashed-process stale state and reports stopped" {
+        $originalPidPath = $script:CopilotApiPidPath
+        $script:CopilotApiPidPath = "TestDrive:\proxy.pid.json"
+        Set-Content $script:CopilotApiPidPath `
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        Mock Get-Process { throw (New-MissingProcessError) }
+        Mock Stop-Process {}
+
+        $output = Stop-CopilotApi 6>&1 | Out-String
+
+        (Test-Path $script:CopilotApiPidPath) | Should Be $false
+        $output | Should Match "stopped"
+        Assert-MockCalled Stop-Process -Times 0 -Scope It
+        $script:CopilotApiPidPath = $originalPidPath
+    }
+
+    It "keeps reused-PID state and never kills the reused process" {
+        $originalPidPath = $script:CopilotApiPidPath
+        $script:CopilotApiPidPath = "TestDrive:\proxy.pid.json"
+        $script:ReusedProcessForTest =
+            [System.Diagnostics.Process]::GetProcessById($PID)
+        [ordered]@{
+            Pid = $script:ReusedProcessForTest.Id
+            StartTimeUtcTicks = 1
+        } | ConvertTo-Json |
+            Set-Content $script:CopilotApiPidPath
+        Mock Get-Process { $script:ReusedProcessForTest }
+        Mock Stop-Process {}
+
+        { Stop-CopilotApi } |
+            Should Throw "PID state does not match the running process."
+
+        (Test-Path $script:CopilotApiPidPath) | Should Be $true
+        Assert-MockCalled Stop-Process -Times 0 -Scope It
+        $script:CopilotApiPidPath = $originalPidPath
+    }
+
+    It "clears crashed-process stale state before start proceeds" {
+        $stalePath = "TestDrive:\proxy.pid.json"
+        Set-Content $stalePath `
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        Mock Get-Process { throw (New-MissingProcessError) }
+
+        Resolve-CopilotApiStartState -Path $stalePath
+
+        (Test-Path $stalePath) | Should Be $false
+    }
+
+    It "fails closed on reused PID before start" {
+        $reusedPath = "TestDrive:\proxy.pid.json"
+        $script:ReusedProcessForTest =
+            [System.Diagnostics.Process]::GetProcessById($PID)
+        [ordered]@{
+            Pid = $script:ReusedProcessForTest.Id
+            StartTimeUtcTicks = 1
+        } | ConvertTo-Json | Set-Content $reusedPath
+        Mock Get-Process { $script:ReusedProcessForTest }
+
+        { Resolve-CopilotApiStartState -Path $reusedPath } |
+            Should Throw "PID state does not match the running process."
+
+        (Test-Path $reusedPath) | Should Be $true
+    }
+
+    It "fails closed when process identity cannot be inspected" {
+        $state = [pscustomobject]@{
+            Pid = 41
+            StartTimeUtcTicks = 1
+        }
+        Mock Get-Process {
+            throw [System.UnauthorizedAccessException]::new("denied")
+        }
+
+        { Get-CopilotApiProcessIdentityStatus -State $state } |
+            Should Throw "Copilot API process identity could not be inspected."
+    }
+
     It "never uses broad process termination" {
         ($RunText + $TestText + $StopText) |
-            Should Not Match 'Stop-Process\s+-(Name|InputObject)'
+            Should Not Match 'Stop-Process\s+-Name'
     }
 }

@@ -14,6 +14,29 @@ $pidPath = Join-Path $runtimeRoot "proxy.pid.json"
 $stdoutPath = Join-Path $runtimeRoot "proxy.stdout.log"
 $stderrPath = Join-Path $runtimeRoot "proxy.stderr.log"
 
+. (Join-Path $PSScriptRoot "copilot_api_process.ps1")
+
+function Resolve-CopilotApiStartState {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path -PathType Leaf)) {
+        return
+    }
+    $state = Read-CopilotApiPidState -Path $Path `
+        -InvalidMessage "Copilot API PID state is invalid; start refused."
+    switch (Get-CopilotApiProcessIdentityStatus -State $state) {
+        "Missing" {
+            Remove-Item $Path -Force
+        }
+        "Match" {
+            throw "Copilot API is already running with recorded PID state."
+        }
+        default {
+            throw "PID state does not match the running process."
+        }
+    }
+}
+
 function Stop-CopilotApiStartedProcess {
     param([Parameter(Mandatory)][object]$Process)
 
@@ -38,9 +61,7 @@ function Invoke-CopilotApiStart {
     if (-not (Test-Path (Join-Path $proxyRoot "node_modules"))) {
         throw "copilot-api dependencies are absent. Run bun install in the submodule."
     }
-    if (Test-Path $pidPath -PathType Leaf) {
-        throw "Copilot API PID state already exists. Run the stop script first."
-    }
+    Resolve-CopilotApiStartState -Path $pidPath
     if (
         Get-NetTCPConnection -LocalPort 4141 -State Listen `
             -ErrorAction SilentlyContinue
@@ -66,8 +87,8 @@ function Invoke-CopilotApiStart {
         . (Join-Path $PSScriptRoot "test_copilot_api.ps1")
         $result = Test-CopilotApi -ExpectedPid $process.Id
         Write-Host (
-            "Copilot API started on 127.0.0.1:4141; model={0}." -f
-            $result.ModelId
+            "Copilot API started on 127.0.0.1:4141; models={0}." -f
+            $result.ModelCount
         )
     } catch {
         $safeMessage = $_.Exception.Message

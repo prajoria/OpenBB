@@ -54,7 +54,7 @@ function Test-CopilotApiHealth {
 
             return [pscustomobject][ordered]@{
                 Healthy = $true
-                ModelId = $modelIds[0]
+                ModelCount = $modelIds.Count
             }
         } catch {
             if ($attempt -eq $Attempts) {
@@ -115,7 +115,7 @@ function Test-CopilotApi {
 if ($MyInvocation.InvocationName -ne ".") {
     $result = Test-CopilotApi -ExpectedPid $ExpectedPid
     Write-Host (
-        "Copilot API is healthy on 127.0.0.1:4141; model={0}." -f
-        $result.ModelId
+        "Copilot API is healthy on 127.0.0.1:4141; models={0}." -f
+        $result.ModelCount
     )
 }
