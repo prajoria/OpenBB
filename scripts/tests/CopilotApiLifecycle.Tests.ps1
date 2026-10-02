@@ -6,6 +6,7 @@ Describe "Copilot API lifecycle" {
         $RunScript = Join-Path $RepoRoot "scripts\run_copilot_api.ps1"
         $TestScript = Join-Path $RepoRoot "scripts\test_copilot_api.ps1"
         $StopScript = Join-Path $RepoRoot "scripts\stop_copilot_api.ps1"
+        $PwshPath = (Get-Process -Id $PID).Path
         $RunText = Get-Content $RunScript -Raw
         $TestText = Get-Content $TestScript -Raw
         $StopText = Get-Content $StopScript -Raw
@@ -64,6 +65,41 @@ Describe "Copilot API lifecycle" {
         $RunText | Should Match '\.dev-cycle[\\/]copilot-api-2103'
         $RunText | Should Match 'StartTimeUtcTicks'
         $RunText | Should Not Match 'github-token|show-token'
+    }
+
+    It "rolls startup back through only the retained process object" {
+        $child = Start-Process -FilePath $PwshPath -ArgumentList @(
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            "Start-Sleep -Seconds 30"
+        ) -PassThru
+        $childHandle = $child.SafeHandle
+        $script:ReplacementProcess =
+            [System.Diagnostics.Process]::GetProcessById($PID)
+        try {
+            Mock Get-Process { $script:ReplacementProcess }
+            Mock Stop-Process {
+                $InputObject.Kill()
+            }
+
+            Stop-CopilotApiStartedProcess -Process $child
+
+            Assert-MockCalled Get-Process -Times 0 -Exactly -Scope It
+            Assert-MockCalled Stop-Process -Times 1 -Exactly -Scope It `
+                -ParameterFilter {
+                    $InputObject -eq $child -and $null -eq $Id
+                }
+            $childHandle.IsClosed | Should Be $true
+        } finally {
+            if (-not $childHandle.IsClosed -and -not $child.HasExited) {
+                $child.Kill()
+                $child.WaitForExit(5000) | Out-Null
+            }
+            if (-not $childHandle.IsClosed) {
+                $child.Dispose()
+            }
+        }
     }
 
     It "uses finite sanitized model verification" {
@@ -152,9 +188,10 @@ Describe "Copilot API lifecycle" {
 
         Stop-CopilotApiOwnedProcess -State $state
 
-        Assert-MockCalled Stop-Process -Times 1 -Exactly -ParameterFilter {
-            $InputObject.Id -eq $script:OwnedProcessForTest.Id
-        }
+        Assert-MockCalled Stop-Process -Times 1 -Exactly -Scope It `
+            -ParameterFilter {
+                $InputObject.Id -eq $script:OwnedProcessForTest.Id
+            }
     }
 
     It "terminates the retained matching process without reopening its PID" {

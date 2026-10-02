@@ -38,20 +38,22 @@ function Resolve-CopilotApiStartState {
 }
 
 function Stop-CopilotApiStartedProcess {
-    param([Parameter(Mandatory)][object]$Process)
+    param(
+        [Parameter(Mandatory)][object]$Process,
+        [int]$TimeoutMilliseconds = 5000
+    )
 
     try {
-        $current = Get-Process -Id $Process.Id -ErrorAction Stop
-    } catch {
-        return
+        if ($Process.HasExited) {
+            return
+        }
+        Stop-Process -InputObject $Process -Force -ErrorAction Stop
+        if (-not $Process.WaitForExit($TimeoutMilliseconds)) {
+            throw "Copilot API process did not stop within the finite timeout."
+        }
+    } finally {
+        $Process.Dispose()
     }
-    if (
-        $current.StartTime.ToUniversalTime().Ticks -ne
-        $Process.StartTime.ToUniversalTime().Ticks
-    ) {
-        throw "Started Copilot API PID identity changed during cleanup."
-    }
-    Stop-Process -Id $Process.Id -Force -ErrorAction Stop
 }
 
 function Invoke-CopilotApiStart {
@@ -78,9 +80,12 @@ function Invoke-CopilotApiStart {
             "--port", "4141"
         ) -WorkingDirectory $proxyRoot -RedirectStandardOutput $stdoutPath `
             -RedirectStandardError $stderrPath -PassThru
+        $null = $process.SafeHandle
+        $startTimeUtcTicks =
+            $process.StartTime.ToUniversalTime().Ticks
         [ordered]@{
             Pid = $process.Id
-            StartTimeUtcTicks = $process.StartTime.ToUniversalTime().Ticks
+            StartTimeUtcTicks = $startTimeUtcTicks
         } | ConvertTo-Json |
             Set-Content -Path $pidPath -Encoding utf8NoBOM
 
@@ -93,12 +98,20 @@ function Invoke-CopilotApiStart {
     } catch {
         $safeMessage = $_.Exception.Message
         if ($process) {
-            Stop-CopilotApiStartedProcess -Process $process
+            try {
+                Stop-CopilotApiStartedProcess -Process $process
+            } finally {
+                $process = $null
+            }
         }
         if (Test-Path $pidPath -PathType Leaf) {
             Remove-Item $pidPath -Force
         }
         throw $safeMessage
+    } finally {
+        if ($process) {
+            $process.Dispose()
+        }
     }
 }
 
