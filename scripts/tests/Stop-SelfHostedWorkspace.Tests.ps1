@@ -22,11 +22,22 @@ Describe "Self-hosted Workspace stop" {
         }
         Mock Get-CimInstance { @() }
         Mock Stop-Process {}
+        Mock Test-WorkspaceFrontendIdentity { $false }
         Mock Write-Warning {}
     }
 
     It "is valid PowerShell" {
         $ParseErrors.Count | Should Be 0
+    }
+
+    It "bounds owned-process exit verification" {
+        Mock Start-Sleep {}
+
+        (Wait-WorkspaceProcessExit -IsOwnedProcessRunning { $true } `
+            -Attempts 3 -DelayMilliseconds 100) | Should Be $false
+
+        Assert-MockCalled Start-Sleep -Times 2 -Exactly -Scope It `
+            -ParameterFilter { $Milliseconds -eq 100 }
     }
 
     It "stops the recorded process when PID and start time match" {
@@ -165,6 +176,7 @@ Describe "Self-hosted Workspace stop" {
     }
 
     It "stops a descendant from the matching parent snapshot" {
+        Mock Wait-WorkspaceProcessExit { $true }
         Mock Get-Process {
             [pscustomobject]@{
                 Id = 41
@@ -319,13 +331,13 @@ Describe "Self-hosted Workspace stop" {
         Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
     }
 
-    It "still stops Compose when frontend termination throws" {
+    It "reports an access-denied termination after Compose cleanup" {
         Mock Test-Path { $true }
         Mock Get-Content {
             '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
         }
         Mock Get-WorkspaceDescendantProcessIds { @() }
-        Mock Stop-Process { throw "sensitive frontend termination detail" }
+        Mock Stop-Process { throw "Access denied for sensitive process detail" }
         Mock Remove-Item {}
         Mock Invoke-WorkspaceComposeDown {}
         Mock Write-Host {}
@@ -333,6 +345,25 @@ Describe "Self-hosted Workspace stop" {
         { Invoke-SelfHostedWorkspaceStop } | Should Throw "Frontend cleanup failed."
 
         Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+        Assert-MockCalled Write-Host -Times 0 -Scope It
+    }
+
+    It "reports verification failure only after Compose cleanup" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Get-WorkspaceDescendantProcessIds { @() }
+        Mock Stop-Process {}
+        Mock Wait-WorkspaceProcessExit { $false }
+        Mock Remove-Item {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        { Invoke-SelfHostedWorkspaceStop } | Should Throw "Frontend cleanup failed."
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+        Assert-MockCalled Write-Host -Times 0 -Scope It
     }
 
     It "reports both cleanup failures only after attempting Compose" {

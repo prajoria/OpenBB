@@ -38,7 +38,7 @@ Describe "Self-hosted Workspace launcher" {
 
         $captured = ""
         try {
-            Invoke-WorkspaceHealthCheck -Name "backend" -Uri "http://127.0.0.1:8000/docs" -Attempts 1
+            Invoke-WorkspaceHealthCheck -Name "backend" -Uri "http://127.0.0.1:8000/health" -Attempts 1
         } catch {
             $captured = $_ | Out-String
         }

@@ -96,6 +96,35 @@ function Test-WorkspaceProcessIdentity {
     )
 }
 
+function Test-WorkspaceFrontendIdentity {
+    param([Parameter(Mandatory)][pscustomobject]$State)
+
+    $current = Get-Process -Id ([int]$State.Pid) -ErrorAction SilentlyContinue
+    return (
+        $null -ne $current -and
+        $current.StartTime.ToUniversalTime().Ticks -eq
+            [long]$State.StartTimeUtcTicks
+    )
+}
+
+function Wait-WorkspaceProcessExit {
+    param(
+        [Parameter(Mandatory)][scriptblock]$IsOwnedProcessRunning,
+        [ValidateRange(1, 100)][int]$Attempts = 10,
+        [ValidateRange(1, 1000)][int]$DelayMilliseconds = 100
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        if (-not (& $IsOwnedProcessRunning)) {
+            return $true
+        }
+        if ($attempt -lt $Attempts) {
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+    return $false
+}
+
 function Stop-WorkspaceFrontendProcess {
     param([Parameter(Mandatory)][pscustomobject]$State)
 
@@ -112,11 +141,21 @@ function Stop-WorkspaceFrontendProcess {
         Get-WorkspaceDescendantProcessIds -ParentId $process.Id `
             -ParentStartTime $process.StartTime
     )
+    $terminationFailed = $false
     [array]::Reverse($descendants)
     foreach ($descendant in $descendants) {
         if (Test-WorkspaceProcessIdentity -Snapshot $descendant) {
-            Stop-Process -Id ([int]$descendant.ProcessId) -Force `
-                -ErrorAction SilentlyContinue
+            try {
+                Stop-Process -Id ([int]$descendant.ProcessId) -Force `
+                    -ErrorAction Stop
+            } catch {
+                $terminationFailed = $true
+            }
+            if (-not (Wait-WorkspaceProcessExit -IsOwnedProcessRunning {
+                Test-WorkspaceProcessIdentity -Snapshot $descendant
+            })) {
+                $terminationFailed = $true
+            }
         } elseif (Get-Process -Id ([int]$descendant.ProcessId) `
                 -ErrorAction SilentlyContinue) {
             Write-Warning "A frontend descendant no longer matched its recorded identity; it was not stopped."
@@ -128,9 +167,21 @@ function Stop-WorkspaceFrontendProcess {
         $currentParent.StartTime.ToUniversalTime().Ticks -eq
             [long]$State.StartTimeUtcTicks
     ) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        try {
+            Stop-Process -Id $process.Id -Force -ErrorAction Stop
+        } catch {
+            $terminationFailed = $true
+        }
+        if (-not (Wait-WorkspaceProcessExit -IsOwnedProcessRunning {
+            Test-WorkspaceFrontendIdentity -State $State
+        })) {
+            $terminationFailed = $true
+        }
     } elseif ($currentParent) {
         Write-Warning "Recorded frontend PID was reused; no process was stopped."
+    }
+    if ($terminationFailed) {
+        throw "Owned frontend process cleanup did not complete."
     }
 }
 
