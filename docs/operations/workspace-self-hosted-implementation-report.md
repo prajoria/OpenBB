@@ -24,7 +24,7 @@ credential, or health commands.
 ## Source audit and verdict
 
 `third_party/workspace` is a mode-`160000` Git submodule pinned at
-`2a1d897247d42b683039e820e26c477b6f15b83d`. The #2108 audit found Apache-2.0
+`c373557b4b7ba6620f516085cdf675bb6a21921c`. The #2108 audit found Apache-2.0
 source for the React/Vite frontend, FastAPI/SQLAlchemy backend, SQLite
 development Compose path, Redis/RQ, Excel add-in, custom backends and agents,
 integrated MCP routes, and a standalone MCP package. It found no nested
@@ -68,7 +68,8 @@ request without printing the response.
 | Docker Compose | `5.1.4` |
 | Bun | `1.3.14` |
 | Parent baseline | `edc999249f31` (merged PR #2112) |
-| Workspace pin | `2a1d897247d42b683039e820e26c477b6f15b83d` |
+| Workspace pin | `c373557b4b7ba6620f516085cdf675bb6a21921c` |
+| Workspace Bench pin | `0094138cbd9c8ceb16dbc1908a5a9ecb0a8736d0` |
 
 Docker Desktop must be running its Linux engine. Git, Docker Compose, and Bun
 must be available to PowerShell 7. Host Poetry and Python 3.13 are not required
@@ -84,7 +85,7 @@ for this deployment.
 | #2099 | Issue | Adds the Portfolio Intelligence launcher. |
 | #2100 | Issue | Adds privacy-safe smoke checks and the operator runbook. |
 | #2101 | Issue | Completed self-hosted connector and browser-harness acceptance. |
-| #2102 | Issue | Later: Workspace Bench and hosted MCP certification. |
+| #2102 | Issue | Certifies Workspace Bench and integrated self-hosted MCP. |
 | #2103 | Issue | Later: optional Portfolio Copilot proxy validation. |
 | #2104 | PR | Merges #2097 foundations. |
 | #2105 | PR | Merges #2098 setup. |
@@ -96,7 +97,7 @@ for this deployment.
 | #2111 | Issue | Adds this durable verifier, report, and replay skill. |
 | #2112 | PR | Merges #2110 deployment and follow-up fixes. |
 
-The required order after #2111 is #2101, #2102, then optional #2103.
+The remaining optional step after #2102 is #2103.
 
 ## Browser replay evidence (#2101)
 
@@ -236,13 +237,74 @@ The following evidence was recorded on 2026-10-01:
 No response bodies, credentials, tokens, environment values, or application
 data were captured as evidence.
 
+## Self-hosted Workspace MCP certification review (#2102)
+
+The reviewed replay on 2026-10-02 kept simulator, transport, and real-browser
+evidence separate. Tool schemas and live browser parity pass; full hosted
+resource-descriptor compatibility remains unclaimed because of the two exact
+drifts below.
+
+| Layer | Sanitized result |
+| --- | --- |
+| Taskset validation | Smoke `80/80` oracle pass and `80/80` no-op fail; enterprise apps `138/138` and `138/138`; Workspace tasks `120/120` and `120/120` |
+| Workspace Bench suite | `225 passed, 1 skipped`; the full lifecycle shortcut regression asserts that its only calls are `get_workspace_snapshot` and `list_available_widgets`, with no mutating teardown call. |
+| Parent Pester suites | `65 passed, 0 failed` across launcher, setup, stop, verifier, and token wrapper. Execution coverage includes literal arguments, safe bare executable resolution, nonzero exit, finite timeout with exact child-tree termination, malformed-create recovery, concurrent-lifecycle exclusion, endpoint/header contract, combined sanitized primary/cleanup failures, environment restoration, and companion-mode configuration. |
+| Workspace source focused suite | `34 passed`; Ruff clean; generated sidecar fixture matches the declarations. |
+| Integrated MCP transport | `http://127.0.0.1:8000/mcp`; Workspace MCP `v3.4.7` |
+| Surface audit | Original hosted baselines retained. Self-host tool declarations compare with `0` schema compatibility issues. Two resource descriptors differ: `openbb://workspace/app-builder/index` and `openbb://workspace/guides/build-an-app`; full resource compatibility is not claimed. |
+| Browser-backed parity | The final read-only `list_available_widgets` replay reported mocked `2/2`, live `2/2`, agreement true, and structural agreement true. Its live trace contained only the allowlisted read call. |
+| Cleanup | Teardown reported `no state or navigation changes; teardown skipped`. The live UI showed no dashboards, the companion showed no active tokens after wrapper cleanup, and generated parity output was removed. |
+
+The pinned source initially required hosted
+`X-OpenBB-Authorization` service authentication on user-scoped token and bridge
+bootstrap routes. The self-hosted frontend supplies the authenticated user
+session, not that hosted service credential. The source fix removes only the
+redundant service dependency; the existing `GetCurrentUser(..., pro=True)`
+dependency still scopes every route to the authenticated user.
+
+The token wrapper uses `source=excel`, because the `/pro/login` contract deletes
+all existing sessions for the requested source and a `source=pro` automation
+login would invalidate the authenticated browser. Cleanup calls generic
+`GET /logout`, which deletes only the automation session; `/pro/logout` would
+delete the browser's Pro sessions. The wrapper does not inspect browser cookies
+or profile state. Local setup explicitly enables the Workspace MCP Companion;
+the browser harness enables the bridge through the application store and keeps
+the authenticated tab open throughout both token lifecycles. A named
+cross-process mutex serializes uses of the single managed automation identity,
+preventing a concurrent `source=excel` login from invalidating another
+wrapper's revocation session.
+
+The pinned Bench also exposed two local-compatibility defects. Its Windows
+integration test used POSIX shell quoting for a `cmd.exe` child command, and
+the first no-dashboard shortcut treated every trace as read-only. The shortcut
+now requires every oracle call to be on an explicit read-only allowlist;
+navigation and mutating traces retain an isolated parity dashboard. Its
+lifecycle now records state and navigation changes so a read-only shortcut
+that changed neither does not call `navigate_workspace` or any other mutating
+tool during teardown.
+
+The prior certification commit incorrectly replaced
+`runs/hosted-surface` with a self-host capture. That replacement is reverted.
+Self-host evidence remains session-only. The Workspace source restores
+hosted-compatible optional/nullable identifier schemas and non-enum string
+schemas while retaining explicit runtime validation. This removes all 14
+reported tool-schema incompatibilities without accepting ambiguous commands.
+The two resource descriptor hashes above remain different and are reported,
+not promoted into the hosted baseline.
+
+No MCP response body, browser cookie, credential, token, or parity transcript
+is retained in Git.
+
 ## Known limitations
 
 - This is a local development stack, not production deployment guidance.
 - TradingView assets and hosted OpenBB AI behavior are not locally reproduced.
-- Integrated and standalone Workspace MCP operation is not certified here.
-- Browser-level parity is separate from script verification and may require
-  interactive profile/login handling.
+- Standalone Workspace MCP operation is not certified; #2102 certifies the
+  integrated self-hosted endpoint and one eligible read-only browser task.
+- Browser parity still requires the hardened persistent profile and an
+  authenticated local Workspace tab.
+- Full hosted resource-descriptor compatibility is not certified while the two
+  named descriptor hashes differ from the retained hosted baseline.
 - PowerShell cannot atomically validate and terminate a PID. A narrow reuse race
   remains between the final identity check and exact-PID termination; a Windows
   Job Object launcher would be needed to remove it.
@@ -270,6 +332,11 @@ running deployment, run only the verifier. For normal shutdown:
 
 Setup rotates credentials, so do not rerun it for status checks or healthy
 restarts.
+
+After verification and browser login, run the exact MCP surface, parity, and
+continuity commands in section 10 of
+`docs/operations/workspace-local-development.md`. Do not update the hosted
+baseline from a self-host endpoint.
 
 ## Troubleshooting decision tree
 
@@ -312,9 +379,8 @@ dirty.
 ## Next issue sequence
 
 1. Merge #2111 and retain this report as the replay source of truth.
-2. Execute #2101 hosted UI/browser-harness validation, keeping hosted and local
-   verdicts separate.
-3. Execute #2102 Workspace Bench and hosted MCP certification.
+2. Retain the completed #2101 local UI/browser-harness validation.
+3. Retain the completed #2102 Workspace Bench and self-hosted MCP certification.
 4. Execute optional #2103 model-proxy validation only with an approved
    loopback model service.
 5. Run human comparative evaluation of the three checked-in skill prompts and

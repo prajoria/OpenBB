@@ -171,6 +171,7 @@ function New-WorkspaceFrontendEnvironment {
         'VITE_POSTHOG_KEY=""'
         'VITE_POSTHOG_URL=""'
         'VITE_MCP_DEFAULT_SERVER_ENABLED="false"'
+        'VITE_UI_SHOW_COMPANION_MCP_MODE="true"'
     )
 }
 

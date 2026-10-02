@@ -20,7 +20,7 @@ Keep each long-running backend in its own terminal.
 | Portfolio Intelligence viewer | `http://127.0.0.1:6120/viewer` | Local development preview only, not Workspace. |
 | Workspace Bench | local process in [`third_party/openbb-workspace-bench`](../../third_party/openbb-workspace-bench) | Deterministic simulator and graders; simulator results do not prove hosted UI parity. |
 | OpenBB MCP | `https://backend.openbb.co/mcp` | Hosted bridge used for live surface and parity checks with an operator-issued token. |
-| Workspace MCP | integrated backend routes plus standalone package in the pinned source | Source is present; operation remains unvalidated. |
+| Workspace MCP | integrated backend routes plus standalone package in the pinned source | The integrated self-hosted MCP is certified for the documented surface/parity scope; standalone `workspace_mcp` remains unvalidated. |
 | Optional model proxy | `http://127.0.0.1:4141/v1` | Local OpenAI-compatible endpoint used only by Portfolio Copilot. |
 
 The reference repositories are pinned as submodules:
@@ -402,36 +402,83 @@ procedure. These runs prove that the grader separates valid behavior from no
 action. They use a simulator; they are not evidence that the hosted UI behaves
 identically. Keep generated run artifacts and response transcripts out of Git.
 
-## 10. Run hosted MCP surface and parity checks
+## 10. Run self-hosted MCP surface and parity checks
 
-Create a token in the hosted Workspace UI and keep it only in the current
-PowerShell process:
+First use the hardened persistent browser profile to open
+`http://127.0.0.1:1420`, enable **Workspace MCP Companion**, and keep that tab
+open. Self-hosted setup enables that companion control in the local frontend
+configuration. The integrated endpoint is `http://127.0.0.1:8000/mcp`.
+
+Use the checked-in wrapper to create one short-lived user-scoped token from the
+ignored managed administrator credential, expose it only to one child process,
+and revoke it in `finally`. The wrapper logs in with the isolated `excel`
+session source; using `source=pro` would invalidate the browser's authenticated
+Pro session. A named cross-process lock serializes this managed identity's full
+login/create/child/revoke/logout lifecycle so concurrent wrappers cannot
+invalidate each other's cleanup sessions. It never reads browser cookies or
+profile files.
+
+`$WorkspaceDeploymentRoot` must be the worktree that owns the verified running
+deployment. These are the exact certification replay commands; do not add
+`--update-baseline` because `runs/hosted-surface` is the retained hosted
+contract, not a self-host capture:
 
 ```powershell
-$env:WORKSPACE_MCP_TOKEN = Read-Host -MaskInput "OpenBB Workspace MCP token"
-$env:WORKSPACE_MCP_URL = "https://backend.openbb.co/mcp"
+$WorkspaceDeploymentRoot = (Resolve-Path ".").Path
+$BenchRoot = Join-Path $PWD "third_party\openbb-workspace-bench"
+$ReadOnlyTask = (
+  "smoke/list_available_widgets/" +
+  "smoke_list_available_widgets_level0"
+)
 
-Push-Location third_party\openbb-workspace-bench
-try {
-    uv run --extra live python scripts\audits\audit_hosted_surface.py
-    uv run --extra live workspace-bench live-parity `
-      --task smoke/get_widget_data/smoke_get_widget_data_level0
-} finally {
-    Pop-Location
-    Remove-Item Env:WORKSPACE_MCP_TOKEN
-    Remove-Item Env:WORKSPACE_MCP_URL
-}
+.\scripts\invoke_workspace_mcp_command.ps1 `
+  -WorkspaceRoot $WorkspaceDeploymentRoot `
+  -WorkingDirectory $BenchRoot `
+  -FilePath uv `
+  -ChildTimeoutSeconds 180 `
+  -ArgumentList @(
+    "run", "--extra", "live", "python",
+    "scripts\audits\audit_hosted_surface.py"
+  )
+
+.\scripts\invoke_workspace_mcp_command.ps1 `
+  -WorkspaceRoot $WorkspaceDeploymentRoot `
+  -WorkingDirectory $BenchRoot `
+  -FilePath uv `
+  -ChildTimeoutSeconds 180 `
+  -ArgumentList @(
+    "run", "--extra", "live", "workspace-bench", "live-parity",
+    "--task", $ReadOnlyTask,
+    "--url", "http://127.0.0.1:8000/mcp"
+  )
+
+# A second bridge-backed replay starts only after the first wrapper invocation
+# revoked its MCP token and deleted its isolated automation login session.
+# Success proves the browser's source=pro bridge session stayed connected.
+.\scripts\invoke_workspace_mcp_command.ps1 `
+  -WorkspaceRoot $WorkspaceDeploymentRoot `
+  -WorkingDirectory $BenchRoot `
+  -FilePath uv `
+  -ChildTimeoutSeconds 180 `
+  -ArgumentList @(
+    "run", "--extra", "live", "workspace-bench", "live-parity",
+    "--task", $ReadOnlyTask,
+    "--url", "http://127.0.0.1:8000/mcp"
+  )
 ```
 
-Keep a logged-in Workspace tab open for live parity. Review cleanup results:
-the run should remove marker-named live artifacts and restore the previously
-active dashboard. Do not commit its report if it contains response data.
+The selected parity task is on the explicit read-only no-dashboard allowlist
+and creates no Workspace artifacts. Navigation or mutating traces always seed
+an isolated marker dashboard even when their task has no initial dashboard.
+Delete its generated `parity.json` after recording only the sanitized grade
+counts. Never commit response transcripts, credentials, cookies, or token
+values. Do not install PyPI `workspace-mcp`; that unrelated package serves
+Google Workspace.
 
-> The pinned Workspace source contains integrated MCP routes and a standalone
-> `workspace_mcp` package, but neither path has been built or run locally. Do
-> not install PyPI `workspace-mcp`; that package serves Google Workspace and
-> is incompatible. Keep hosted MCP validation separate until the self-host
-> stack is deployed and verified.
+The surface audit always compares with the original hosted baselines under
+`runs/hosted-surface`. A schema result of zero compatibility issues is distinct
+from resource-descriptor equality; report either independently. Self-host
+captures belong in session evidence, not `runs/hosted-surface`.
 
 ## 11. Enable the optional Portfolio Copilot
 
