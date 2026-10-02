@@ -20,7 +20,7 @@ Keep each long-running backend in its own terminal.
 | Portfolio Intelligence viewer | `http://127.0.0.1:6120/viewer` | Local development preview only, not Workspace. |
 | Workspace Bench | local process in [`third_party/openbb-workspace-bench`](../../third_party/openbb-workspace-bench) | Deterministic simulator and graders; simulator results do not prove hosted UI parity. |
 | OpenBB MCP | `https://backend.openbb.co/mcp` | Hosted bridge used for live surface and parity checks with an operator-issued token. |
-| Workspace MCP | integrated backend routes plus standalone package in the pinned source | Source is present; operation remains unvalidated. |
+| Workspace MCP | integrated backend routes plus standalone package in the pinned source | The integrated self-hosted MCP is certified for the documented surface/parity scope; standalone `workspace_mcp` remains unvalidated. |
 | Optional model proxy | `http://127.0.0.1:4141/v1` | Local OpenAI-compatible endpoint used only by Portfolio Copilot. |
 
 The reference repositories are pinned as submodules:

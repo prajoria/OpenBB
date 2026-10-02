@@ -187,7 +187,9 @@ function Invoke-WorkspaceMcpChildWithTokenCore {
     )
     $sessionToken = $null
     $mcpTokenUuid = $null
-    $cleanupFailure = $null
+    $primaryFailure = $null
+    $childExitCode = $null
+    $cleanupFailures = [System.Collections.Generic.List[string]]::new()
 
     try {
         $loginBody = @{
@@ -294,7 +296,7 @@ function Invoke-WorkspaceMcpChildWithTokenCore {
             if ($exitCode -ne 0) {
                 throw "Workspace MCP child command returned a nonzero exit code."
             }
-            return $exitCode
+            $childExitCode = $exitCode
         } catch {
             if (
                 $_.Exception.Message -eq
@@ -306,6 +308,8 @@ function Invoke-WorkspaceMcpChildWithTokenCore {
             }
             throw "Workspace MCP child command failed."
         }
+    } catch {
+        $primaryFailure = $_.Exception.Message
     } finally {
         [Environment]::SetEnvironmentVariable(
             "WORKSPACE_MCP_TOKEN",
@@ -327,7 +331,7 @@ function Invoke-WorkspaceMcpChildWithTokenCore {
                     -ConnectionTimeoutSeconds 3 `
                     -OperationTimeoutSeconds 10 | Out-Null
             } catch {
-                $cleanupFailure = "Workspace MCP token revocation failed."
+                $cleanupFailures.Add("Workspace MCP token revocation failed.")
             }
         }
         if ($sessionToken) {
@@ -339,15 +343,24 @@ function Invoke-WorkspaceMcpChildWithTokenCore {
                     -ConnectionTimeoutSeconds 3 `
                     -OperationTimeoutSeconds 10 | Out-Null
             } catch {
-                if (-not $cleanupFailure) {
-                    $cleanupFailure = "Workspace administrator logout failed."
-                }
+                $cleanupFailures.Add("Workspace administrator logout failed.")
             }
         }
-        if ($cleanupFailure) {
-            throw $cleanupFailure
-        }
     }
+
+    if ($primaryFailure -and $cleanupFailures.Count -gt 0) {
+        throw (
+            "$primaryFailure Cleanup also failed: " +
+            ($cleanupFailures -join " ")
+        )
+    }
+    if ($primaryFailure) {
+        throw $primaryFailure
+    }
+    if ($cleanupFailures.Count -gt 0) {
+        throw ($cleanupFailures -join " ")
+    }
+    return $childExitCode
 }
 
 function Invoke-WorkspaceMcpChildWithToken {

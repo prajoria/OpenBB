@@ -314,6 +314,99 @@ Start-Sleep -Seconds 60
         }
     }
 
+    It "preserves a child timeout with a sanitized revocation failure" {
+        Mock Invoke-WorkspaceMcpChildCommand {
+            throw "Workspace MCP child command timed out."
+        }
+        Mock Invoke-RestMethod {
+            if ($Uri -eq "http://127.0.0.1:8000/pro/login") {
+                return [pscustomobject]@{ access_token = "session-token" }
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Get"
+            ) {
+                return @()
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Post"
+            ) {
+                return [pscustomobject]@{
+                    uuid = "11111111-1111-1111-1111-111111111111"
+                    token = "mcp-token"
+                }
+            }
+            if ($Method -eq "Delete") {
+                throw "raw revocation response"
+            }
+            return $null
+        }
+
+        $captured = ""
+        try {
+            Invoke-WorkspaceMcpChildWithToken `
+                -WorkspaceRoot $TestDrive `
+                -FilePath (Get-Command pwsh).Source `
+                -ChildTimeoutSeconds 10
+        } catch {
+            $captured = $_.Exception.Message
+        }
+
+        $captured | Should Match "Workspace MCP child command timed out"
+        $captured | Should Match "Workspace MCP token revocation failed"
+        $captured | Should Not Match "raw revocation response"
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Get" -and $Uri -eq "http://127.0.0.1:8000/logout"
+        }
+    }
+
+    It "preserves a nonzero child failure with sanitized cleanup failures" {
+        Mock Invoke-WorkspaceMcpChildCommand { 17 }
+        Mock Invoke-RestMethod {
+            if ($Uri -eq "http://127.0.0.1:8000/pro/login") {
+                return [pscustomobject]@{ access_token = "session-token" }
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Get"
+            ) {
+                return @()
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Post"
+            ) {
+                return [pscustomobject]@{
+                    uuid = "11111111-1111-1111-1111-111111111111"
+                    token = "mcp-token"
+                }
+            }
+            if ($Method -eq "Delete") {
+                throw "raw revocation response"
+            }
+            if ($Uri -eq "http://127.0.0.1:8000/logout") {
+                throw "raw logout response"
+            }
+            return $null
+        }
+
+        $captured = ""
+        try {
+            Invoke-WorkspaceMcpChildWithToken `
+                -WorkspaceRoot $TestDrive `
+                -FilePath (Get-Command pwsh).Source `
+                -ChildTimeoutSeconds 10
+        } catch {
+            $captured = $_.Exception.Message
+        }
+
+        $captured | Should Match "Workspace MCP child command failed"
+        $captured | Should Match "Workspace MCP token revocation failed"
+        $captured | Should Match "Workspace administrator logout failed"
+        $captured | Should Not Match "raw revocation response|raw logout response"
+    }
+
     It "rejects an overlapping managed-administrator token lifecycle" {
         $readyPath = Join-Path $TestDrive "lifecycle-lock-ready"
         $job = Start-Job -ScriptBlock {
