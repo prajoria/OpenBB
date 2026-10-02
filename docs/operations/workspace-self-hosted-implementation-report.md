@@ -108,6 +108,16 @@ authenticated route. A second headless run used the same existing ignored
 authenticated route without submitting the form. No credential value, cookie,
 profile content, screenshot, or response body was persisted or reported.
 
+Review hardening now restricts managed login and development TLS opt-in to the
+exact `http://127.0.0.1:1420` configuration. The driver revalidates the live
+origin after navigation and before credential reads/fills, recognizes
+authentication only on the exact origin's `/app` route family, and rejects
+aliases, alternate ports, HTTPS, userinfo, query-shaped configuration, auth
+routes, and off-origin redirects without credential access. Mocked Playwright
+tests prove off-origin credential loaders and input fills remain untouched,
+successful local submission still works, and an authenticated profile is
+reused without reading credentials.
+
 Portfolio Intelligence and Portfolio were started through
 `run_widget_backend.ps1` and `run_portfolio_backend.ps1`. The privacy-safe
 backend verifier reported 61 Intelligence widgets, three Intelligence apps,

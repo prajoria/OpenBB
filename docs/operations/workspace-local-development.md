@@ -308,14 +308,21 @@ $env:RUN_WORKSPACE_HARNESS = "1"
 Remove-Item Env:RUN_WORKSPACE_HARNESS
 ```
 
-For `http://127.0.0.1:1420`, `WorkspaceDriver` reads the ignored
+Only an exact `http://127.0.0.1:1420` target (with an optional trailing slash)
+enables managed login. `WorkspaceDriver` verifies that the live page remains
+on that exact origin after navigation and immediately before credential
+access, then reads the ignored
 `third_party/workspace/backend-api/backend/workspace-admin-credentials.secrets`
 file directly, fills the source-backed Email and Password fields, and never
 prints or accepts those values as command-line arguments. The first run opens
 Chromium visibly and logs in automatically. Later runs reuse
 `$HOME\.openbb_browser_test_harness\chrome_profile`; do not copy, inspect,
 archive, or commit that profile. Hosted Workspace continues to require
-operator-managed authentication. See the browser harness
+operator-managed authentication. Local profile reuse is accepted only on the
+exact origin's `/app` route family; authentication routes and external routes
+are rejected. The narrowly named
+`ignore_local_self_hosted_https_errors=True` option is likewise rejected for
+hosted or non-exact Workspace URLs. See the browser harness
 [Workspace-mode contract](../../openbb_platform/tools/browser_test_harness/docs/workspace-mode.md).
 
 Issue #2101 validation on 2026-10-02 proved both first-run managed login and a

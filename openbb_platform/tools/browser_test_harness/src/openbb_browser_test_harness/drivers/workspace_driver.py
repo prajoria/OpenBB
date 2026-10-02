@@ -57,14 +57,34 @@ def _default_profile_dir() -> Path:
 
 
 def _is_local_workspace_url(url: str) -> bool:
-    """Return whether *url* targets the supported loopback Workspace."""
+    """Return whether *url* is the exact supported self-hosted base URL."""
     parsed = urlparse(url)
-    return parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"}
+    return (
+        parsed.scheme == "http"
+        and parsed.netloc == "127.0.0.1:1420"
+        and parsed.path in {"", "/"}
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 def _is_authenticated_workspace_url(url: str) -> bool:
-    path = urlparse(url).path.rstrip("/")
-    return bool(path and path != "/login")
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "http"
+        and parsed.netloc == "127.0.0.1:1420"
+        and (parsed.path == "/app" or parsed.path.startswith("/app/"))
+    )
+
+
+def _require_local_workspace_origin(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme != "http" or parsed.netloc != "127.0.0.1:1420":
+        raise WorkspaceDriverError(
+            "Managed login refused because the live page left the exact "
+            "self-hosted Workspace origin."
+        )
 
 
 def _default_managed_credentials_path() -> Path:
@@ -126,7 +146,7 @@ class WorkspaceDriver:
     profile_dir: Path = field(default_factory=_default_profile_dir)
     screenshots_dir: Path | None = None  # if None, screenshots aren't saved
     headless: bool = False  # persistent-context defaults to visible for login
-    ignore_https_errors: bool = False
+    ignore_local_self_hosted_https_errors: bool = False
     managed_credentials_path: Path = field(
         default_factory=_default_managed_credentials_path
     )
@@ -155,6 +175,13 @@ class WorkspaceDriver:
 
     def __post_init__(self) -> None:
         """Record spawn-vs-attach mode at construction (#1789)."""
+        if self.ignore_local_self_hosted_https_errors and not _is_local_workspace_url(
+            self.workspace_url
+        ):
+            raise WorkspaceDriverError(
+                "Development TLS bypass is permitted only for the exact "
+                "self-hosted Workspace URL."
+            )
         self._spawn_backend = self.backend_url is None
         self._resolved_backend_url = self.backend_url
 
@@ -234,7 +261,7 @@ class WorkspaceDriver:
             self._context = await self._playwright.chromium.launch_persistent_context(
                 user_data_dir=str(self.profile_dir),
                 headless=self.headless,
-                ignore_https_errors=self.ignore_https_errors,
+                ignore_https_errors=self.ignore_local_self_hosted_https_errors,
             )
             self._owns_context = True
         elif self.mode == "cdp-attach":
@@ -265,6 +292,7 @@ class WorkspaceDriver:
             )
         await self._page.goto(target_url, wait_until="load")
         if _is_local_workspace_url(self.workspace_url):
+            _require_local_workspace_origin(self._page.url)
             await self._ensure_local_login()
         # Wait for the widget grid selector, or fall through after 5s — the
         # grid may not exist on every route (e.g. login redirect page).
@@ -278,6 +306,11 @@ class WorkspaceDriver:
     async def _ensure_local_login(self) -> None:
         """Log into local Workspace only when the persisted profile needs it."""
         assert self._page is not None
+        _require_local_workspace_origin(self._page.url)
+        if _is_authenticated_workspace_url(self._page.url):
+            self.login_performed = False
+            return
+
         email_input = self._page.get_by_label("Email", exact=True)
         login_ready = asyncio.create_task(
             email_input.wait_for(state="attached", timeout=0)
@@ -301,12 +334,20 @@ class WorkspaceDriver:
             raise WorkspaceDriverError(
                 "Local Workspace did not reach a login or authenticated route."
             )
-        if await email_input.count() == 0:
+        _require_local_workspace_origin(self._page.url)
+        if _is_authenticated_workspace_url(self._page.url):
             self.login_performed = False
             return
+        if await email_input.count() == 0:
+            raise WorkspaceDriverError(
+                "Local Workspace did not expose the expected login form."
+            )
 
+        _require_local_workspace_origin(self._page.url)
         email, password = _read_managed_credentials(self.managed_credentials_path)
+        _require_local_workspace_origin(self._page.url)
         await email_input.fill(email)
+        _require_local_workspace_origin(self._page.url)
         await self._page.get_by_label("Password", exact=True).fill(password)
         await self._page.get_by_role("button", name="Login", exact=True).click()
         try:
@@ -318,6 +359,11 @@ class WorkspaceDriver:
             raise WorkspaceDriverError(
                 "Local Workspace managed login did not complete."
             ) from exc
+        _require_local_workspace_origin(self._page.url)
+        if not _is_authenticated_workspace_url(self._page.url):
+            raise WorkspaceDriverError(
+                "Local Workspace managed login reached an unexpected route."
+            )
         self.login_performed = True
 
     async def teardown(self) -> None:
