@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "routes": [
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/stock_list",
+      "command": "stock_list",
+      "model": "StockList",
+      "providers": [
+        "fmp",
+        "fmp_cached"
+      ]
+    }
+  ]
+}

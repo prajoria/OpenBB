@@ -6,6 +6,9 @@ authors = ["OpenBB Team <hello@openbb.co>"]
 license = "AGPL-3.0-only"
 readme = "README.md"
 packages = [{ include = "openbb_fmp_cached" }]
+include = [
+    { path = "openbb_fmp_cached/assets/*.json", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
@@ -21,3 +24,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.plugins."openbb_provider_extension"]
 fmp_cached = "openbb_fmp_cached:fmp_cached_provider"
+
+[tool.poetry.plugins."openbb_core_extension"]
+fmp_cached = "openbb_fmp_cached.fmp_cached_router:router"
