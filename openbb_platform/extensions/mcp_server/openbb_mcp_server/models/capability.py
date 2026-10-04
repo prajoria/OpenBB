@@ -399,7 +399,7 @@ class CapabilityInventory(BaseModel):
             identifier for identifier, count in counts.items() if count > 1
         )
         if duplicates:
-            raise ValueError(f"Duplicate capability ID: {duplicates[0]}")
+            raise ValueError("Capability IDs must be unique")
         return self
 
     def coverage_counts(self) -> CoverageCounts:

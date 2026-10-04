@@ -334,10 +334,24 @@ def test_counts_preserve_gross_coverage_and_identified_aliases():
 def test_duplicate_record_ids_are_rejected():
     """An alias needs its own stable ID even when its implementation is shared."""
     record = record_data()
-    with pytest.raises(ValidationError, match="Duplicate capability ID"):
+    with pytest.raises(ValidationError, match="must be unique"):
         module.CapabilityInventory.model_validate(
             {"records": [record, deepcopy(record)]}
         )
+
+
+def test_duplicate_id_error_does_not_publish_identifier_contents():
+    """Sanitized duplicate errors never interpolate an untrusted identifier."""
+    sensitive_id = "eyJhbGciOiJIUzI1NiJ9.synthetic.signature"
+    record = {**record_data(), "id": sensitive_id}
+    with pytest.raises(ValidationError) as captured:
+        module.CapabilityInventory.model_validate(
+            {"records": [record, deepcopy(record)]}
+        )
+    assert sensitive_id not in json.dumps(
+        module.sanitized_validation_errors(captured.value)
+    )
+    assert sensitive_id not in module.sanitized_validation_error_json(captured.value)
 
 
 def test_empty_inventory_has_explicit_zero_denominators():
