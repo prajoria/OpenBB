@@ -1,0 +1,949 @@
+commit,committer_date,is_merge,present_before_sync,present_after_sync,subject
+39f171603c9bc4a28778e668ba981cf0e4358b9a,2026-10-02T10:57:32-07:00,True,False,True,Merge pull request #2122 from prajoria/feature/dual-mcp-launcher
+1acb29387fe3ce03b25627bbab730de519c4e4bb,2026-10-02T10:56:24-07:00,False,True,True,fix(mcp): harden dual launcher lifecycle
+04dc75c4373f29946a9046459ccb1b214085a4de,2026-10-02T05:57:24-07:00,True,False,True,Merge pull request #2121 from prajoria/fix/workspace-bootstrap-privacy-gh-2120
+8534af44c26e1470460abedd2906f10b8d0c7132,2026-10-02T05:56:16-07:00,False,False,True,test(workspace): cover bootstrap failure privacy
+4d4a3be9a9c33fc5e55ec32ecd88d7bfcbd68580,2026-10-02T05:53:46-07:00,False,False,True,fix(workspace): suppress admin bootstrap output
+3ea85a42d151c79c054f52220b830ab85ab58850,2026-10-02T05:48:40-07:00,True,False,True,Merge pull request #2119 from prajoria/test/self-hosted-workspace-copilot-gh-2103
+35656285b25bdd46860ccfb2f0bbaaa20fcac3bf,2026-10-02T05:47:31-07:00,False,False,True,chore(copilot): pin hardened local proxy
+cb0d0e2d536c317ce8302a0a6aac362f09850c63,2026-10-02T05:27:28-07:00,False,False,True,fix(workspace): keep Copilot entry path relative
+66d85413ec12e756e1aa7fe7d61c30e8ea8bf6be,2026-10-02T05:17:31-07:00,False,False,True,fix(workspace): retain rollback process handle
+cd8b8658ca2ceb1e380185de6251eff7ec8aad2a,2026-10-02T05:05:59-07:00,False,False,True,fix(workspace): close Copilot review findings
+490503ce6c1ffdc9ca91561be1f3993a2cb8832b,2026-10-02T04:29:45-07:00,False,False,True,test: validate self-hosted Portfolio Copilot
+c796cf2b30442f289eff47e26333a2f2baac7996,2026-10-02T03:52:30-07:00,True,False,True,Merge pull request #2118 from prajoria/test/self-hosted-workspace-mcp-gh-2102
+e89242dcbf336e800b26a5ad61b6ce84f441c7cb,2026-10-02T03:51:22-07:00,False,False,True,chore(workspace): pin certified MCP sources
+eb5b7973b40f38051f7611c2b6acc36163ab0b40,2026-10-02T03:50:31-07:00,False,False,True,docs(workspace): finalize MCP certification report
+08ad5841ba060f663373758c483c4a98b10a86b8,2026-10-02T03:44:38-07:00,False,False,True,fix(workspace): close final MCP review findings
+31e05433532a65231c24efa69194d49d7e65cf11,2026-10-02T03:21:28-07:00,False,False,True,fix(workspace): finalize reviewed MCP lifecycle
+5c5d7cc37bd1a2a1a3fbadaa44b63370f51c05b8,2026-10-02T02:59:47-07:00,False,False,True,fix(workspace): address MCP certification review
+dc9e3d4ddab6d8ab61be0cb97986d5c90c0a278d,2026-10-02T02:39:20-07:00,False,False,True,Certify self-hosted Workspace MCP
+3b6680bba157209051fa28b430646851ef31b804,2026-10-02T02:06:11-07:00,True,False,True,Merge pull request #2117 from prajoria/test/workspace-connectors-gh-2101
+508583ccaedf225f83cb8d31851f25ee47796d4f,2026-10-02T02:01:19-07:00,False,False,True,fix(workspace): address connector review findings
+7dbf16a14d4d94e7a1fe3a98f0ab5e862c39f07e,2026-10-02T01:51:40-07:00,False,False,True,test(workspace): complete connector acceptance
+137165f54bcd4fe6e81caa940ccb8eaf7f808418,2026-10-02T01:25:09-07:00,True,False,True,Merge pull request #2116 from prajoria/test/self-hosted-workspace-browser-gh-2101
+90aba7299c486149d5a2519b75fd16b46221202d,2026-10-02T01:23:50-07:00,False,False,True,fix(workspace): update source pin for on-prem shell
+26ed845525e556460723a201d34fb4845f45b514,2026-10-02T01:03:32-07:00,True,False,True,Merge pull request #2114 from prajoria/test/self-hosted-workspace-browser-gh-2101
+d7ca43df2ecb1452ebecff4b7e41041c540d8cb3,2026-10-02T00:59:10-07:00,False,False,True,fix(workspace): harden managed browser login
+3e73084db4b87a2c514c6e45125f01925f1d2fca,2026-10-02T00:51:59-07:00,False,False,True,test(workspace): automate self-hosted browser login
+b9a691bc65bec81230b07e9b600421ec2937cc95,2026-10-02T00:29:08-07:00,True,False,True,Merge pull request #2113 from prajoria/feat/workspace-replay-skill-gh-2111
+4434cb949cb10180edb3461aa02b05bdb9e6f315,2026-10-02T00:24:56-07:00,False,False,True,fix(workspace): address replay review findings
+f2b52230aee872c3078e95b3c4ff2c7bb1cde1ef,2026-10-01T23:54:27-07:00,False,False,True,feat(workspace): add durable local replay verifier
+edc999249f3194827cb20907210c364001e9fa73,2026-10-01T23:43:45-07:00,True,False,True,Merge pull request #2112 from prajoria/feat/self-hosted-workspace-deploy-gh-2110
+ec098af8e64df37d149317da26e8997b5eb0bb57,2026-10-01T23:39:38-07:00,False,False,True,fix(workspace): verify owned processes terminate (#2110)
+19225ee2792d69ddc7a5df23d2d2801fe73a4f58,2026-10-01T23:32:09-07:00,False,False,True,fix(workspace): guarantee owned cleanup on failures (#2110)
+34307c762230be385184a897e291bf00eb665f1b,2026-10-01T23:25:42-07:00,False,False,True,fix(workspace): address deployment review findings (#2110)
+1ce4b38d893c1d29b32a9f92e40a428fe6a87e49,2026-10-01T23:20:25-07:00,False,True,True,fix(mcp): discover workspace submodule
+bdbfcbc0556dd8b9f7e98698c125ebfbd6c643c3,2026-10-01T23:15:43-07:00,False,True,True,feat(mcp): add dual server launcher
+9469956c3e4ea8b90c45025346bc42e155f2bc06,2026-10-01T22:50:25-07:00,False,False,True,feat(workspace): deploy self-hosted development stack (#2110)
+a31e777abbaabbfcab7de720f81a915a4b0c797d,2026-10-01T22:30:35-07:00,True,True,True,Merge pull request #2109 from prajoria/chore/self-hosted-workspace-source-gh-2108
+05eb0d5cf516139fc9c78a0c2a67b00364c89a64,2026-10-01T22:27:48-07:00,False,True,True,fix(docs): correct self-host frontend endpoints
+7b7ba161931bc089d1f875920e32d2b69d468861,2026-10-01T22:22:54-07:00,False,True,True,chore(workspace): pin and audit self-host source
+3b938d14465ffe9cba5aaaf0d9f11fab47ead0e8,2026-10-01T20:38:50-07:00,True,True,True,Merge pull request #2107 from prajoria/docs/workspace-dev-runbook-gh-2100
+085d0fc84682ec0db067aad021e89023f6503eea,2026-10-01T20:35:06-07:00,False,True,True,fix: bound workspace discovery operations
+6400981c189b695ad0f0b9af98196e26f093e28a,2026-10-01T20:28:37-07:00,False,True,True,docs: address workspace runbook review findings
+37bfda9d1683556589821496fdfa8d0a3dda5346,2026-10-01T20:15:11-07:00,False,True,True,docs: add Workspace local development runbook
+9b47e4e097dd03498465680c4ffd24db68b2063c,2026-10-01T20:06:32-07:00,True,True,True,Merge pull request #2106 from prajoria/feat/workspace-intel-launcher-gh-2099
+c1edde6b91f8afd74fa8b0d8f59959ab733aee1d,2026-10-01T19:58:55-07:00,False,True,True,feat: add Portfolio Intelligence launcher
+bd73c7efef48e1396f2aea45137ead08bbcfea22,2026-10-01T19:52:44-07:00,True,True,True,Merge pull request #2105 from prajoria/build/workspace-dev-setup-gh-2098
+7011a21dc7fec304dad70946024ef47f9aeb8abe,2026-10-01T19:49:31-07:00,False,True,True,fix: tighten Workspace setup validation
+a07e90cbb69a74e4444ce1766e255d0e3c715854,2026-10-01T19:42:13-07:00,False,True,True,build: add Workspace development setup
+4d36b84cf23f16ba732850073042c3ec3a41e3ab,2026-10-01T19:31:43-07:00,True,True,True,Merge pull request #2104 from prajoria/chore/workspace-dev-foundation-gh-2097
+ff97dc28aa7a65885d1483a4801a008d76b6f313,2026-10-01T19:30:36-07:00,False,True,True,chore: add Workspace development foundations
+021930cef61fa27da8cb3c15cbaa27fac996138c,2026-10-01T19:07:08-07:00,True,True,True,Merge pull request #2087 from prajoria/feat/pi-snapshot-consumers-gh-1968
+897a79a769b307dbafe95af5c07d3fc3bedee53f,2026-10-01T19:04:06-07:00,False,True,True,fix(techtrade): close snapshot validation bypasses
+8e0299a052358a7376e04936386f3e98b6c3f2b2,2026-10-01T18:25:21-07:00,True,True,True,Merge remote-tracking branch 'origin/portfolio' into feat/pi-snapshot-consumers-gh-1968
+00309ae4672a2a401e91ce845a40b11839e99f9f,2026-10-01T18:25:11-07:00,False,True,True,fix(portfolio-intel): accept legacy Technology segment label
+8ee72456281f3ff8d1c5734efc7e7b48e84bf55e,2026-09-14T22:06:12-07:00,True,True,True,Merge pull request #2093 from prajoria/chore/browser-harness-fixtures-gh-2092
+d849941e515b58675f7fdcb2a799092f9610f396,2026-09-14T22:00:05-07:00,False,True,True,chore(browser-harness): refresh fixture snapshots
+15bd0c0c5fa62b51c162bd90add40585db7854d2,2026-09-14T21:59:20-07:00,True,True,True,Merge pull request #2091 from prajoria/docs/local-llm-guide-gh-2088
+9fe25ebb4df0f7c0cf0d99b2ab551fb7a40f4ead,2026-09-14T21:59:03-07:00,False,True,True,docs(devex): document native Ollama VS Code setup
+90c2719be9877045e8acc05874e77e3bfc30a969,2026-09-14T18:09:35-07:00,True,True,True,Merge pull request #2090 from prajoria/feat/local-llm-bootstrap-gh-2088
+7da578e439889bd48842b452574c70ca502b5eb8,2026-09-14T18:07:07-07:00,False,True,True,feat: bootstrap local Ollama development models
+5ca632f798785f8e95efe4a352d90e6627ed860b,2026-09-14T10:06:42-07:00,False,True,True,feat(devex): add local LLM bootstrap preflight (#2089)
+035eccf814ff96bfc369bcf0e7be6590bd393fba,2026-09-12T22:37:42-07:00,False,True,True,fix(portfolio-intel): retry fallback snapshot stores
+2af44c9cec9fc13623058d52d009b1ceb67fc678,2026-09-12T21:55:19-07:00,False,True,True,fix(techtrade): archive historical migration rows
+043850518f87bdc4544ab072d5874d0a3ff9258a,2026-09-12T21:45:44-07:00,False,True,True,fix(techtrade): fail closed on snapshot backend
+55a0434fe54e56ddaff3142c79434bae9aea1ec2,2026-09-12T20:58:18-07:00,False,True,True,fix(techtrade): complete atomic snapshot reads
+a2689fb0cf6301e1c8fc93ebc843ad764957dba0,2026-09-12T20:35:24-07:00,False,True,True,fix(portfolio-intel): derive tuning segment safely
+4550282e0809967f948d2ff1fdf3a6e0b37f5519,2026-09-12T19:59:52-07:00,False,True,True,fix(techtrade): complete snapshot review convergence
+6f03a3bd7fb9c4e6a3ac79807a69fd5ae52ebeef,2026-09-12T19:23:45-07:00,False,True,True,fix(techtrade): declare snapshot provider dependency
+a9ec9dd48324d14549bf6de92df2a2810ba4236f,2026-09-12T19:05:27-07:00,False,True,True,fix(techtrade): satisfy snapshot review predicate
+3a1e03dde9145861e358d068b97ab343566473af,2026-09-12T18:48:51-07:00,False,True,True,fix(techtrade): meet snapshot review exit
+4acffeb5837aeb638d728ef7667ddbd5438ce052,2026-09-12T18:27:25-07:00,False,True,True,fix(techtrade): satisfy final snapshot review
+74ee4a8e117fb724b1f141ce501593d59f328d38,2026-09-12T18:06:30-07:00,False,True,True,fix(techtrade): atomically bridge legacy scans
+08e26216b80d3c8e0fd8c0b0905e2c2af26255de,2026-09-12T17:39:40-07:00,False,True,True,fix(techtrade): close final snapshot review gaps
+9f1f90fc57cb088c9500541f03df097c8ab4b70b,2026-09-12T17:28:40-07:00,False,True,True,fix(techtrade): enforce snapshot consistency
+0e1f9568b962c69e06c79014c437894ac6d929ab,2026-09-12T17:10:37-07:00,False,True,True,fix(techtrade): satisfy snapshot exit review
+7b0df2f0e27fd17e8119ea31588dd0a172dc92e5,2026-09-12T16:51:28-07:00,False,True,True,fix(techtrade): finalize snapshot review findings
+4461f1378627dc994c4ddbefbb676069d2d8e629,2026-09-12T16:31:42-07:00,False,True,True,fix(techtrade): finalize snapshot consistency
+4fbc518d4cbc5fd4ef96950d2119799a08df67bb,2026-09-12T15:58:46-07:00,False,True,True,fix(techtrade): converge snapshot consumer review
+3bf6dc9c6d0810c6e05912755cda1d0e0d999e4e,2026-09-12T15:24:26-07:00,False,True,True,fix(techtrade): complete snapshot compatibility
+6f9f10d88118f8957ea89090a8edaa1268047de0,2026-09-12T15:05:38-07:00,False,True,True,fix(techtrade): close snapshot lifecycle gaps
+c65b8ec4afd7047150f36a550043951f9a97f447,2026-09-12T14:37:12-07:00,False,True,True,fix(techtrade): preserve canonical snapshot semantics
+0ab836c5a72453c539aafc4a000129261ad92ea1,2026-09-12T14:25:22-07:00,False,True,True,fix(techtrade): harden snapshot compatibility
+6d1bf9cde778115acc6b78be86e4711a826a32e8,2026-09-12T14:11:56-07:00,False,True,True,fix(techtrade): address snapshot consumer review
+ea7f7fa7d740f3251da2c33bba6cfdead5686b8c,2026-09-12T13:41:33-07:00,False,True,True,refactor(techtrade): simplify snapshot consumer contracts
+e6e8d19981512c9fee3a29466fc39f59ee825d00,2026-09-12T13:33:32-07:00,False,True,True,feat(techtrade): invalidate snapshots for market events
+bfcd2beb02f12c0b2dc5c270642bcab9605cc812,2026-09-12T13:22:36-07:00,False,True,True,feat(techtrade): make snapshot sessions exchange-aware
+634fa7ee850cf3b26dc7c713212e0cfdaefbb3f1,2026-09-12T13:22:22-07:00,False,True,True,feat(portfolio-intel): read TechTrade EOD snapshots
+df8e3e15c3690830d39b76b3cdde6d92ccfa82f1,2026-09-12T13:14:55-07:00,False,True,True,refactor(techtrade): unify legacy snapshot storage
+fda77d73edd383887e257c85a837a72c18c810cc,2026-09-12T13:13:13-07:00,False,True,True,feat(techtrade): fan out post-close snapshot jobs
+f54d0666804aa3cfef2437cc5cede23f44203165,2026-09-12T13:10:17-07:00,False,True,True,feat(techtrade): materialize mover snapshots
+a450291c450bfe0b030c700f505ef495ab6843af,2026-09-12T13:08:17-07:00,False,True,True,feat(techtrade): register snapshot consumer datasets
+989d862665163317a9cb31b951c6475c771576e2,2026-09-12T13:02:48-07:00,False,True,True,docs(pi): plan snapshot consumer rollout
+2653a71116459fb50f32e0718a597bec79a71ed2,2026-09-12T13:01:27-07:00,False,True,True,docs(pi): design snapshot consumers
+d867b5ee613a1cb7f411aa1084d2c66802208134,2026-09-12T12:56:35-07:00,True,True,True,Merge pull request #2085 from prajoria/fix/pi-key-stats-fallback-gh-2075
+a12bf0e2ed6c4774d974a4b37fc311aa5d169231,2026-09-12T12:52:56-07:00,False,True,True,fix(portfolio-intel): clarify key-stats fallback (#2075)
+0b97b0577b264483e219abe0054e598c2da3543a,2026-09-12T11:25:42-07:00,True,True,True,feat(techtrade): add safe paper/live execution gateway (#1719)
+8104c9109331b2a8544c4621e130706ad21a72d9,2026-09-12T11:11:03-07:00,False,True,True,fix(techtrade): close execution lifecycle gaps (#1719)
+00fae70f1dc71a20e4635261bfeb573027faf8ed,2026-09-12T10:52:45-07:00,False,True,True,fix(techtrade): canonicalize MySQL ledger scopes (#1719)
+1ea538b82751f6a2486749616cf93c11fa2cf708,2026-09-12T10:39:37-07:00,False,True,True,fix(techtrade): bind paper orders and audit owners (#1719)
+9f31baec7d2d6351781f349a0aee62244acc9154,2026-09-12T10:20:33-07:00,False,True,True,fix(techtrade): validate partial broker receipts (#1719)
+b75cbbd1eb77b5b0059cd9f12f12311ee56da303,2026-09-12T10:09:39-07:00,False,True,True,fix(techtrade): validate live client identities (#1719)
+bc39a37585f28ee4c2f539c889675dff1e097300,2026-09-12T09:54:34-07:00,False,True,True,fix(techtrade): require dedicated audit paths (#1719)
+cb54cb9ba545565d377de89f28dbc8a0de298304,2026-09-12T09:39:18-07:00,False,True,True,fix(techtrade): preserve broker reconciliation state (#1719)
+73b6959806cb8c50a40e5ae336853ac997eb3022,2026-09-12T09:22:51-07:00,False,True,True,fix(techtrade): close final broker state gaps (#1719)
+70f2ca4ef2b015f33fc33e06845e785b69144cdd,2026-09-12T09:00:24-07:00,False,True,True,fix(techtrade): serialize MySQL batch verification (#1719)
+fa6243c8d79edd48d0c6f7aafeb7338a15c2aaba,2026-09-12T08:33:41-07:00,False,True,True,fix(techtrade): make artifact publication retry-safe (#1719)
+4923a3828109b5f4980007ffe06dcbd86f4aa249,2026-09-12T08:17:10-07:00,False,True,True,fix(techtrade): preserve reconciliation on audit failure (#1719)
+48fe97a52cbb0b547b78cea4e9c754f7c08362e0,2026-09-12T08:07:27-07:00,False,True,True,fix(techtrade): finalize durable execution handling (#1719)
+98d9e43e016a0b9f88a213c443646ebca8e634f6,2026-09-12T07:47:28-07:00,False,True,True,fix(techtrade): complete broker audit invariants (#1719)
+8f08cab9c8d1f53839e6b613025cfce6ac2c573b,2026-09-12T07:29:33-07:00,False,True,True,fix(techtrade): complete execution convergence (#1719)
+a587b858f158191f6274ca0c2141c96dc37b0b92,2026-09-12T07:03:38-07:00,False,True,True,fix(techtrade): harden audit sidecar permissions (#1719)
+7b8edf48cb6146a650c8f4feb54bc35c1f66df65,2026-09-12T06:20:17-07:00,False,True,True,fix(techtrade): serialize shared paper reads (#1719)
+28c9549ff4d8942cb519bea28562e1d5ed3a139e,2026-09-12T05:53:54-07:00,False,True,True,fix(techtrade): close audit compatibility gaps (#1719)
+d13bbeea2cae48fbdd00918b455498672c511acf,2026-09-12T05:35:51-07:00,False,True,True,fix(portfolio-intel): validate confirmation before artifacts (#1719)
+0f378c069bba27169d4d27fbcedad08e6b5f86df,2026-09-12T05:09:13-07:00,False,True,True,fix(techtrade): verify broker identity after operations (#1719)
+19b9391c95c37d2224452c1e638d0bb49681c88e,2026-09-12T04:57:56-07:00,False,True,True,fix(techtrade): fence legacy live audit state (#1719)
+12d94c5b73cd5ec2b273627c20e0f51bc2c133ca,2026-09-12T04:37:04-07:00,False,True,True,fix(techtrade): migrate historical broker identities (#1719)
+802580563f44615ab4c824ddd50bd57753536be7,2026-09-12T04:10:20-07:00,False,True,True,fix(techtrade): reject unusable broker acknowledgements (#1719)
+39f25a3ecb24212e41cdb2d4d8aeb34203e1c52f,2026-09-12T03:43:07-07:00,False,True,True,fix(techtrade): finalize execution audit safety (#1719)
+2a205b7b720797273830e50df81b444f0ad78575,2026-09-12T03:22:06-07:00,False,True,True,fix(techtrade): validate partial broker acknowledgements (#1719)
+8faf8799cb2fe95eb3e4381bc2487df1dc4c0dac,2026-09-12T02:57:25-07:00,False,True,True,fix(techtrade): close final execution review gaps (#1719)
+cc2d7da81ba9ec3b5f6b6929ced719c5c54f5149,2026-09-12T02:45:07-07:00,False,True,True,fix(techtrade): reconcile malformed paper acknowledgements (#1719)
+0b4de55eee6ca5a0df51785db89bbdb61e4efa1f,2026-09-12T02:14:53-07:00,False,True,True,fix(techtrade): bind approval audit context (#1719)
+5871ffb0f1531056291937637e195b1b9b4dc07a,2026-09-12T02:04:41-07:00,True,True,True,Merge pull request #2084 from prajoria/fix/pi-snapshot-default-gh-2080
+a615b7c5a1508a733d03e0a5dc8cbe9e9126b8dd,2026-09-12T02:02:45-07:00,False,True,True,test(techtrade): isolate default snapshot path
+04f4595b4e3a5fee0a12d34baf8e7047cb519160,2026-09-12T01:58:05-07:00,False,True,True,fix(techtrade): preserve approval audit context (#1719)
+a3f8f50f8f34a1f70a586cc70153d2ec1545f869,2026-09-12T01:54:38-07:00,True,True,True,Merge pull request #2083 from prajoria/feat/pi-snapshot-core-gh-1964
+9e0eef0cf2bfdf045259eb1de39e74a7181c4b73,2026-09-12T01:48:42-07:00,False,True,True,fix(techtrade): finalize execution safety convergence (#1719)
+6da4d763d5d76a08565f6241538a0e2fe29f1c71,2026-09-12T01:42:42-07:00,False,True,True,fix(techtrade): address snapshot review findings
+a0bc1d05733ddd44eade923ad042af2cc20fb569,2026-09-12T01:22:52-07:00,False,True,True,feat(techtrade): harden EOD snapshot core
+5a3fb7aadcf38430caae0703f56a5686e78df473,2026-09-12T01:22:51-07:00,False,True,True,docs(pi): plan snapshot core hardening
+f53c4401b9f36d3a84807dd89dfb98dc1106cd2d,2026-09-12T01:22:51-07:00,False,True,True,docs(pi): design snapshot core hardening
+a7416e8cb861ed49307ec9bed26b74db0c2e0e8b,2026-09-12T01:20:49-07:00,False,True,True,fix(techtrade): resolve execution convergence blockers (#1719)
+931a612d49e1995514077788002ca7200a894dc1,2026-09-12T01:07:59-07:00,False,True,True,fix(techtrade): enforce live execution authorization (#1719)
+eef53ba914392577d9b30f23d3bcf109b980655e,2026-09-12T00:53:48-07:00,False,True,True,fix(techtrade): close live execution safety gaps (#1719)
+8ec0b9702f22029d0c8ecd6ef177164636c3ecf2,2026-09-12T00:24:08-07:00,True,True,True,Merge pull request #2081 from prajoria/fix/pi-techtrade-indicators-gh-2078
+13aeffdb02389932278fb4115a3644f074e9e74c,2026-09-12T00:24:03-07:00,False,True,True,fix(core): export generated provider models (#2079) (#2082)
+5c1129ec6e2d1bf8059a5621c52370e7d958402a,2026-09-12T00:19:21-07:00,False,True,True,test(techtrade): make fallback regression hermetic (#2078)
+e9fb4eae23589488de68cbf01dd674cad0589fa3,2026-09-12T00:17:11-07:00,False,True,True,fix(techtrade): satisfy changed-file diagnostics (#2078)
+5cae7dca08de5f220da905ed47a1f85a329686f3,2026-09-12T00:10:39-07:00,False,True,True,fix(techtrade): restore extended indicator fallbacks (#2078)
+232a980c9c0ceb70ec93e4bc92962d369521910b,2026-09-12T00:03:32-07:00,False,True,True,fix(portfolio-intel): use typed paper status config (#2072)
+939544ef10fdd6ae2be8a4dfb44145d141345007,2026-09-11T23:59:54-07:00,False,True,True,docs(techtrade): plan indicator regression fix (#2078)
+47fac508ddbd0ba7468c14c9cd806a473c8f9403,2026-09-11T23:59:22-07:00,False,True,True,docs(techtrade): design indicator regression fix (#2078)
+6658b79033ef44b6ac4f7ffc8d27ee985e1e7c42,2026-09-11T23:51:45-07:00,True,True,True,test(portfolio): make SPY concentration resilient (#2074)
+9f50873f9fad2dec59db6a4f50aae833d4f771b6,2026-09-11T23:36:24-07:00,False,True,True,test(portfolio): cover normalization contract edges
+d7678ffb39775d724b7cc4c17d575bf34be3b1de,2026-09-11T23:32:35-07:00,False,True,True,fix(techtrade): bind approvals to server policy (#1719)
+42167b643813cfb29d29923068ff97aede43b701,2026-09-11T23:27:03-07:00,False,True,True,style(portfolio): format normalization guard
+cc45e82e79968621dc65248541cefedeaec158e5,2026-09-11T23:21:36-07:00,False,True,True,fix(portfolio): align holdings normalization tolerance
+50f6750dbe39a34dc7b072643c565916af113423,2026-09-11T23:19:31-07:00,False,True,True,fix(portfolio-intel): execute approved paper batch (#1719)
+99695c3bfdb42f21eb42005cbe937aad4daff0a4,2026-09-11T23:18:31-07:00,False,True,True,fix(portfolio): normalize look-through holdings
+2343954b8b5bcf59a6d234b4b687573f248a5643,2026-09-11T23:17:05-07:00,False,True,True,fix(techtrade): derive live orders from server plans (#1719)
+90cd652e2ac97230c246088a65277fe86cda5e92,2026-09-11T23:02:31-07:00,False,True,True,fix(techtrade): canonicalize approved live orders (#1719)
+63d23e03f1a78392b2ab6f326bba91239966d97f,2026-09-11T22:51:30-07:00,False,True,True,fix(techtrade): persist approvals and broker scope (#1719)
+0be7118e73194e77430c073abf794718c2d3c1f9,2026-09-11T22:48:17-07:00,False,True,True,fix(techtrade): bind live approval to broker identity (#1719)
+9b1260aa7cef8b4c3bb66d66a8ccffe03c171d82,2026-09-11T22:39:53-07:00,False,True,True,docs(portfolio): design look-through normalization
+73343c830da8d0bc59114acf1b2346cd683431a3,2026-09-11T22:33:39-07:00,False,True,True,fix(techtrade): harden audited execution handoff (#1719)
+61f433e095ca95ec9063602978643e7df747e869,2026-09-11T22:29:39-07:00,False,True,True,fix(techtrade): reconcile missing live acknowledgements (#1719)
+a39da5ac9b5371b45a3d15a3858d0d808bc56f77,2026-09-11T22:29:21-07:00,False,True,True,test(portfolio): validate concentration baseline
+0029c130de987e5f83d63635253be68fe57c923b,2026-09-11T22:26:05-07:00,False,True,True,test(portfolio): retain SPY breadth guard
+c2d457e8147ac4530db2d7e655865ac39c1bcba4,2026-09-11T22:17:30-07:00,False,True,True,docs(portfolio): align SPY invariant design
+74f24eab9a714957a1b39e315140c0ac66a9a81b,2026-09-11T22:16:30-07:00,False,True,True,feat(techtrade): add safe paper-live execution gateway (#1719)
+162f8afc34a7c410c37c68499e31d542a02eb90f,2026-09-11T22:16:30-07:00,False,True,True,docs(techtrade): plan T5 broker adapter (#1719)
+3f6f17ddc84bab682286798d828535295dbdc619,2026-09-11T22:16:30-07:00,False,True,True,docs(techtrade): design T5 broker adapter (#1719)
+8d861d6ddfbfd445e2e193bccc2d1c61bb3c9fdf,2026-09-11T22:11:12-07:00,False,True,True,test(portfolio): clarify SPY fallback invariant
+f12b8f86c25e00eba15d6f3fcff06a5ffb230153,2026-09-11T21:58:29-07:00,True,True,True,Merge pull request #2073 from prajoria/fix/pi-key-stats-sources-gh-1959
+79aa8e8f5b03b30840c015cb0b5cd4ed14b7acfa,2026-09-11T21:52:24-07:00,False,True,True,docs(portfolio-intel): record fallback disposition (#1959)
+5c8bffc9b1e950518b9bb39e99b9231b81df849c,2026-09-11T21:48:30-07:00,False,True,True,test(portfolio): detect unresolved SPY holdings
+72ca94be9174a0e38e5ebb3848b3483fedc77e6a,2026-09-11T21:45:05-07:00,False,True,True,test(portfolio-intel): harden sourced key stats (#1959)
+cdc3450abcb5910d642fb59ac930d13006a74c2b,2026-09-11T21:38:40-07:00,False,True,True,fix(portfolio-intel): stabilize key-stats validation (#1959)
+c6a7473471a1cba4879f8fa9a44bd7024bbe7aa5,2026-09-11T21:34:10-07:00,False,True,True,test(portfolio): make SPY concentration check resilient (#2027)
+909330d91bf8079129a37433c10bddae444bff6f,2026-09-11T21:33:04-07:00,False,True,True,fix(portfolio-intel): source missing key stats (#1959)
+bcfc18185783c460b6dd28d6c72a0da0581ff5d9,2026-09-11T21:31:35-07:00,True,True,True,Merge pull request #2071 from prajoria/feat/pi-config-packaging-gh-1972
+31ad5422e2dae620dce5d801c4c6aa144b6b8708,2026-09-11T21:26:56-07:00,True,True,True,Merge pull request #2069 from prajoria/fix/pi-execution-foundation-gh-2059
+15c5094cc2119c1efae1cc4d82019ee1f81c5925,2026-09-11T21:21:34-07:00,False,True,True,fix(techtrade): preserve errors on rollback failure (#2059)
+01e3010fbdb625152b361902fe111f48bfda7f76,2026-09-11T21:17:27-07:00,False,True,True,docs(portfolio-intel): design sourced key stats (#1959)
+31125583d244845d647b69c0f4c558a21b0192e4,2026-09-11T21:17:02-07:00,False,True,True,docs(pi): record deferred widget config alignment (#1972)
+f917b20ee94222b18a0329d6201a05669d3279e9,2026-09-11T21:16:05-07:00,False,True,True,test(techtrade): cover concurrent pooled fills (#2059)
+e7fcb8a557b6f393690112f04e978b1471a8f891,2026-09-11T21:14:19-07:00,True,True,True,Merge pull request #2070 from prajoria/fix/pi-fmp-tooling-gh-2051
+823d5f074d96230de8b5cc91ab1cf8e5e7fc05df,2026-09-11T21:10:36-07:00,False,True,True,fix(fmp-cached): scope schema initialization config (#2051)
+cbee3b3d39680979abffc601ff94c89bed7e5a46,2026-09-11T21:10:30-07:00,False,True,True,fix(pi): harden editable install verification (#1973)
+1188a910a4ea77e380d034b044fe86032b0bed09,2026-09-11T21:09:18-07:00,False,True,True,fix(techtrade): make account bootstrap atomic (#2059)
+71816988be2e2c9ec5dbcdc616ca5e76c9206027,2026-09-11T21:04:27-07:00,False,True,True,fix(techtrade): address pool transaction review (#2059)
+b6330c2f08766f9c8959701e07393b56ef63fe7c,2026-09-11T21:02:30-07:00,False,True,True,fix(fmp-cached): refresh initialization settings (#2051)
+01b159130389385ffdaabecd38c8458ef548508d,2026-09-11T21:02:09-07:00,False,True,True,feat(pi): centralize config and guard editable installs (#1972)
+47c294d560911734684fff4699416420e1ddb4e6,2026-09-11T20:57:44-07:00,False,True,True,fix(fmp-cached): scope warmer database overrides (#2051)
+8163825769308b2e431e4863aa6444b4d3ae44ca,2026-09-11T20:56:38-07:00,False,True,True,fix(techtrade): honor shared PyMySQL pool contract (#2059)
+7b3ae50be1718a16d516f49688f287679814b53c,2026-09-11T20:46:07-07:00,False,True,True,docs(pi): plan config and packaging cycle (#1972)
+34ab704ad84302065ae5109b72a133571c88bb0f,2026-09-11T20:45:13-07:00,False,True,True,docs(pi): design config and editable install fixes (#1972)
+20cca997ecc2e12a07d4982d6247a46481b8463d,2026-09-11T20:44:58-07:00,False,True,True,docs(techtrade): plan MySQL paper pool fix (#2059)
+9ac22fc179cc87e556fb662447c900c69c4cb933,2026-09-11T20:44:47-07:00,False,True,True,docs(fmp-cached): plan database override fix (#2051)
+c81fa29c3653cb5372d911eba418aa2be37476f3,2026-09-11T20:44:18-07:00,False,True,True,docs(fmp-cached): design scoped database overrides (#2051)
+cfafb14b29ab4941d106a734da26f574bb6bd122,2026-09-11T20:44:17-07:00,False,True,True,docs(techtrade): design MySQL paper pool fix (#2059)
+aae8f1473aba05a3b58b3e32e06c87bc940f7af2,2026-09-07T22:20:34-07:00,True,True,True,Merge pull request #2068 from prajoria/fix/pi-snapshot-guard-gaps-gh-2067
+f9727b37a8f8764f5c5cbfd93a2ec4eeeaa8d7c6,2026-09-07T22:05:55-07:00,False,True,True,fix(techtrade): isolate MySQL snapshot guard probe
+6fa0a9bd13a91ad594eecfa8e2a59abd42c44b77,2026-09-07T21:40:02-07:00,False,True,True,fix(techtrade): close MySQL snapshot guard gaps
+882c11fe142512babc82c8752b13fa944243bbc9,2026-09-07T21:16:36-07:00,True,True,True,Merge pull request #2066 from prajoria/chore/gpt-sol-agent-policy
+6578c05fc48cc98187cf7947d6ed54b48b5bd6af,2026-09-07T21:15:56-07:00,False,True,True,chore(agents): require GPT-5.6 Sol execution (#2065)
+3aae65c87900077cc867eddac895ed14a53f0ac0,2026-09-07T21:02:56-07:00,True,True,True,Merge pull request #2064 from prajoria/feat/pi-eod-snapshot-store-gh-1963
+8fba5d2c7408f450dae5ad92838bc0200d80f3f3,2026-09-07T12:57:17-07:00,False,True,True,test(techtrade): ignore SQLite IIF in codespell
+16c379ebae41839370131e3beefd3d06c85dacc6,2026-09-07T12:47:59-07:00,False,True,True,fix(techtrade): require InnoDB for snapshot probes
+8123f2e98f1d23a11cd18179a6869f63ce38fc7e,2026-09-07T12:20:12-07:00,False,True,True,fix(techtrade): prove single-LIVE guard behavior
+03b8524c22026382d5092efdb320b40c0639cac5,2026-09-07T11:30:20-07:00,False,True,True,fix(techtrade): fail closed on unknown SQL scanner input
+56669a7329e5a24e0c07fc1c3cd06bd279b220cc,2026-09-07T11:12:22-07:00,True,True,True,Merge pull request #2062 from prajoria/feat/pi-eod-snapshot-store-gh-1963
+1bb9be04e3982861be570c1c2008fc837a018c3a,2026-09-07T11:09:49-07:00,False,True,True,fix(techtrade): detect MySQL expression escape layer
+68378f08894cbf0291ad8849c12a68354e43d27e,2026-09-07T11:08:08-07:00,False,True,True,fix(techtrade): reject foreign stamped SQLite files (#1963)
+2065daea3718826031db682ce0fd8da39be428de,2026-09-07T11:00:28-07:00,True,True,True,Merge remote-tracking branch 'origin/portfolio' into feat/pi-eod-snapshot-store-gh-1963
+a96e47054cc4dc87105ae60a0c448cdb1a35a547,2026-09-07T10:59:53-07:00,True,True,True,Merge pull request #2061 from prajoria/feat/pi-jobs-service-gh-1934
+03691e294027b3c21b5b2de3733846adde601614,2026-09-07T10:58:06-07:00,False,True,True,test(techtrade): avoid codespell typo fixture (#1934)
+09f800d7e1cd0f31b6b61dfc185b894dbda7c0a9,2026-09-07T10:56:18-07:00,False,True,True,fix(service-host): address final integration review (#1934)
+06c6eeb75a7d1afb9d31ad6322f2e5ac7e95c8c3,2026-09-07T10:49:22-07:00,False,True,True,fix(techtrade): decode MySQL's escaping of GENERATION_EXPRESSION
+9c939ddac7eff77c111bb5355191d3a046444e72,2026-09-07T00:24:09-07:00,False,True,True,fix(techtrade): reject non-dict JSON payloads at snapshot store's read/write boundary
+15964244e66d714ce17c6abfaadebd1361f26b31,2026-09-07T00:06:22-07:00,False,True,True,fix(techtrade): omit MysqlSnapshotStore from snapshot.__all__
+c7866bc819aefca5e2c4470f385e366f1abd3168,2026-09-06T23:54:36-07:00,False,True,True,fix(techtrade): verify MySQL collation and fix created_at width
+4a04babf4bed201f5af1c0fe1d6ebd39ac5f3d2e,2026-09-06T23:26:05-07:00,False,True,True,fix(techtrade): match snapshot guards structurally and quote catalogue names
+2947066993f8f0a2e31880d54079f7a5a5b252d0,2026-09-06T22:56:02-07:00,False,True,True,fix(techtrade): fold field-name case and verify the single-LIVE guard
+af916ce1102ccd68d34b08d092339b12f43a1f3b,2026-09-06T22:23:09-07:00,False,True,True,fix(techtrade): distinguish missing candidate from unvalidated in promotion refusal
+cb33b42d4c4cae3d8e1962db32c5b722ed567ea0,2026-09-06T22:15:33-07:00,False,True,True,test(techtrade): resolve default SQLite snapshot path in warning test
+7e79f2cf9ba0c3f53aebd87d3f5128c63d3189f8,2026-09-06T22:07:44-07:00,False,True,True,fix(techtrade): expand `~` in SqliteSnapshotStore.__init__ itself
+666f89e04b17f5633dc6cb33378472433f286438,2026-09-06T21:58:55-07:00,False,True,True,"fix(techtrade): lazy MySQL import, normalize SQLite path, close leaked test conns"
+ed0a947f6676828e25175654db2e127b40821780,2026-09-06T21:28:09-07:00,False,True,True,fix(techtrade): stamp and validate the schema version on MySQL
+2b527f6a63135e46002c1e015b749da169b23fb3,2026-09-06T20:55:29-07:00,False,True,True,test(techtrade): add skipped-by-default live MySQL snapshot smoke
+98e42d9d3148b6f4ff11c625540ecaa91e47f4b2,2026-09-06T20:55:02-07:00,False,True,True,fix(techtrade): close the #1963 snapshot-store review wave
+35782555c1f89d03376dc759eeeecc8da05cdf9c,2026-09-06T20:09:07-07:00,False,True,True,fix(techtrade): report actual sqlite path and reject bad PI_SNAPSHOT_ENGINE
+bac31d09db781b1350be9ec758a748aa200ba409,2026-09-06T20:01:55-07:00,False,True,True,feat(techtrade): select snapshot storage backend
+f84828a02b5e570982577ae83a3c85a2ae6bd6dd,2026-09-06T19:39:32-07:00,False,True,True,fix(techtrade): keep lifecycle refusals off the shared pool's error log
+a2bc92ad2669721531a291f307cdce769b95abd9,2026-09-06T19:31:58-07:00,False,True,True,fix(test-harness): treat persisted scans as dynamic (#1941)
+d09ce9d7a55f70c938e9ffd6bf3c9779037405cf,2026-09-06T19:30:34-07:00,False,True,True,fix(portfolio-intel): declare morning scan data keys (#1941)
+7ff33c98845439d801b87214d52717bc2501010e,2026-09-06T19:19:33-07:00,False,True,True,fix(service-host): avoid console shutdown timeout (#2047)
+3b51e25eccf651f1ed1ff7ca76bb1abc731eb247,2026-09-06T19:19:33-07:00,False,True,True,fix(jobs): retain daily wrapper log rotation (#1947)
+44153d923002199b75f328b5823276aae1893c17,2026-09-06T19:19:32-07:00,False,True,True,docs(jobs): add operational wrappers and runbook (#1947)
+17063e990fee1072e83df4b5f35389363a5cd092,2026-09-06T19:19:31-07:00,False,True,True,fix(portfolio-intel): align scan widgets with persisted data (#1941)
+6cca46e9b6d3020106d165d410dbcbe3e05b206d,2026-09-06T19:18:48-07:00,False,True,True,feat(portfolio-intel): serve persisted morning scans (#1941)
+4f9c7f4afa0dd0a869f61febceea3393327a1624,2026-09-06T19:18:48-07:00,False,True,True,fix(service-host): harden acceptance diagnostics (#2050)
+d0c1190089759211f62250e84e1302e4b58b163a,2026-09-06T19:18:48-07:00,False,True,True,docs(service-host): add acceptance harness and runbook (#2050)
+32b3650dc0a5aed263d89af7d4fb8c1f164fe926,2026-09-06T19:18:48-07:00,False,True,True,fix(service-host): restore configuration on rollback (#2049)
+9e0f955b543f746f04b227ee15df5e073fc15235,2026-09-06T19:18:47-07:00,False,True,True,fix(service-host): harden install activation (#2049)
+ea7f7313299c591c4d0d8c6207a17e1b21722d00,2026-09-06T19:18:47-07:00,False,True,True,docs(service-host): add secrets template (#2049)
+d8f84426653a46e8f7c63e712a372c4a169cd49a,2026-09-06T19:18:47-07:00,False,True,True,feat(service-host): add secure deployment lifecycle (#2049)
+fe2f9a0a6cadc5b8943499d11f56540c4bf977b6,2026-09-06T19:18:47-07:00,False,True,True,fix(jobs): satisfy platform lint hygiene (#2048)
+67c94d7f6e8a578f4268643cda72a967e2a1ba0f,2026-09-06T19:18:47-07:00,False,True,True,fix(jobs): satisfy command lint contracts (#2048)
+8a5c44e2d4571a9b4c2ac001bcbd4bfd9c4eefde,2026-09-06T19:18:46-07:00,False,True,True,fix(jobs): declare schedule union as type alias (#2048)
+34e629c5e34c1ddef665b42fb81af4695ccc7a5d,2026-09-06T19:18:46-07:00,False,True,True,fix(service-host): harden configuration and logging (#2048)
+e8d7ff169277a15631efdb6ec2d1a77bd62ec450,2026-09-06T19:18:46-07:00,False,True,True,style(service-host): format integration paths (#2048)
+58d4be3b726e7fa54a412ef320c1bd84a6f7a8cf,2026-09-06T19:18:46-07:00,False,True,True,fix(service-host): accept documented camelCase config (#2048)
+f15abf5f834a843a2c4e552f0a62adc610f05bc8,2026-09-06T19:18:45-07:00,False,True,True,fix(service-host): bound pathological log envelopes (#2048)
+f2a7f18bf9b894fe612509a5db919f583f22cc10,2026-09-06T19:18:45-07:00,False,True,True,fix(service-host): count only retained log bytes (#2048)
+00782d40a2706895e5b958f52003877f09a0c1d0,2026-09-06T19:18:45-07:00,False,True,True,fix(service-host): isolate child logs from Event Log (#2048)
+692af9045a91597a30edd4253a40a82976a2df83,2026-09-06T19:18:45-07:00,False,True,True,fix(service-host): redact all configured secrets (#2048)
+b09f4f65876167acee85ebec4819262e572da476,2026-09-06T19:18:44-07:00,False,True,True,fix(service-host): bound logs by UTF-8 bytes (#2048)
+29acf412cdaba98bd24a6d8dfe5c781a909e38d2,2026-09-06T19:18:44-07:00,False,True,True,test(service-host): cover startup heartbeat retries (#2048)
+6d01cb94a3c50ef7d560c88c2526ab50c7e66bdc,2026-09-06T19:18:44-07:00,False,True,True,feat(service-host): route and redact runtime logs (#2048)
+b93563fd01cb8611b62c70d73e385890ab2da55c,2026-09-06T19:18:44-07:00,False,True,True,feat(service-host): define child runtime lifecycle (#2048)
+0742b9aac48e92e558d9ffe755defba182b7c29c,2026-09-06T19:18:43-07:00,False,True,True,feat(service-host): add health diagnostics (#2048)
+f561c7a90b4220832c39fce4f4722040a87576db,2026-09-06T19:18:43-07:00,False,True,True,fix(service-host): guarantee child cleanup on cancellation (#2047)
+041b5e35b5a9f01fdde776e832beb6a3d7841e2d,2026-09-06T19:18:43-07:00,False,True,True,feat(service-host): add native process supervisor (#2047)
+09dc3ddc807838a1d15616a16290a43991a2e1ca,2026-09-06T19:18:43-07:00,False,True,True,feat(portfolio-utils): register cache warming jobs (#2053)
+2f1d1e835522e5e5954670cd8128a356f3c5c93f,2026-09-06T19:18:43-07:00,False,True,True,feat(techtrade): persist scans through jobs service (#1934)
+149438e6e84e6bbad179ea9e0e8be6f4c887c7de,2026-09-06T19:18:42-07:00,False,True,True,feat(jobs): add durable worker and control plane (#2052)
+cc80397ff7dc2b0a8bd68666f801e7af5828c226,2026-09-06T19:18:42-07:00,False,True,True,docs(jobs): define durable service architecture (#1934)
+a635bdc1ac329dc273591cb120c7d04cb5f4f0cd,2026-09-06T19:18:42-07:00,False,True,True,docs(service-host): map implementation issues and branches (#2046)
+c96606561c54e6d437ef8d22f8d7e8f9752408af,2026-09-06T19:18:42-07:00,False,True,True,docs(service-host): add Windows service design
+c4f7682e7e84c3ea9d3b4aa24ad1ebba65c33bf7,2026-09-06T18:53:33-07:00,False,True,True,fix(techtrade): align MySQL snapshot store with the real PyMySQL pool
+2d096c9aeac0f836d7277e41d13532d2c7ce3900,2026-09-06T18:05:29-07:00,False,True,True,fix(techtrade): make snapshot validate/promote race-safe on both backends
+60805dbd8c4fa24d5b565270aee04021357898f4,2026-09-06T17:37:52-07:00,False,True,True,feat(techtrade): add MySQL snapshot backend with full Protocol parity
+fd6f2b88a534072e6daa39d127756c08f9e49f4c,2026-09-06T17:03:44-07:00,False,True,True,chore(techtrade): exclude snapshot task report
+2b070bc7fb9cfe7e91718af534c61ccaa7b505aa,2026-09-06T17:01:36-07:00,False,True,True,test(techtrade): add out-of-order LIVE-preservation regression for prune()
+6e80a75f060cb28674201bfc97b0a0b45d91f595,2026-09-06T16:43:19-07:00,False,True,True,feat(techtrade): add snapshot restamp and retention
+a7809b4a60a76aecbd8e0597b7aecf72316f51ad,2026-09-06T16:32:40-07:00,False,True,True,fix(techtrade): refuse validate()/promote() on non-STAGING rows
+9d851f52ec44af37955159a7111fa5516c8f036e,2026-09-06T16:23:10-07:00,False,True,True,feat(techtrade): add SQLite snapshot lifecycle
+5800471e99695d9194b31fcc5b4aa6f552300f17,2026-09-06T16:08:14-07:00,False,True,True,feat(techtrade): define snapshot store contract
+d5ea750610c962bd52197610cf1c4e7853397791,2026-09-06T15:58:29-07:00,False,True,True,docs(techtrade): plan EOD snapshot store skeleton
+d85bfe79cf591c4e0ca235d9a009d81d8a2d0c3c,2026-09-06T15:55:18-07:00,True,True,True,Merge pull request #2044 from prajoria/portfolio_validations
+91cebb081bb662ee32cc43867a985112050266ae,2026-09-06T11:04:30-07:00,False,True,True,fix(portfolio): repair stale claim lifecycle
+70d6d82f428928edd5e99cf9845945b1064290da,2026-09-06T01:01:44-07:00,False,True,True,fix(portfolio): close final promotion review gaps
+3e41f34fa84473f9db857516894a17150490b0bd,2026-09-06T00:41:11-07:00,False,True,True,style(portfolio): normalize promoted fixture import
+47452d57cbf88621621a67159cef2d6b64336d01,2026-09-06T00:40:53-07:00,False,True,True,fix(portfolio): resolve promotion review findings
+00e2dea52d4bb80a4b99db5d568191c55e30443a,2026-09-06T00:15:26-07:00,False,True,True,fix(workflow): resolve scan planner dependencies dynamically
+4ded0144e02945331b6d8ae068aaecfcc8de3f72,2026-09-06T00:06:48-07:00,True,True,True,Merge pull request #2043 from prajoria/portfolio
+96f1931f95805293a8556488ce36c1fd4b88da57,2026-09-05T22:22:07-07:00,True,True,True,Merge pull request #2040 from prajoria/chore/pi-full-branch-hygiene-clean-gh-2038
+8f2cc3ca72bab845be08e9a15de97a548504c2eb,2026-09-05T22:20:00-07:00,False,True,True,chore(hygiene): record full branch cleanup (#2038)
+e89dd25aac437b9a5974bc407e055252d04926af,2026-09-05T21:27:20-07:00,True,True,True,Merge pull request #2036 from prajoria/docs/full-branch-hygiene-gh-2035
+6af5e3fb1194f2d0f9da06a00846cacbfd2105dd,2026-09-05T21:25:55-07:00,False,True,True,docs(workflow): inventory all remaining branches (#2035)
+e2c03108b7e2dd24926a48f75fd0c38074a03e3a,2026-09-05T20:51:45-07:00,True,True,True,Merge pull request #2034 from prajoria/docs/validation-branch-hygiene-gh-2033
+7a745bea273f62b034fc16c5dfd83ae00ef5b8c7,2026-09-05T20:50:29-07:00,False,True,True,docs(workflow): codify validation promotion and branch-hygiene process (#2033)
+0fa5ffaaf1c58ed7327ded61e3f39944d467f9f9,2026-09-05T20:35:37-07:00,True,True,True,Merge pull request #2032 from prajoria/feat/top50-intraday-gh-1986
+910a19d4594b533a065974423d7d2a8dc6171d88,2026-09-05T20:34:32-07:00,False,True,True,fix(backtest): suppress pylint import-outside-toplevel and too-many-* warnings
+c0a1fb6ace62f3eedd4a9545079793d2f7805c1c,2026-09-05T20:32:42-07:00,False,True,True,fix(backtest): type-annotate StudyResult.summary as DriftSummary
+e5eb24c69c68a8f4ecd98136cc05e4dfdfbc1875,2026-09-05T20:27:33-07:00,False,True,True,fix(backtest): strip trailing whitespace in docs
+27078d46540ba5d0c933af2da971caa4b5951d12,2026-09-05T20:26:25-07:00,False,True,True,fix(backtest): use 30m bars and exact 12:00/15:30 ET wall-clock selection
+eafc724fddb0e1a44861aa0853e6704e087d5005,2026-09-05T20:26:25-07:00,False,True,True,fix(backtest): address review findings for top-50 intraday drift
+421077d1c663e9c1dc87d17348e342bb8a9f0f03,2026-09-05T20:26:25-07:00,False,True,True,feat(backtest): add top-50 intraday drift strategy
+e62f0c54513224ec4da0619483c84173115a5622,2026-09-05T20:26:12-07:00,False,True,True,fix(backtest): final Task 1 review pass for intraday_drift
+ee5d90aa42fb751ad3129289121d6438d84f1db3,2026-09-05T20:26:12-07:00,False,True,True,fix(backtest): address Task 1 review findings in intraday_drift
+e5ecd903079529f48c71ab6230931c5d46f1b01a,2026-09-05T20:26:11-07:00,False,True,True,feat(backtest): add intraday drift calculations
+bf15144c9b450a9b78cffdd36e4214cbc89fe745,2026-09-05T20:26:11-07:00,False,True,True,docs(backtest): plan top-50 intraday drift study
+183d06dade2b508dc54ded735ad28cd1e64e6697,2026-09-05T20:26:11-07:00,False,True,True,docs(backtest): design top-50 intraday drift study
+eba8be4e526cf2aa40100512c54798a8ffa5f03b,2026-09-05T16:45:45-07:00,True,True,True,Merge pull request #2026 from prajoria/fix/pi-vscode-snapshot-line-endings-gh-2025
+e5649fa3ee554b9791e8e8a4a4fa0e2654a83c87,2026-09-05T16:44:50-07:00,False,True,True,fix(vscode-terminal): normalize snapshot line endings
+a4c7b3751e372ed2d2ea6c678b9d621ce69e738c,2026-09-05T16:35:21-07:00,True,True,True,Merge pull request #943 from prajoria/feat/pi-testing/brinson-synthetic-fixtures-gh-935
+d439ca4fa87629ee6b4364afd74ee1a4d0dd73b8,2026-09-05T16:34:11-07:00,False,True,True,test(portfolio): anchor Brinson oracle to hand calculations
+90662f09b6222ca33e529ce858ed85365b2ac39a,2026-09-05T15:59:04-07:00,True,True,True,Merge pull request #2024 from prajoria/fix/pi-known-noise-tests-gh-2023
+8a7bde2c0e1639ddc9814a560bcb9e410c508650,2026-09-05T15:57:54-07:00,False,True,True,test: enforce extension map checks in CI
+fa29f7250c5ee9d14936cc6c82ed4ed3cfb52efb,2026-09-05T15:53:06-07:00,False,True,True,test: convert 4 known-noise env-induced fails to clean skips (harness green) (#914)
+1d84570d1aeae6e114a97056d535ed0f53dc3b45,2026-09-05T15:51:50-07:00,True,True,True,Merge pull request #2020 from prajoria/fix/pi-f2-pie-layout-gh-2019
+185afccdae04811fb393fb455fa72467dbcf6d04,2026-09-05T15:51:34-07:00,True,True,True,Merge pull request #2018 from prajoria/feat/pi-terminal-terminology-audit-gh-1987
+6e7e191fe00802d75e7af5e4fe6a917b09ce4fd1,2026-09-05T15:50:37-07:00,True,True,True,Merge pull request #1985 from prajoria/feat/pi-f2-metric-help-gh-1984
+a3688f3b1c9b76a632cf0363fc71e222ac337cca,2026-09-05T15:49:31-07:00,True,True,True,Merge pull request #1983 from prajoria/fix/pi-viewer-combo-recolor-lwc-nulls-gh-1982
+b55836c66ad1caecf8b5e1bd3da46cb0ad64521f,2026-09-05T15:48:23-07:00,True,True,True,Merge pull request #1981 from prajoria/feat/pi-viewer-bugcontext-widget-gh-1980
+35b72a6eb15cf2ef91837bfe2673aba5dbfbb4b8,2026-09-05T15:47:27-07:00,True,True,True,Merge pull request #1979 from prajoria/feat/pi-f2-financial-combo-chart-gh-1978
+eabf327de9db9a5a5fc3aa83c6d6f8db8591cdb4,2026-09-05T15:46:19-07:00,True,True,True,Merge pull request #1977 from prajoria/feat/pi-f2-financials-redesign-gh-1976
+6f170434086322f8a7051e6ae3e6f53a104be89f,2026-09-05T15:45:53-07:00,False,True,True,docs(workflow): gate validation branch promotion
+50cd1e7680c46445699f2fe7778cb8ea1a2965fa,2026-09-05T14:55:21-07:00,False,True,True,fix(ci): treat provenance as runtime state
+70978497134e8161d62e3022ba8abe6eaedabf63,2026-09-05T14:53:28-07:00,False,True,True,fix(ci): treat earnings history as live fixture
+9ee4bec4e81c78453eb85b63b01a5de12a3d60b7,2026-09-05T14:50:42-07:00,False,True,True,chore(core): refresh generated API reference
+878fe643325f6a761160adcd2636c04c37f67601,2026-09-04T17:26:05-07:00,False,True,True,fix(portfolio): balance responsive pie layouts
+5e1430bf319490199148a9497d16c6452b86814f,2026-09-04T17:22:36-07:00,False,True,True,docs(portfolio): plan responsive pie layout
+12e6813402d6fd28f8ef29bbe9a98927a18f3eb7,2026-09-04T17:22:11-07:00,False,True,True,docs(portfolio): design responsive pie layout
+f1cf04f7bbcbe1f84d3dc19f074e67b279bf757c,2026-08-15T12:17:55-07:00,False,True,True,fix(portfolio): resolve latest approval findings
+34c45309e4190ae05eb1451a5e7cb93f5e725f06,2026-08-15T11:55:58-07:00,False,True,True,fix(portfolio): resolve ultimate review findings
+d99a27344e32c31729212c045969a239bcb590aa,2026-08-15T11:40:23-07:00,False,True,True,fix(portfolio): correct terminology approval findings
+a14c8c1de7c2f31a6080297570141a4e4c41e90a,2026-08-15T11:24:21-07:00,False,True,True,fix(portfolio): resolve final terminology review
+a52690f3907b8136548510dd8743a8a1fa79beb0,2026-08-15T11:10:03-07:00,False,True,True,style(portfolio): format terminology contracts
+0c5e04417b41616f42e78104c6372c5d892db75d,2026-08-15T11:07:03-07:00,False,True,True,fix: sanitize analyst forecast insufficient-history note
+1150718b368ed31a0f610d44e0036f8f315a1c19,2026-08-15T11:00:21-07:00,False,True,True,feat(portfolio): clarify news sentiment score
+ea1c67177c5009d5edc37feeb0bc563607e8ff6a,2026-08-15T10:58:27-07:00,False,True,True,feat(portfolio): label held-symbol news fields
+ff3df069436927ce8fd9969c0489c940b93273f8,2026-08-15T10:57:52-07:00,False,True,True,feat(portfolio): label alert fields and categories
+2a4f15b1d1ef9faa7b5a97f8de45b596abea147a,2026-08-15T10:57:19-07:00,False,True,True,feat(portfolio): label what-if comparison headers
+3f5b6b3f6ac8a9448c5c18e31d7e07c02c6fd9f9,2026-08-15T10:56:27-07:00,False,True,True,feat(portfolio): label forecast table headers
+61773e6042d50d4c915f2575a6e3a3492edf61a8,2026-08-15T10:55:13-07:00,False,True,True,feat(portfolio): label calendar event fields
+16fe0b9f3938db4c01620a943558b53112c6bffe,2026-08-15T10:54:00-07:00,False,True,True,feat(portfolio): label technical indicator headers
+1706e1aba96d805dae3ab1c6bdc77c42744b80db,2026-08-15T10:52:39-07:00,False,True,True,feat(portfolio): label key stat headers
+cea4fc15f9f9620a1e551868d959ca9dd3325fdc,2026-08-15T10:49:34-07:00,False,True,True,docs(portfolio): extend terminology audit from live findings
+6ab74b1774d75277117ced3910135f135f62b062,2026-08-15T10:46:58-07:00,False,True,True,feat(portfolio): label dividend payment columns
+13751f3b8b20b57c45410eeee11978c7db15708c,2026-08-15T10:30:13-07:00,False,True,True,fix(portfolio): resolve terminal terminology review defects
+bb9d9778e51c61f46ef8405b34420bd53006e127,2026-08-15T09:36:10-07:00,False,True,True,fix(portfolio): close terminology re-review findings
+534015d1d7ec99ac8b898d62fbbe07f177ddd04c,2026-08-15T09:03:16-07:00,False,True,True,fix(portfolio): correct Terminal terminology audit findings
+dbe83e703aa6a6ec10edf62e4b01721f0383f06a,2026-08-15T08:53:27-07:00,False,True,True,fix(portfolio): render Terminal terminology metadata
+d10435525098e64a6ba15c1285d3a48e0305b806,2026-08-15T08:52:23-07:00,False,True,True,feat(portfolio): document pi_smart_money_ribbon terminology
+8acda7bc06638e1b9c504dbcefabd83e0514977c,2026-08-15T08:52:15-07:00,False,True,True,feat(portfolio): document pi_paper_blotter terminology
+76cfc2c2df305f3055482abe49193c83d58ddf23,2026-08-15T08:52:08-07:00,False,True,True,feat(portfolio): document pi_paper_performance terminology
+d1844a3af757d616b8d8f4e4035a9523e72cdd42,2026-08-15T08:52:00-07:00,False,True,True,feat(portfolio): document pi_paper_perf_kpis terminology
+f1d1adb588c58dcc3269478e1a6b3453b76b06ae,2026-08-15T08:51:54-07:00,False,True,True,feat(portfolio): document pi_whatif_card terminology
+2e937503a2857dda60bd1078113bbd526615da4b,2026-08-15T08:51:46-07:00,False,True,True,feat(portfolio): document pi_brinson_attribution terminology
+65850b307ae4d3a6c5afa007f006e4597c2c6fac,2026-08-15T08:51:38-07:00,False,True,True,feat(portfolio): document pi_risk_vol_chart terminology
+3d280e6bf6859421005a80f0d21b80d79d935bae,2026-08-15T08:51:31-07:00,False,True,True,feat(portfolio): document pi_risk_dashboard terminology
+0b46c5dedf655e92697b55ce35fd57f9ace3fe89,2026-08-15T08:51:24-07:00,False,True,True,feat(portfolio): document pi_concentration_gauge terminology
+2c5d5e096638bf229ea17ba6ecc3ba5be35e68d9,2026-08-15T08:51:18-07:00,False,True,True,feat(portfolio): document pi_lookthrough_top25 terminology
+486cacf6e62de158276e6fbb7f5e885fd1cc12dc,2026-08-15T08:51:11-07:00,False,True,True,feat(portfolio): document pi_basket_analyst_consensus terminology
+342bea961d73543e516334b64eb512afc6bde314,2026-08-15T08:51:03-07:00,False,True,True,feat(portfolio): document pi_equity_analyst_forecasts terminology
+4c70d82c752d233db824680b104cdd1be1d1d2aa,2026-08-15T08:50:57-07:00,False,True,True,feat(portfolio): document pi_equity_complementary terminology
+46137d04893ef6bc91379ff7c28283c11fbaf2c7,2026-08-15T08:50:50-07:00,False,True,True,feat(portfolio): document pi_equity_competitors terminology
+bf3fb87318a135a45a0224e928890a0b7b87575e,2026-08-15T08:50:43-07:00,False,True,True,feat(portfolio): document pi_equity_technicals terminology
+fc4605a62af99e15caea4e017f4e76cd0b2bb51f,2026-08-15T08:50:36-07:00,False,True,True,feat(portfolio): document pi_price_target_history terminology
+e0627fa04b080bede59d69cdf7a94ec0f837e57f,2026-08-15T08:50:28-07:00,False,True,True,feat(portfolio): document pi_earnings_history terminology
+156034dae36683d8d321a3d2bc1b7184d83f14da,2026-08-15T08:50:19-07:00,False,True,True,feat(portfolio): document pi_peer_multiples terminology
+2270cc0322603b2cc1d3e4f23ed2134cd5d0dcbe,2026-08-15T08:50:12-07:00,False,True,True,feat(portfolio): document pi_financial_statements terminology
+4639113977bc64bcebddefd3ca923dfcab8b56bc,2026-08-15T08:48:01-07:00,False,True,True,feat(portfolio): document key stats terminology
+edfeb5548deeddfe22df531a6daff35139fb0c98,2026-08-15T08:42:47-07:00,False,True,True,fix(viewer): keep raw metric keys when labels are absent
+174d2be17e0c39b1ed66d8b4fb94fa6df3668db6,2026-08-15T08:39:23-07:00,False,True,True,feat(viewer): extend glossary help to headers and cards
+295f1049a84f2e19523784c13cd10dd02d23d2ce,2026-08-15T08:37:02-07:00,False,True,True,docs(portfolio): plan Terminal terminology audit
+4e56710595dcac3e2b3a72c37a40a0eb6e322936,2026-08-15T08:28:53-07:00,False,True,True,docs(portfolio): design Terminal terminology audit
+e08c99fd81b47f1d1a60e3f265dbcc6c26c4e8a3,2026-08-15T08:17:08-07:00,False,True,True,fix(portfolio): satisfy viewer loader line lint
+8fe0ff748b96feb971cd7df7e8f1bbadeb88bab2,2026-08-13T21:39:19-07:00,False,True,True,chore(techtrade): add scan snapshot issue planner (#1934 Async scan persistence)
+b3eef2ea05363a0a3a4b2e10a6ae19b15d932e47,2026-08-13T18:43:14-07:00,False,True,True,fix(portfolio): tighten viewer help route
+8d614a36680ee42846d473fc2b764e73ebdc1df2,2026-08-13T18:39:34-07:00,False,True,True,feat(portfolio): add metric help documentation view
+286732eedbcf119fa5bb7266123d76396bd147ce,2026-08-13T18:35:52-07:00,False,True,True,fix(portfolio): hide shared metric help on tab switch
+2d9667c4772a2f2b9d1d9d93a769ea19bf4c9317,2026-08-13T18:31:35-07:00,False,True,True,fix(portfolio): harden metric help tooltip refresh
+bd0f738de18ad6eab5a4884b06cae62b58a61828,2026-08-13T18:24:19-07:00,False,True,True,fix(portfolio): unclip metric help tooltip
+8e71a581ed28795e8bb147bd2e16faf5e06ad9da,2026-08-13T18:20:54-07:00,False,True,True,fix(portfolio): expose metric help summaries accessibly
+5027c97b2164884235046debdf98d4a9da95c336,2026-08-13T18:18:05-07:00,False,True,True,feat(portfolio): add contextual F2 metric help
+5ae841c92d3e0149336aa9df8c1e879aa97554be,2026-08-13T18:13:46-07:00,False,True,True,fix(portfolio): harden metric glossary lookup
+732fbf57cf2894ff3c845dc4aae3cdbb246f7e45,2026-08-13T18:10:59-07:00,False,True,True,feat(portfolio): add F2 metric glossary data
+3721252904b5d3b5f15fa4c3da45de8ace3bab1a,2026-08-13T18:06:20-07:00,False,True,True,docs(portfolio): plan F2 metric glossary help
+e6e7b4dbd1b354ebf616dedc26495759b5a1001e,2026-08-13T18:05:47-07:00,False,True,True,docs(portfolio): design F2 metric glossary help
+7a8bb5f32525794469c741f934d4081462a37291,2026-08-12T19:12:02-07:00,False,True,True,"fix(portfolio-viewer): recolor F2 combo chart + fix ""Value is null"" from LWC datetime/dup-day (#1982)"
+3d7ee32cc766738fd7491d822794a263b214e731,2026-08-12T18:54:21-07:00,False,True,True,feat(portfolio-viewer): embed Bug Context feedback widget in Local Workspace Viewer (#1980)
+3108b134ffc61e7a361a605169bbc10f6b0789ee,2026-08-12T08:31:43-07:00,False,True,True,feat(portfolio-viewer): dual-axis combo chart for F2 financial statements (#1978)
+a80bc6c1021e5341057c4dded77f09f46eaafc56,2026-08-11T12:06:37-07:00,False,True,True,feat(portfolio-intel): F2 Financials redesign — provider-health table + provenance strip (#1976)
+c851283e3fe34aaa5b0b1c4805accd976ef33d2e,2026-08-10T12:31:25-07:00,True,True,True,Merge remote-tracking branch 'origin/portfolio' into portfolio_validations
+ce40ac75de3213dd047de0cba2cb4eb97f9d8f57,2026-08-09T23:06:04-07:00,False,True,True,build(portfolio-intel): declare openbb-techtrade dep (#1971) (#1974)
+fab543c3683571e596613328e00f2547ebfc55ea,2026-08-09T20:39:55-07:00,False,True,True,fix(portfolio-viewer): provider_health async (#1871) + copilot chat + chart/param + OpenBB-Workspace layout (#1878)
+1a604fe34c3e3210370540b0a8033873fd738479,2026-08-09T20:36:55-07:00,False,True,True,fix(ci): unblock #1878 — codespell typo + fixture-drift exclusions
+18e938d8194ecbf926395ebed65fb11c9d09eb54,2026-08-09T19:40:49-07:00,False,True,True,docs(pi): as-of EOD snapshot cache + techtrade/portfolio_intel alignment spec (#1932) (#1970)
+b54b9f8f6716f5093fff15593366cd6410f63ee5,2026-08-09T10:53:10-07:00,False,True,True,docs(memories): record cold-boot F2-stub fix via auto_build disable (#1962)
+484b310bd4a650fa72176c1e58d6b53b2cd61764,2026-08-09T10:52:05-07:00,False,True,True,fix(portfolio-intel): disable boot-time openbb rebuild so F2 serves live not stub (#1962)
+f82b9b05c6e57cfa5ea8e0d1401fc8aacd69393f,2026-08-08T22:35:30-07:00,False,True,True,docs(memories): record provider-health Track-A-only UX (#1961)
+d99ae119facc1fad16f787720e93138e287ee2d8,2026-08-08T22:34:41-07:00,False,True,True,feat(portfolio-intel): provider-health strip renders Track A only (#1961)
+1ada19965d1ea878152fe2993044b98b6b41c7f0,2026-08-08T19:24:36-07:00,False,True,True,docs(memories): record provider-health shared-tier fix (#1960)
+8b9ce59a40540425df405f00df96d298d14da953,2026-08-08T19:23:45-07:00,False,True,True,fix(portfolio-intel): provider-health strip self-contradicts on shared tiers (#1960)
+8d4f7ce31bad645ba11c2fbfe4c1c6c98cc4aa01,2026-08-08T18:48:39-07:00,False,True,True,"docs(memories): record F2 header/key-stats live wiring (#1957, #1958)"
+46e3a049e543323458e9c348c2acec18b8902569,2026-08-08T18:47:32-07:00,False,True,True,"fix(portfolio-intel): serve live fmp_cached for F2 header + key-stats (#1957, #1958)"
+1c62440e4e7cbd5103d928617bdb799ff84a2409,2026-08-08T18:12:40-07:00,False,True,True,fix(portfolio-intel): populate Provider Health strip with real probes (#1956)
+69a968be6f071b1f461a0a723d62ca94ff39ca44,2026-08-08T15:53:37-07:00,False,True,True,feat(portfolio-intel): wire F2 equity/financials to live fmp_cached income (#1955)
+572f285d9b24fccfba098d1426b59b158ff9394a,2026-08-07T22:35:15-07:00,False,True,True,feat(portfolio-intel): shared Symbol/Account context bar drives all Terminal tabs (#1954)
+f6db3eb930aba9477f7f3fb363aaedbb9937f83e,2026-08-06T23:40:57-07:00,False,True,True,feat(portfolio-intel): surface live-vs-demo data provenance badge (#1953)
+3b4ddfd66367ae532c2ca8827a1df97f13133738,2026-08-06T17:13:20-07:00,False,True,True,fix(portfolio-intel): make demo price-history volume + candles meaningful
+7ad43fddc33d8bc76bd8406671b4f0382c640c7a,2026-08-06T16:41:57-07:00,False,True,True,feat(portfolio-intel): add '?' help affordance to Local Viewer widgets
+0b45ce4217c1ea44b66abf4197f6026715de0220,2026-08-06T16:16:32-07:00,False,True,True,fix(portfolio-intel): add time-range control + trend-realistic series to pi_equity_price_history (#1950)
+71a04744ed66f6dd97cbfb9afad59859cf955a78,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-viewer): render time-series charts with TradingView Lightweight Charts (#1949)
+82db8ef123579f239d083a01620dfe818f56d286,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-viewer): VS Code-style hide/show toggles for both side panels (#1948)
+94619a5d67ef4ca52e85b5f1783f0948c6b88a25,2026-08-06T08:47:54-07:00,False,True,True,docs(skill): add openbb-workspace-ux-test skill
+8fa05f992cf839de54c150347702fca2239f3991,2026-08-06T08:47:54-07:00,False,True,True,fix(portfolio-intel): report configured paper-engine backend in tt_engine_status (#1931)
+f0d422d5e0ad1d576e1dc3626bfaca6c51554cf6,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire tt_engine_status to observable engine state (#1931)
+5cbda558926478dad062385783fce3d64d6dc806,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire price-target-history widget to fmp_cached (#1926)
+049211038e2543ca1c4c5ff7526a3ffa92a11e39,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire equity peer-multiples/competitors widget to fmp_cached (#1923)
+81fd3230fe13cf218a692a42c8e8aad72bdbb991,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire equity financials/statements widget to fmp_cached (#1920)
+6301e8e7b079c49efc4e55d7c80ed5b3c7b8ee11,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): fully wire charting/technicals widget to fmp_cached
+f8738f7da8aa9c184f2c28ff156bbb3d4d97ae55,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): fully wire stock-splits widget to fmp_cached
+3eb4ed9bf86db8fc9bd974be76c9d236ddae4d70,2026-08-06T08:47:54-07:00,False,True,True,fix(pi): align company-filings stub to live fmp_cached shape (#1935)
+7ed9cfe107e23ba0b7b9417232411b42b0949ba6,2026-08-06T08:47:54-07:00,False,True,True,feat(pi): wire company-filings widget to fmp_cached
+ba8c673bcfbefdc847dadfa27fbfcba6c61cb324,2026-08-06T08:47:54-07:00,False,True,True,feat(pi): wire earnings-history widget to fmp_cached
+049bd217a8ccea37fc65b9454a2e1867bb7a4e68,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire pi_insider_trading to fmp_cached (#1910)
+3beb7cb7be8b1d712e0ec3138d93cb32ccf8f381,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire pi_dividend_payment to fmp_cached (#1908)
+1ae91a74b5581c0b28427ff9825facef89027e72,2026-08-06T08:47:54-07:00,False,True,True,feat(portfolio-intel): wire pi_revenue_business_line to fmp_cached (#1906)
+2409c5119c4e9554631bcd168399ca57b5f3f2f1,2026-08-06T08:47:53-07:00,False,True,True,feat(portfolio-intel): wire pi_revenue_geography to fmp_cached (#1904)
+a1156edc7b5c15c11a8781e9c79d7dec41c202cf,2026-08-06T08:47:53-07:00,False,True,True,feat(portfolio-intel): wire pi_management_team to fmp_cached (#1902)
+7187b88047aaf3c9c693afb895076f9f931b7d12,2026-08-06T08:47:53-07:00,False,True,True,feat(portfolio-intel): wire pi_price_performance to live fmp_cached (#1900)
+4c4704ee85f08fc101d2f39392006b65d6a566bf,2026-08-06T08:47:53-07:00,False,True,True,fix(portfolio-intel): forward normalized symbol to price-history tier (#1898)
+ab764c3e53c2a1305579a41ad9e4f32f0b9724f8,2026-08-06T08:47:53-07:00,False,True,True,feat(portfolio-intel): wire pi_equity_price_history to live fmp_cached (#1898)
+2fc1861b09933bf3c4e573121d7bf036ed7a0055,2026-08-06T08:47:53-07:00,False,True,True,docs(vscode-terminal): user guide + refreshed README (#1896) (#1897)
+c0d722bd6681dbb94c5eec5b4f3e5a31e23d1fa6,2026-08-06T08:47:53-07:00,False,True,True,feat(browser-harness): Playwright workspace-mode driver + random-port isolation (#1789) (#1895)
+c01297aa62c2c1b2bafe121e898aaba479f7d9ef,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): user-defined layouts CRUD + workspace export (#1831) (#1894)
+73eb8f1e43a2ecef797850c65a04d2e1b8c151dc,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): workspace-trust hardening + credential-file perms (#1856) (#1889)
+1ad9e67790dd61d6f53324f56ae90e1768c8fe40,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): backend auto-restart controller + auto-start config (#1838) [restored] (#1884)
+991b354012a147f8a927a4a1ccab400442ff55e9,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): guided setApiKey quick-pick + editor (#1836) (#1883)
+a24588c8c62bbbcf0d18013ac67342156bb6adac,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): testing strategy scaffold — 4 test tiers + QA matrix (#1840) (#1882)
+3e37db38d6f280855df666e08660e7cc1390f3a7,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): performance NFR gate + budget harness (#1839) (#1879)
+4f25b6b72e035f7dc84c9e9f1af4ad83481069fc,2026-08-06T08:47:53-07:00,False,True,True,feat(vscode-terminal): light + high-contrast theme parity + audit (#1837) (#1877)
+548b17937ef21083428b9c2c408e12b18f1fd08c,2026-08-05T23:17:25-07:00,False,True,True,feat(portfolio-viewer): selectable @widget_id reference chips in widget headers
+bf9fb649a56837b95ed82e7fef0576062b905d6b,2026-08-05T08:16:43-07:00,False,True,True,docs(vscode-terminal): user guide + refreshed README (#1896) (#1897)
+fa60059621a730bb58d99d319e4acb598fd9fd41,2026-08-05T08:10:49-07:00,False,True,True,feat(portfolio-viewer): OpenBB-Workspace-style widget layout (sidebar + floating grid)
+4d1770426428c4546485cc8c966945bd763a6868,2026-08-04T23:12:45-07:00,False,True,True,feat(browser-harness): Playwright workspace-mode driver + random-port isolation (#1789) (#1895)
+4b9150c219c741ea328a7d392712b340b5a18dea,2026-08-04T23:09:19-07:00,False,True,True,feat(vscode-terminal): user-defined layouts CRUD + workspace export (#1831) (#1894)
+695d7233e6cbbbdc588569228ce63c353b8e7f85,2026-08-04T21:07:24-07:00,False,True,True,feat(vscode-terminal): workspace-trust hardening + credential-file perms (#1856) (#1889)
+410df7974764025462a6feb77257d16f8a4a99e5,2026-08-04T20:57:00-07:00,False,True,True,fix(portfolio-viewer): wire copilot chat on 6130 + fix chart/param rendering
+211e02e0784d1181d86971b89ad764ba617697ce,2026-08-04T20:57:00-07:00,False,True,True,feat(vscode-terminal): paper buy/sell command handlers (#1835) (#1873)
+cda2d301d5f57ef9be3af5181b96122a69f2618d,2026-08-04T19:28:43-07:00,False,True,True,feat(vscode-terminal): backend auto-restart controller + auto-start config (#1838) [restored] (#1884)
+199f9e15f6215b4fa82b8779949fac149dea2785,2026-08-04T19:24:00-07:00,False,True,True,feat(vscode-terminal): guided setApiKey quick-pick + editor (#1836) (#1883)
+837b09bd985e9325419f13786e50d8aa064b867b,2026-08-04T19:19:55-07:00,False,True,True,feat(vscode-terminal): testing strategy scaffold — 4 test tiers + QA matrix (#1840) (#1882)
+372e3961212c6f2ab3791a8135269c57f5ca6b91,2026-08-04T19:17:32-07:00,False,True,True,feat(vscode-terminal): performance NFR gate + budget harness (#1839) (#1879)
+72748e5f053c3cacbbe34e6cb7aa17f45a98a075,2026-08-04T19:15:10-07:00,False,True,True,feat(vscode-terminal): light + high-contrast theme parity + audit (#1837) (#1877)
+f9f9ee75d91c12a6514fdd62625f574bbd63f49e,2026-08-04T16:29:08-07:00,False,True,True,fix(portfolio-intel): make provider_health async to stop coroutine leak (#1871)
+02d06e5cf203604a0cba341a6683018b0f10d743,2026-08-04T16:23:11-07:00,False,True,True,feat(vscode-terminal): paper buy/sell command handlers (#1835) (#1873)
+4284504ca9898671ee69b4ab4c3dd2fd3160c4ed,2026-08-04T09:45:00-07:00,False,True,True,feat(vscode-terminal): Widget Browser tree-view + drag support (#1830) (#1870)
+f2ca27ebe8364ade898d9b172831e0202349fbbc,2026-08-04T09:42:06-07:00,False,True,True,feat(vscode-terminal): openbb.previewWidget single-widget panel (#1832) (#1867)
+864bb4549f9f7621f3cceb13ee7f38d8bf6df2ff,2026-08-04T09:36:05-07:00,False,True,True,feat(vscode-terminal): golden layouts library + load command (#1833) (#1866)
+c393c985c43e61da6c04cece272f6e124e4a1500,2026-08-04T09:28:41-07:00,True,True,True,Merge pull request #1865 from prajoria/portfolio_validations
+bfef7df166c36c73b0f4b334ae3742afada959e1,2026-08-04T09:25:36-07:00,False,True,True,docs(skills): add portfolio-validation workflow skill
+632fd3997ed2fe250850abe1da4049a4d0f5abf0,2026-08-04T09:11:52-07:00,True,True,True,Merge pull request #1841 from prajoria/feat/pi-self-hosted-viewer-gh-1805
+c93a89c1d8dc9f5ecf0d4638cd005a98bd772d0a,2026-08-04T09:03:20-07:00,False,True,True,feat(vscode-terminal): symbol hover provider (Python + Notebook) (#1825) (#1864)
+3d614361180a818c8a3f1c1b2da4c38e93e7e05e,2026-08-04T08:59:21-07:00,False,True,True,feat(vscode-terminal): notebook symbol watcher — source-text heuristic (#1826) (#1862)
+26c062d7424532cd424847eaa026719fc3fbc3a6,2026-08-04T08:56:23-07:00,False,True,True,feat(vscode-terminal): openbb.runAnalysis command -> 7-phase pipeline (#1828) (#1861)
+e1666fc2ef8fb6387b48e4e44286b7bbbdf8667f,2026-08-04T08:52:48-07:00,False,True,True,feat(vscode-terminal): editor selection ticker CodeAction (#1827) (#1860)
+ceadb85a140a64903d49cceefe9841bda0c13844,2026-08-04T08:33:19-07:00,False,True,True,feat(vscode-terminal): live-data mode + widget fetcher (#1820) (#1859)
+6c41b944cf87f8c9ca3a9d7375094112209b789d,2026-08-04T08:28:49-07:00,False,True,True,"feat(vscode-terminal): complete built-in layout set — Portfolio Risk, Trading Desk, Chart Focus (#1821) (#1858)"
+75b09f9c9f3ec6c67a639c0699d0ee51dd1ffce9,2026-08-04T08:18:12-07:00,False,True,True,feat(vscode-terminal): command palette + default keybindings (#1822) (#1857)
+1a631e32c6cbe973438c0d2db65092fee3bf72ba,2026-08-04T08:15:46-07:00,False,True,True,feat(vscode-terminal): symbol context v1 + validator (#1823) (#1854)
+82020be6dc4fba9cb9e3640a99e46579cc940cfe,2026-08-04T08:09:36-07:00,False,True,True,feat(vscode-terminal): backend lifecycle + status bar (#1819) (#1855)
+a2be18416c6c8bd8944efe16d910150bc1b197e7,2026-08-04T07:52:02-07:00,False,True,True,feat(vscode-terminal): CSP hardening + auth invariant guards (#1817) (#1852)
+5ea679ba8dfb2a851c96dd50a29f82ca3c32d020,2026-08-04T07:45:13-07:00,False,True,True,feat(vscode-terminal): VS Code theme token bridge (dark theme first) (#1815) (#1851)
+faa1615147262a84175c73179744b8c741ed2114,2026-08-04T07:42:49-07:00,False,True,True,feat(vscode-terminal): fixture-mode layouts + Path-A renderer (#1816) (#1850)
+38276e39793b875e6da490c135c3b59ae840985a,2026-08-04T07:39:29-07:00,False,True,True,feat(vscode-terminal): webview host + postMessage bridge (#1814) (#1849)
+4b417b8849ecb9002fdf7bb1f9df2367f6676c64,2026-08-04T07:30:58-07:00,False,True,True,feat(vscode-terminal): scaffold apps/vscode-terminal-extension/ package + activation (#1813) (#1848)
+61d4ec25737f30b922dd463b7b0040b93d345ab0,2026-08-03T22:04:41-07:00,False,True,True,"docs(adr): VS Code terminal webview auth model — no token, loopback primary (#1809) (#1847)"
+2d0612f02b71ee4a0b3a72efe51b005969c2df29,2026-08-03T22:01:10-07:00,False,True,True,chore(pi-claim): re-sync pi_project_items.json with 121 new Project #4 items (#1846)
+d4d6ad9285ac82c650f2fe03c8e8aa4a719936a1,2026-08-03T22:00:21-07:00,False,True,True,chore(scripts): widget-registry drift guard for VS Code terminal PRD (#1811) (#1845)
+ae083eba0ec1bae2702377a414a6d86a52aa74f5,2026-08-03T21:58:38-07:00,False,True,True,docs(memories): record viewer chart/markdown/metric + 6120 mount (#1805)
+b6762d150a5a8efba5ae4a9677d2af13f832eb57,2026-08-03T21:57:33-07:00,False,True,True,docs(adr): Path A widgets.json renderer vs Path B bespoke components (#1810) (#1843)
+6989fbc806809c50d7d4e821e558bcb1de18974a,2026-08-03T21:57:30-07:00,False,True,True,docs(adr): canonical backend spawn + readiness endpoint for VS Code terminal (#1808) (#1844)
+8b2efb557c2b1d42772172429e97b4dee4e43a86,2026-08-03T21:54:57-07:00,False,True,True,fix(portfolio_intel): silence pylint import-outside-toplevel on lazy viewer import (#1805)
+4cfdfde18af0fb42bd89a561de7e795bf3ccc761,2026-08-03T21:53:34-07:00,False,True,True,docs(specs): VS Code Trading Terminal Extension PRD + plan tree (#1804) (#1842)
+427a506b87a4a6cf4c69f90b33cf1328046904f1,2026-08-03T21:50:20-07:00,False,True,True,feat(portfolio): render chart/markdown/metric + multi-app switcher in local viewer (#1805)
+3e1559a92ae6c80e2a92166f2f2acce0d94a27b6,2026-08-03T16:36:39-07:00,True,True,True,Merge pull request #1787 from prajoria/fix/pi-portfolio-backend-run-gh-1786
+97a68d6eef2092e09e72c06ace572e012ce1464d,2026-08-03T16:36:32-07:00,True,True,True,Merge pull request #1797 from prajoria/feat/pi-stock-analysis-msft-default-gh-1796
+e361853684e8bc1837bc662878ab5fd5e63e00a8,2026-08-03T16:35:45-07:00,True,True,True,Merge pull request #1802 from prajoria/feat/pi-local-viewer-gh-1798
+65905e9e043c1dbe05fe6a3c6700f05f28593bd6,2026-08-03T16:33:34-07:00,True,True,True,Merge pull request #1795 from prajoria/feat/pi-copilot-proxy-gh-1794
+3f9cf6dce832ef9ba9a390ad85b9dd3cde63c175,2026-08-03T16:30:56-07:00,True,True,True,Merge pull request #1791 from prajoria/fix/pi-portfolio-intel-obbject-openapi-gh-1788
+541c275176e218aab8bee586cc292c2558b904e6,2026-08-03T16:28:55-07:00,False,True,True,style(portfolio-intel): fix pylint C0415/W0603/R1716 in routers (#1788)
+12030975f313b3a9247cc6cb7b2e31e6f09d3d96,2026-08-03T16:24:39-07:00,False,True,True,style(portfolio-intel): black-format backtest/paper_alerts routers (#1788)
+91f31280e4267a0c4e288569adcb75f388288769,2026-08-03T06:17:30-07:00,False,True,True,docs(portfolio): record local Workspace viewer in MEMORIES (#1798)
+538fac8cd8ddcde22a43110ddf37476637f21638,2026-08-03T06:14:31-07:00,False,True,True,fix(portfolio): viewer chat — split SSE frames on CRLF boundary (#1801)
+474d7666bc98e9267859f5f2fafcbdefc840f6f8,2026-08-03T06:09:39-07:00,False,True,True,feat(portfolio): local Workspace viewer — offline dashboard + copilot chat (#1798)
+17b50cbcac7cb893c183c69fc283b959d5584d25,2026-08-03T05:40:36-07:00,False,True,True,feat(portfolio-intel): default stock_analysis tab symbol to MSFT (#1796)
+555508e5ff9ea2f29966f30e919ba41c99792546,2026-08-02T23:35:02-07:00,False,True,True,docs(portfolio-intel): fix MD004 markdown-lint in CLAUDE.md (#1794)
+0387f06a26c8912b3222dd61fc8a39c0d851db65,2026-08-02T23:32:47-07:00,False,True,True,docs(portfolio-intel): record copilot backend + CI-lint learnings (#1794)
+015197ec605a39dd5527b29922ad816bda1a13b0,2026-08-02T23:26:35-07:00,False,True,True,fix(portfolio-intel): satisfy CI linters for copilot backend (#1794)
+190e2489ed102305f4701e80a72dbc8a3cd01d7a,2026-08-02T23:09:36-07:00,False,True,True,feat(portfolio-intel): local custom-copilot backend fronting copilot-api proxy (#1794)
+3ec10998be6bd69c9033aadf88c8c42628d1f40e,2026-08-02T21:57:40-07:00,False,True,True,feat(techtrade): T5 paper engine MySQL backend + isolation columns (#1790) (#1793)
+908747fdc7169e10dcdef943bbeb18c7bc9d6230,2026-08-02T21:47:57-07:00,False,True,True,fix(portfolio-intel): drop future-annotations so OBBject response_model resolves (#1788)
+49e861c3fac7e0d0cc1e8b60f592086aba9d5618,2026-08-02T21:41:40-07:00,False,True,True,fix(portfolio): install cryptography for default HTTPS cert bootstrap (#1786)
+e762f9d7f93daf264b7015c4788d8707d1829a46,2026-08-02T21:08:38-07:00,False,True,True,fix(portfolio): add run script + self-signed cert bootstrap for Workspace backend (#1786)
+cf9dacef9b54fd65c4584fc1b4de9f84505f88e8,2026-08-02T20:43:25-07:00,False,True,True,feat(portfolio-intel): T5 widget frontend rewrite (#1777) (#1785)
+7098615c8f050324133501e10e9e12ee3fb635f7,2026-08-02T20:34:17-07:00,False,True,True,feat(portfolio-intel): accept both old + current Fidelity Positions CSV (#1753) (#1783)
+d4c7b20a934a11871d5256e59704165de906465a,2026-08-02T20:22:30-07:00,False,True,True,test(techtrade): add notebook smoke test mirroring portfolio version (#1762) (#1781)
+f4d83cf25eeb07b4020589a04064c474ff4dee3d,2026-08-02T19:37:20-07:00,False,True,True,feat(portfolio-intel): T5 P4 widget backend endpoints (#1768) (#1778)
+2fafe8686913bcd00bb083f43071ad2353a37612,2026-08-02T19:31:07-07:00,False,True,True,feat(techtrade): T5 P5 Activity CSV parser + bulk-import (#1769) (#1775)
+9073fed5898c2a8d586993945f3e0fbc80983c7b,2026-08-02T19:19:33-07:00,False,True,True,feat(techtrade): T5 P3.c reconciliation vs. Fidelity positions (#1767) (#1773)
+16641000912eade432ce63b65a5a3795671ed8e0,2026-08-02T19:13:51-07:00,False,True,True,feat(techtrade): T5 P3.b unrealized P&L (#1766) (#1771)
+ee6fe9fd24df5e72ef84c845c7b92b7d2c6d7651,2026-08-02T19:02:09-07:00,False,True,True,docs(techtrade): NB-09 T5 end-to-end plan → XLSX → fills flow (#1761) (#1765)
+533fec9fc4f213ff6af568281ea4319f2cb95271,2026-08-02T18:58:24-07:00,False,True,True,docs(techtrade): NB-08 T5 paper trading engine walkthrough (#1760) (#1764)
+61d5def1d17bca5dbde105ff89d601e38cad6b5b,2026-08-02T18:54:39-07:00,False,True,True,docs(techtrade): NB-07 T5 OrderBatch + XLSX workbook walkthrough (#1759) (#1763)
+74da96b97c55032a0568762ef2b1256bb9324f2b,2026-08-02T18:47:36-07:00,False,True,True,docs(techtrade): T5 E2E test guide + Fidelity CSV schema reference (#1719) (#1757)
+f439d6ff542139d589f13a127423b08b4e600a22,2026-08-02T18:36:25-07:00,False,True,True,feat(techtrade): T5 paper trading engine (P3.a) (#1719) (#1755)
+7b1dc7c1f6a12d6f3aaecf4dc1d05cd3042fa4d0,2026-08-02T17:56:09-07:00,False,True,True,feat(techtrade): T5 XLSX 6-sheet workbook + charts (P2) (#1719) (#1752)
+13cd0483e70b72cdf348313e4f5c34258ae31002,2026-08-02T17:41:58-07:00,False,True,True,feat(techtrade): T5 OrderSink Protocol + PaperOrderSink (P1) (#1719) (#1749)
+c10b1f3451f98a0dd05a92bc8757d1945192eccb,2026-08-02T15:48:36-07:00,False,True,True,feat(portfolio-intel): Phase 2B — 16 basket-consuming endpoints + basket resolver (#1714 + #1715) (#1748)
+57ca7b99dd5e1f1498e8543a9ff453a412a5845f,2026-08-02T14:57:51-07:00,False,True,True,feat(portfolio-intel): MySQL positions store (canonical) + PortfolioStore Protocol (#1744) (#1747)
+3805cf5ffffea19e9489f20579040543da217531,2026-08-02T13:09:41-07:00,False,True,True,feat(portfolio-intel): Phase 2A retrofit — 24 non-basket endpoints route through ChainedFetcher (#1715) (#1746)
+31ece5021bcd471205b2b7632f58c93f6e892301,2026-08-02T12:10:25-07:00,False,True,True,feat(portfolio-intel): real 5-tier provider fallback chain machinery (#1715) (#1745)
+e31257182e5a6a052cdbe6933c6eb390aecec34c,2026-08-02T07:24:39-07:00,False,True,True,fix(portfolio-intel): inject _now() seam so news_timeline days_back respects pinned test time (#1716) (#1743)
+498d7222fdcc14a60e21ecb48e4320b8132b02c3,2026-08-02T00:40:54-07:00,False,True,True,feat(browser-harness): B10 workspace selector graph — real UI-render assertions (#1735) (#1742)
+dc5a40df4fcaf13aaf999a6231f82992368d1bd4,2026-08-02T00:38:58-07:00,False,True,True,feat(browser-harness): B9 deep invariant sweep — XSS + enum + range guards (#1734) (#1741)
+c57d8d9d97396ba12968b7c3c2fc6a4ad7eaaab1,2026-08-02T00:37:09-07:00,False,True,True,feat(browser-harness): B8 widget-completeness sweep — 100% coverage (EPIC #1721) (#1740)
+67185b2dd6a77b8e6f6d363cff70123f25b047dd,2026-08-02T00:32:29-07:00,False,True,True,feat(browser-harness): B7 CI workflow (EPIC #1721) (#1739)
+2ca1c9aebe0339a97ea60136069432b3e00bc353,2026-08-02T00:27:08-07:00,False,True,True,feat(browser-harness): B4 fixture snapshot + B5 guide generator + B6 workspace driver (EPIC #1721) (#1731)
+fd076ff42b71fb15e9795cd844da0c3bbc988d43,2026-08-01T23:34:26-07:00,False,True,True,feat(browser-harness): B0-B4 package + standalone driver + both stories (#1721) (#1730)
+8ddad12a57b57b97686b7e78f28bf53bee0b1a85,2026-08-01T23:14:02-07:00,False,True,True,docs(browser-harness): portfolio + techtrade preview guides (interim)
+0d50c497221a09c5a748505f4ebbd2e6b5ab8d42,2026-08-01T23:07:48-07:00,False,True,True,docs(specs): browser test harness design (parent #1713)
+9bf94c489746d5f04cb5077c9a28fdd7b694e11b,2026-08-01T22:44:17-07:00,False,True,True,feat(pi/terminal): Techtrade T13.3-T13.7 close-out (#1697-#1701) (#1720)
+3794795d6d49e94923b89065c6b2a148791e55f4,2026-08-01T21:49:24-07:00,False,True,True,feat(pi/terminal): Techtrade Position Workbench T13.2 (#1696) (#1718)
+41ca732d6789eaf9f06d4d911e6d21f43e808bc0,2026-07-31T07:11:18-07:00,False,True,True,"feat(pi/terminal): F12 Portfolio-management workflow (Approach C, 5 sub-tasks) (#1717)"
+28d49fc4fa13b0175d1fbfea1a6bba299fb6e532,2026-07-31T06:52:51-07:00,False,True,True,"feat(pi/terminal): Techtrade Morning Scan tab (T13.1, #1692) (#1712)"
+18888cdf6f8396f8c2ac041c0c3386ea5a7e6a07,2026-07-31T06:19:43-07:00,False,True,True,feat(pi/terminal): F9 Risk + F10 Paper + F11 Alerts tab layouts (composition only) (#1711)
+14fc3edb1b2cf53bb64c62beb9372e955078235b,2026-07-31T06:05:12-07:00,False,True,True,feat(pi/terminal): F2 + F3 + F4 + F8 X-Ray (4 sub-tasks) (#1710)
+4afd7e4ea4e4c069d3d42ec31fe59a981e5c81f0,2026-07-30T22:19:29-07:00,False,True,True,feat(pi/terminal): Tier 1 - F5 Ownership + F6 Calendar + F7 Estimates (9 widgets) (#1709)
+96da950b2011764519d592b272a565f3e6643b9c,2026-07-30T22:04:15-07:00,False,True,True,"feat(pi/terminal): F1 Batch B — 4 BUILD widgets over fmp_cached (#1645, #1648, #1649, #1650) (#1708)"
+993174cd461ba816d8c97ebba803e4d2b1c50193,2026-07-30T21:29:09-07:00,False,True,True,feat(pi/terminal): F1 Batch A - EXTEND header + key_stats + Overview REUSE (#1707)
+06db03b4d9a0cf4b46955e3154d4bafa7cb1b34e,2026-07-30T20:54:10-07:00,False,True,True,feat(pi/terminal): T0.3-T0.6 context bars + default layout + smoke test (#1706)
+a20bc442c17343ebf8a56df79d962b92170e7981,2026-07-30T20:38:09-07:00,False,True,True,"fix(pi/terminal): ship apps.json terminal entry that F0 tests require (#1635, #1636) (#1705)"
+75c3783265ea2d0acd8afe3e5b459939040808d3,2026-07-30T09:38:44-07:00,False,True,True,feat(pi/terminal): F0 shell — 11-tab terminal app + charset fix + X-Ray pie mapping (#1704)
+7eb7691dd48d067f790f1cdd80cd0afd699a576d,2026-07-30T09:09:33-07:00,False,True,True,feat(pi/widgets): add candlestick chart type + line/candle toggle (closes #1702) (#1703)
+100e5fff4010301d8b4d66569b7157df8899c78b,2026-07-30T07:33:35-07:00,False,True,True,chore(notebooks): move 6 techtrade notebooks into notebooks/techtrade/ (closes #1679) (#1690)
+e2c3a9b8982508dcbe415e4335b0f9921affc971,2026-07-30T01:32:12-07:00,False,True,True,chore(portfolio_app): delete standalone service — standardize on importer+notebooks (closes #1629) (#1631)
+dca1c4ce785f0af36ea84eec22136af03adc2b9c,2026-07-30T01:24:27-07:00,False,True,True,chore(tools): reconcile Tools/ into openbb_platform/tools/portfolio_utils/ (closes #1628) (#1630)
+b60e8a7be439a23ef551903b3e6d32ef98d26f28,2026-07-30T00:55:48-07:00,True,True,True,Merge pull request #1627 from prajoria/portfolio_validations
+244dd5c92ac1eba304385b0773f9e0d0d8c507ec,2026-07-30T00:54:42-07:00,False,True,True,notebooks(nb03): enforce concentration caps via water-fill redistribution (#1626)
+ff9eb8ff3fbdda3fcf6b3fce1a5c70abd62a717f,2026-07-30T00:42:57-07:00,True,True,True,Merge remote-tracking branch 'origin/portfolio' into portfolio_validations
+fd9bb2b0755e8c0870e4288dd0adc58ad3998d48,2026-07-30T00:30:41-07:00,False,True,True,notebooks(nb03): add portfolio construction section (#1626)
+8aa9f12a36b548224533822fe72cd526de6fb903,2026-07-29T23:36:34-07:00,False,True,True,docs(notebooks): port NB02 HTML rendering toolkit to NB01/03-08 (Refs #1352)
+c83ddec55ec8904ad7e9a08d56eb2f4274ff8234,2026-07-29T23:36:34-07:00,False,True,True,feat(fmp): analyst / ratings / grades — 6-fetcher domain port from fmp_cached (#1611)
+45276c8c700a4964ef9643fb8162866de2c41abe,2026-07-29T23:36:34-07:00,False,True,True,fix(analysis): phase-quality bugs + FMP tier marker rule (#1463 #1464 #1465) (#1610)
+3af40bf2e21bba3ae7344ca1708d5578bc80fb13,2026-07-29T23:36:34-07:00,False,True,True,fix(fmp_cached): tolerate null derived-percent in institutional_ownership (#1390) (#1609)
+8da04ad5a2ec87a4087bd5bcb415189891e021ee,2026-07-29T23:36:34-07:00,False,True,True,fix(fmp_cached): coerce date to ISO string in dividend sub-fetch (#1389) (#1608)
+586bc6a3569d172c07bc228c0a52ce9831b800d4,2026-07-29T18:43:21-07:00,False,True,True,"test(fmp): add 105-endpoint live E2E integration suite (#1573-#1586, #1587-#1591) (#1624)"
+4e725cb713013841ea296903104228d5f987f331,2026-07-29T18:10:22-07:00,False,True,True,feat(fmp): port company-extras 6 endpoints (#1500-#1505) — completes A-parity 105/105 (#1623)
+6033becc6393a138e2158648088c9e7b48bc8e9d,2026-07-29T14:50:17-07:00,False,True,True,feat(fmp): port available-lists 3 endpoints (#1478-#1480) — completes A-parity (#1622)
+64c571f3d48bb2049d43f1d882ab9d0d68814c68,2026-07-29T14:35:14-07:00,False,True,True,"feat(fmp): port market-hours + search 13 endpoints (#1571-#1572, #1467-#1477) (#1621)"
+16c3ffbf7779e4eb733ce68246060266fe94569c,2026-07-29T14:20:14-07:00,False,True,True,feat(fmp): port DCF + reference-list domains 11 endpoints (#1560-#1570) (#1620)
+e4c77798a6b1401d4a756c5933d0ea9b74395701,2026-07-29T14:05:16-07:00,False,True,True,feat(fmp): port government-extras 6 endpoints (#1554-#1559) (#1619)
+455577e3cebe94bd1da25b737893b4cdfef0f96a,2026-07-29T13:51:12-07:00,False,True,True,feat(fmp): port sec-extras 5 endpoints (#1549-#1553) (#1618)
+e2690d882b3d42aab6c9d0eaf49df9ea16c65e96,2026-07-29T13:37:17-07:00,False,True,True,feat(fmp): port news-extras 5 endpoints (#1544-#1548) (#1617)
+9e5b9bed64fcdcc8a2f4ee7bae4313262a6a338c,2026-07-29T13:23:13-07:00,False,True,True,feat(fmp): port fundraising-extras 10 endpoints (#1534-#1543) (#1616)
+6c680a74a4a8b330290ba225cde76477046a4bba,2026-07-29T13:08:14-07:00,False,True,True,feat(fmp): port economics-extras 5 endpoints (#1529-#1533) (#1615)
+a07eb0bf5687e9a44974234e666d15313bee1494,2026-07-29T12:53:14-07:00,False,True,True,feat(fmp): port indexes-extras 14 endpoints (#1515-#1528) (#1614)
+9a86ef3672f44966e1641ff004c93efef9bfbd8f,2026-07-29T12:36:15-07:00,False,True,True,feat(fmp): port quotes-extras 9 endpoints (#1506-#1514) (#1613)
+cf82f38ba5e1ff42e58514429f198d9750f7ec4c,2026-07-29T12:13:17-07:00,False,True,True,feat(fmp): port statements-extras 12 endpoints (#1488-#1499) (#1612)
+09ad48c0d9d12a806764cbcc8fa52b7cf6acc968,2026-07-29T10:15:32-07:00,False,True,True,feat(fmp): analyst / ratings / grades — 6-fetcher domain port from fmp_cached (#1611)
+207caa6efc083ce55acdc9875976e196e28a05d9,2026-07-29T09:48:50-07:00,False,True,True,fix(analysis): phase-quality bugs + FMP tier marker rule (#1463 #1464 #1465) (#1610)
+217c6bacf794f08e6c108262719971777b7fbb1d,2026-07-29T08:51:22-07:00,False,True,True,fix(fmp_cached): tolerate null derived-percent in institutional_ownership (#1390) (#1609)
+27f5ea0989d65d3fbb89e3edb1c01a75314e9b8d,2026-07-29T08:48:11-07:00,False,True,True,fix(fmp_cached): coerce date to ISO string in dividend sub-fetch (#1389) (#1608)
+67052e519118b704a80ed33b720f0661874343bd,2026-07-29T08:08:14-07:00,False,True,True,docs(Tools): add README cross-referencing scripts/ and openbb_platform/tools/
+b585bd4ceeb9f11eedf931a04c9bb678e17782cb,2026-07-29T07:32:05-07:00,False,True,True,"validation iter 1: linkify notebook refs, wire N-PORT tier, redact NB01 PII (#1459 #1460 #1461) (#1462)"
+78cf3028f96712459b2fed23137edfef43358d83,2026-07-28T23:14:04-07:00,False,True,True,"docs+scripts: validation-branch snapshot (docs, FMP coverage helpers, PI migration) (#1458)"
+f0fcfa27a9fa4248293d15b812db4574c5734741,2026-07-26T08:38:55-07:00,False,True,True,docs(nb08-yfinance): Track B free-only NB08 analyst basket + Variant B (closes #1444) (#1457)
+8a8a682b6d1dde160d93e8480c0a0c00be089c0e,2026-07-26T08:30:52-07:00,False,True,True,docs(nb07-yfinance): Track B free-only NB07 offline + end-to-end (closes #1443) (#1456)
+16384d10544cc8fb7a9a98becb0e233ffaf10630,2026-07-26T08:23:56-07:00,False,True,True,docs(nb06-yfinance): Track B free-only NB06 backtest + validation (closes #1442) (#1455)
+11f5af0617496bfab8030bca361fca9529038b8b,2026-07-26T08:16:09-07:00,False,True,True,docs(nb05-yfinance): Track B free-only NB05 what-if + Brinson + paper (closes #1441) (#1454)
+b3089c7cd4d248cb8ba9b9c39be229de2da5dcea,2026-07-26T08:09:47-07:00,False,True,True,docs(nb04-yfinance): Track B free-only NB04 events + smart money (closes #1440) (#1453)
+21d2d29baecfaa75dc6d00745cd5c63487ef47d4,2026-07-26T08:01:09-07:00,False,True,True,docs(nb03-yfinance): Track B free-only NB03 basket x-ray + risk (closes #1439) (#1452)
+0b698a040eea11573244a080a0484d0e9df63935,2026-07-26T07:51:16-07:00,False,True,True,docs(nb02-yfinance): Track B free-only NB02 single-name deep dive (closes #1438) (#1451)
+79a516872e433c03a20d30dc93bff931a48fab50,2026-07-26T07:43:26-07:00,False,True,True,docs(nb01-yfinance): Track B free-only NB01 (closes #1437) (#1450)
+c634ac499ddf612d276a387ef2037693a2c17882,2026-07-26T07:21:08-07:00,False,True,True,docs(nb04-08): document 5-tier provider chain overlay across NB04-NB08 (closes #1432 #1433 #1434 #1435 #1436) (#1449)
+befd94b44e956f92bfe55dcd894ff0bc9e71ec0b,2026-07-26T07:18:22-07:00,False,True,True,docs(nb03): document 5-tier provider chain overlay (closes #1431) (#1448)
+df78fa53b8fb9172fc0775042e28e3ec4f126f53,2026-07-26T07:16:58-07:00,False,True,True,docs(nb02): document 5-tier provider chain + SEC XBRL point-in-time caveat (closes #1430) (#1447)
+1634b3ce39e4d40881235d2b3c5e1c7d2598f494,2026-07-26T07:15:19-07:00,False,True,True,docs(nb01): adopt 5-tier authoritative provider chain (closes #1429) (#1446)
+d6583792a1124d1ec1d2b00d8b4f09dc8d8c56d0,2026-07-25T23:17:39-07:00,False,True,True,feat(nb): migrate portfolio ETF/bond look-through from Yahoo snapshots to SEC N-PORT (closes #1426) (#1445)
+a56922f1ac7db69d68a622b5e4aef322ea5599c7,2026-07-25T22:50:10-07:00,False,True,True,feat(scrape_record): move offline snapshots to user-local SQLite DB (closes #1425) (#1427)
+c4efef4cad73ebcd2e2de13c385686af28de2c7e,2026-07-25T20:55:12-07:00,False,True,True,docs(nb-series): NB08 §10 low-cost self-maintained variant + head-to-head vs Variant A (#1424)
+1620ecc2b5d30a8474384e4634c151785e64ceed,2026-07-25T20:49:50-07:00,False,True,True,docs(nb-series): NB08 analyst-recommendations basket (16-ETF Dalio+Bogle+Faber synthesis) (#1423)
+0da0dd3c64198d146d869bc8fa1807e95f55287b,2026-07-25T20:05:58-07:00,False,True,True,feat(portfolio_snapshot_importer): basket bridge + notebook check-in hygiene rule (#1422)
+24c52f6da36b13acc697d98d309aaf5fc1c998e7,2026-07-25T20:04:57-07:00,False,True,True,feat(portfolio_snapshot_importer): read-only Fidelity CSV -> SQLite ingest with append-only history (#1420)
+2fd87edcd95e56301df720d21caefd841ca74393,2026-07-25T10:47:03-07:00,False,True,True,docs(nb-series): Phase C batch 3 — NB06+NB07 teaching depth (closes #1415 #1416 #1409) (#1419)
+66314232953dfb2d33cff6a0d6202fa081f9c0bb,2026-07-25T10:39:55-07:00,False,True,True,docs(nb-series): Phase C batch 2 — NB03+NB04+NB05 teaching depth (closes #1412 #1413 #1414) (#1418)
+8e33d403b4e52083a160c5b025b2d23f4353b8c4,2026-07-25T10:32:45-07:00,False,True,True,docs(nb-series): Phase C batch 1 — NB01+NB02 teaching depth + STORY_BIBLE 10 + README learning path (closes #1410 #1411) (#1417)
+1f2c62580a5fcee690a4393f3619565c4881c4ca,2026-07-25T09:13:45-07:00,False,True,True,docs(nb-series): Phase B follow-ups — smart-money fixture + timing + loud-empty (closes #1400 #1401 #1402 #1405) (#1408)
+87130a7be6dae6bd2d3a13e391558ed127ff4772,2026-07-25T09:01:44-07:00,False,True,True,docs(nb-series): fixture-lock STORY_BIBLE numbers to real Phase B run (closes #1403) (#1407)
+03312bbf2eb527622e113b85a6a62e2bb9871995,2026-07-25T08:55:45-07:00,False,True,True,"docs(nb-series): Phase B gate — smoke tests + product review + follow-ups (closes #1370, closes #1352) (#1406)"
+e044702880fe9ce0031e1fd0bccd9e713cc7af9c,2026-07-25T08:50:50-07:00,False,True,True,docs(nb-series): NB07 Phase B code fulfillment — offline recording + end-to-end (closes #1369) (#1399)
+358b00991918eca155dfbd10cf42b9e19a609756,2026-07-25T08:48:03-07:00,False,True,True,docs(nb-series): NB06 Phase B code fulfillment — backtest + validation (closes #1368) (#1398)
+cc008a739d6ab37454f7ac15af39fc03e5f88f2c,2026-07-25T08:47:40-07:00,False,True,True,docs(nb-series): NB05 Phase B code fulfillment — what-if + Brinson + paper trading (closes #1367) (#1397)
+230d69c90190d678060575e8fe665ec13670768c,2026-07-24T23:44:40-07:00,False,True,True,docs(nb-series): NB04 Phase B code fulfillment — events + smart-money (closes #1366) (#1396)
+37a23d61993ab7b2feee78133bff98146937d76d,2026-07-24T23:28:49-07:00,False,True,True,docs(nb-series): NB03 Phase B code fulfillment — basket x-ray + risk (closes #1365) (#1393)
+fcd7e61a8b0eabb20e8e4cae88456c42f1f147ee,2026-07-24T22:57:12-07:00,False,True,True,docs(nb-series): NB02 Phase B code fulfillment — 7-phase MSFT deep-dive (closes #1364) (#1392)
+0b7fd2c79cdf235356c4e75fdabfe2f34af18c2f,2026-07-24T22:35:47-07:00,False,True,True,docs(nb-series): NB01 Phase B code fulfillment — fmp_cached primary + snapshot fallback (#1363) (#1391)
+d15f19866baaa09e3660596b45e92da22ad2092e,2026-07-24T19:16:10-07:00,False,True,True,feat(scrape_record): ingest 115 real universe snapshots + round-trip test suite (closes #1386 + #1373) (#1388)
+3c617860bf470831e80dca4c0dc2945b3b5d40e6,2026-07-24T19:08:21-07:00,False,True,True,feat(scrape_record): layered query1+DOM fast-path for 3 yfinance recordings (closes #1385) (#1387)
+3d07c49e2c2161d771ec945c4a4df1c74f987b49,2026-07-24T14:26:30-07:00,False,True,True,ci(scrape_record): nightly drift-check workflow + doc updates for 3 new fetchers (#1379) (#1383)
+f5b5445c359de89cb1dafc565408d7ef977468be,2026-07-24T14:03:25-07:00,False,True,True,feat(scripts): sweep script + universe list for scrape_record — sub-epic PR-3 (closes #1377) (#1382)
+1fd7efe45255d568189ba72a91d20a8aa6a1910a,2026-07-24T14:01:14-07:00,False,True,True,fix(lint): whitelist ACN (Accenture ticker) in codespell (PR #1382 CI)
+904f4aeb2b1f7ee5f6c4d390beb360ce98471540,2026-07-24T14:00:07-07:00,False,True,True,feat(scrape_record): Playwright recording scripts for 3 yfinance endpoints — sub-epic #1374 PR-2 (#1376) (#1381)
+0b9300660705eee73289ba40dabd6f6c5d2bfeca,2026-07-24T08:13:40-07:00,False,True,True,"feat(yfinance,scrape_record): 3 recorded fetchers + extractors + tests — sub-epic #1374 PR-1 (#1375) (#1380)"
+a2ef1b4aa35599863e64b86e76b416f0296a0f9a,2026-07-22T17:45:00-07:00,False,True,True,docs(nb-series): Phase A narrative skeletons for all 7 notebooks + README (#1354-#1361) (#1372)
+80673cebadc4015500c447547ddf8b98e55dc0f6,2026-07-22T17:24:45-07:00,False,True,True,docs(nb-series): Story Bible + tracking rule hardening (closes #1353) (#1371)
+fc8a8da06de76f48f196a9394b7a3d7c92824cee,2026-07-22T14:42:17-07:00,False,True,True,feat(yfinance): bond-ladder fetcher via scrape_record + path-traversal hardening (closes #1000) (#1351)
+d6ada4ac56f62c118d551186148f6957599458b2,2026-07-22T14:33:14-07:00,False,True,True,feat(yfinance): snapshot-backed options fetchers via scrape_record — closes #999 (#1350)
+f04250babb44797acdf12c002e5e6818afeee3ff,2026-07-22T14:28:32-07:00,False,True,True,feat(scrape_record): new record/replay framework for offline provider snapshots (#1346) (#1349)
+f96027cbdff743be0dc838dd5d346a0ea1cd86f2,2026-07-22T11:23:44-07:00,False,True,True,docs(memories): project4 drain endgame — 3 open (all out-of-scope) (#1344)
+54689987b77eba449a5f312157591934d0857340,2026-07-22T11:20:16-07:00,False,True,True,test(fmp_cached): add cassette for EquityScreener — #955 fixture coverage fill (#1343)
+87fd8910e1a64b7dfb6fa70f4b7f5e496a0ab354,2026-07-22T09:28:39-07:00,False,True,True,docs(memories): drain complete — all W1-W8 fully drained (2026-07-22 EOD) (#1342)
+9a8e2ff86f33f1c833c57f9216d542be96a1ad2d,2026-07-22T09:24:28-07:00,False,True,True,feat(fmp_cached): W5/W6/W8 free-tier drain — 30 fetchers (#1069-#1101 across 3 waves) (#1341)
+7c84f64ada3dfab930a4cedc7486ab57297418e1,2026-07-22T09:02:21-07:00,False,True,True,docs(plan_limited): 30 W5/W6/W8 endpoints marked Premium (#1113 #1119-#1122 #1289-#1313) (#1340)
+7d642667534befe6319132ec59d4be25a048092a,2026-07-22T08:39:05-07:00,False,True,True,docs(memories): 2026-07-22 continuation — 129 items drained today (#1339)
+05285b9fa0d658fb88f8f56d2a24ac134887c8cd,2026-07-22T08:33:22-07:00,False,True,True,feat(fmp_cached): W3 EconomicIndicators (#1108) (#1338)
+9684a66a7fb5a501f72de1698189cd7558dbdf1a,2026-07-22T08:25:11-07:00,False,True,True,feat(fmp_cached): W1 as-reported + financial-reports-json (#1142 #1146-#1149) (#1337)
+1260a5186e6ba749a29af7de44c4aec96cef6704,2026-07-22T08:18:12-07:00,False,True,True,docs(plan_limited): W1 TTM statements + latest-financial-statements marked Premium (#1126-#1129) (#1336)
+aad28abd29f55aabe178b0c40a192c58a10a817e,2026-07-22T08:16:24-07:00,False,True,True,feat(fmp_cached): W1 Statements drain — 12 statement-family fetchers (#1084 #1103-#1106 #1132-#1136 #1140 #1141) (#1335)
+066f51678687a1171ad22eec5cc56002055cb5c3,2026-07-22T00:23:17-07:00,False,True,True,docs(plan_limited): W2 batch-*-quotes endpoints marked Premium-only (#1161 #1176 #1185 #1200 #1254-#1260) (#1334)
+af621edb902ba6ee059a9a75ec0054eaf5a884e4,2026-07-22T00:18:34-07:00,False,True,True,feat(fmp_cached): W2 Quote drain — 11 quote-family endpoints (#1090 #1091 #1093 #1225 #1245 #1246 #1249-#1253) (#1333)
+749ba0a19a701b02354ceec7a3ee04760562ce91,2026-07-21T23:34:23-07:00,False,True,True,docs(memories): 2026-07-21 final drain state + playbook additions (#1332)
+04e9e691ff86ed7452536cb7aab20fb7516d5be8,2026-07-21T23:31:37-07:00,False,True,True,feat(fmp_cached): W7 MarketPerformance drain — 8 sector/industry endpoints (#1212-#1219) (#1331)
+df9d565f7ba8d82f49d6fb3f44312d52bd3aedaf,2026-07-21T23:18:47-07:00,False,True,True,feat(fmp_cached): W7 Analyst drain — 6 symbol-parameterized rating fetchers (#1057 #1058 #1059 #1061 #1062 #1063) (#1329)
+6bf7c78af931a701d3539949f5bff7d596d75fee,2026-07-21T23:10:55-07:00,False,True,True,docs(memories): W4 directory-drain shipped 2026-07-21 across 7 PRs (#1328)
+0c77f2a8fc449efb442b1398c20b69b61fe0f549,2026-07-21T23:08:01-07:00,False,True,True,feat(fmp_cached): W4 finish — 3 single-param fetchers (#1085 #1099 #1224) (#1327)
+2943735bfb6a64e0f16605f495c22d0db8b84145,2026-07-21T23:02:39-07:00,False,True,True,feat(fmp_cached): W4 Search drain — 6 query-parameterized search endpoints (#1038-#1042 #1044) (#1326)
+492c7957c41e5831fff9246d3a862237ac05d616,2026-07-21T22:52:11-07:00,False,True,True,feat(fmp_cached): W4 Directory drain batch 5 — historical + change (#1048 #1094 #1170-1172); plan-limit #1051 (#1325)
+96c1589f4eb5c704a356d8878cbd06d60f54bbae,2026-07-21T22:45:03-07:00,False,True,True,feat(fmp_cached): W4 Directory drain batch 4 — 5 reference lists (#1102 #1110 #1167 #1168 #1169) (#1324)
+4d9a5d20256b20d501830114a7963015c9a832f0,2026-07-21T22:38:24-07:00,False,True,True,feat(fmp_cached): W4 Directory drain batch 3 — 4 market-reference lists (#1158 #1173 #1182 #1197) (#1323)
+3c2ccab247f05cf8e1ba8edf75383c42c2872621,2026-07-21T22:26:02-07:00,False,True,True,feat(fmp_cached): W4 Directory drain batch 2 — 5 symbol-list endpoints (#1045-#1050) (#1322)
+db2deef3eabc9f4a2f569ac582509422ea758dcc,2026-07-21T21:49:24-07:00,False,True,True,feat(fmp_cached): W4 Directory drain — 4 available-* endpoints (#1052-#1055) (#1320)
+ba7518f51afc756aca817eb74b5afe2bf79af33d,2026-07-21T21:42:20-07:00,False,True,True,docs(memories): Wave 0 shipped + correction that bd is retired repo-wide (#1319)
+b77bcb4f1bd4decb67de63527c772595eff9c30e,2026-07-21T20:45:03-07:00,False,True,True,feat(fmp_cached): Wave 0 inventory + harness (#1028) (#1318)
+ce603fbec2d2adad8ccc32ba19d837f66886a890,2026-07-21T18:28:50-07:00,False,True,True,"feat(fmp_cached + widget): analyst recommendations + estimate history (#997, #998) (#1027)"
+26055279a70014d0173c3154660b22eae734e9b2,2026-07-21T17:32:21-07:00,False,True,True,feat(fmp_cached): drain 13 date-coercion endpoints from #955 allowlist (#1016)
+252cc87ced9a17d1008adb2853c81d2f3f78a15e,2026-07-21T16:55:20-07:00,False,True,True,docs(pi): release notes for pi-rc-1 (#566) (#1012)
+47a8de96afe71a09d1a8ce2b7b4daee4841d6704,2026-07-21T16:51:27-07:00,False,True,True,feat(widget_backend): Equity Profile section widgets 990-996 (#1011)
+a91598c0b9f77d5f09bafca105dfb8375ebbebd3,2026-07-21T16:45:19-07:00,False,True,True,feat(widget_backend): P1/P2/P3 widget batch (#529-#577) (#1010)
+d6c2bbc6413e34747d5cb18a0f5b760a4b2a5426,2026-07-21T08:43:57-07:00,False,True,True,feat(portfolio_intel): OpenBB Workspace backend for widgets (#1007) (#1008)
+2951aaf821ee09a1e0d42ad904ee45212d10e368,2026-07-21T01:59:53-07:00,False,True,True,ci(desktop): frontend lint + typecheck + vitest for portfolio-branch PRs (#983) (#1005)
+4ae06f32642f5882ea938d9817e5bb9d0346834f,2026-07-21T01:59:07-07:00,False,True,True,feat(analytics): Brinson external reference fixtures + seed script (#557) (#1006)
+cd16c265555c248d2329f13184958041245f2e1a,2026-07-21T01:57:33-07:00,False,True,True,"feat(desktop): portfolio-intel widget host + SDK (#981, #982) (#1004)"
+1389038249b374d3ef6c0e8ea043d896aee1d7dd,2026-07-21T01:50:17-07:00,False,True,True,docs(pi): equity profile data-coverage audit (#781) (#1001)
+4eb0c1ea3b01aa58d7e1184a38dc87f8d172e24c,2026-07-21T01:32:15-07:00,False,True,True,feat(analytics): Brinson-Fachler attribution engine (#559) (#979)
+35d599fd14a95af620482eeab3f331751eb2f525,2026-07-21T01:27:15-07:00,False,True,True,feat(analytics): Brinson-Fachler synthetic test-data generator + oracle + fixtures (#935) (#978)
+b76ed1131bb688d26a53ae2df8b8070ccb743ed3,2026-07-20T23:56:13-07:00,False,True,True,feat(paper): corporate-action reconciler (#554) (#975)
+f428bfb7e1fee422b938b54be6bce5568033f879,2026-07-20T23:35:44-07:00,False,True,True,fix(fmp_cached): scrub apikey= from log records at package boundary (#963)
+34bc863087c0c3f5ccc1224f901f55d72f868e28,2026-07-20T22:08:12-07:00,False,True,True,docs(claude-md): document Closes-syntax check grammar + tracker pattern
+5777f86fd7931c0fcff3e24dfacdc71e5c4f84dc,2026-07-20T21:57:19-07:00,False,True,True,feat(fmp_cached): fixture drain batch 4 — 7 new cassettes (#955)
+e06ca98e1be4e63222bab1e2bd4ae3a10b92d759,2026-07-20T21:44:12-07:00,False,True,True,feat(fmp_cached): fixture drain batch 3 — 9 new cassettes (#955)
+5070d0dd6f854356e82be1f74dad6353470ef110,2026-07-20T21:34:16-07:00,False,True,True,feat(fmp_cached): fixture drain batch 2 — 8 new cassettes (#955)
+e0c52843a2c7752a4d8b49e7798eb1663acedd7c,2026-07-20T21:23:53-07:00,False,True,True,feat(fmp_cached): fixture drain batch 1 — 14 new cassettes (#955)
+4f7e0f0d192738a99f77e756102a398fe16b10c9,2026-07-20T20:54:10-07:00,False,True,True,feat(fmp_cached): FMP fixture-record harness + coverage gate (#508)
+a7d4a5db7f9ff5d7f7771f0dac063da60c3a35b1,2026-07-20T19:26:27-07:00,False,True,True,ops(portfolio-intel): enforce Project #4 Status=In Progress on claim + heartbeat protocol (#953)
+e166b30f15070ce1b0e907cec87f5af811deacc7,2026-07-20T09:58:27-07:00,False,True,True,feat(pi/app): P3 app routes — news/sentiment/backtest/paper-alerts (#572-#574) (#950)
+8fb2d3df7899e8977ca4b19afe14500913449dd5,2026-07-20T09:47:49-07:00,False,True,True,feat(pi/analytics): alert-rule engine — 6 trigger types (#571) (#949)
+b6ceb5da14ac0461b7fd58b7225bf7260479c4a9,2026-07-20T08:41:40-07:00,False,True,True,feat(pi/analytics): sentiment rollup — weighted analyst + PT upside (#570) (#947)
+e1f4523ccd526e766539d1304cf1228be44cb062,2026-07-20T07:38:26-07:00,False,True,True,chore(pi/data): P0 data-layer runtime audit for #513-#525 (#944)
+b5580d62f14b0b1572bdd679936f636c1ba9924f,2026-07-20T07:32:49-07:00,False,True,True,chore: drop unused 'field' import (#935 iter2)
+c40162402e88c0e244c09c6f9aa0ec55b39ef030,2026-07-20T07:30:19-07:00,False,True,True,feat(pi/testing): Brinson-Fachler synthetic fixtures + oracle (#935 + closes #559)
+5c5908d300afcbddcf3bdc0b847dbdae16bb25b7,2026-07-20T01:09:29-07:00,False,True,True,feat(pi/paper): fills v1 wire types — stop/stop_limit/trailing_stop + IOC/FOK (#544) (#942)
+2a9a929cb1f484427ff319d663dd24afa1d00bf6,2026-07-20T01:06:18-07:00,False,True,True,feat(pi/paper): per-account single-writer lock + race stress tests (#547) (#941)
+9445dc01c7925adeb2b4544eb8331d1deb5ffbb9,2026-07-20T00:57:11-07:00,False,True,True,test(pi/paper): cross-account isolation audit — SEV-1 gate (#546) (#940)
+c074b484540e38001f2a2ffdbe58be7eb2f68de8,2026-07-20T00:56:23-07:00,False,True,True,fix(pi/paper): security hardening — update_cash primitive + unstamped-quote reject (#939)
+c9131c904083e47db719551c088e94ea55855cf4,2026-07-20T00:49:00-07:00,False,True,True,fix(pi/paper): remove conflict markers from __init__.py — EMERGENCY (#938)
+040388b957edd604ce4195ffa951bd5d67d3db8f,2026-07-20T00:46:36-07:00,False,True,True,feat(pi/paper): append-only ledger + deterministic replay (#545) (#937)
+131dbb0804ecfd1242bd7c0e3046eeaa59c09955,2026-07-20T00:42:57-07:00,False,True,True,feat(pi/paper): v0 fill engine — market + limit + slippage + freshness (#563) (#936)
+e79782f6081a97639ce20a9a67a423a5bb2d3347,2026-07-20T00:25:41-07:00,False,True,True,feat(pi/paper): AccountStore + InMemoryAccountStore (#562) (#933)
+c9a6f351a22829bf1c440038e8cdf6aa39e138e9,2026-07-20T00:11:24-07:00,False,True,True,feat(pi/paper): shared cost-basis + P&L math (#548) (#934)
+2aa63afbaaa49beb0a8305f3872aa3a52a2d1f15,2026-07-20T00:04:19-07:00,False,True,True,"feat(pi/attribution): Brinson-Fachler compute (partial ship, #559) (#932)"
+dd2cd01fe4bfd10a227a44c939b371d3899b3fb5,2026-07-19T19:17:26-07:00,False,True,True,feat(pi/data): index-constituent history refresh + point-in-time (#543) (#931)
+db2e6bf5bda0b1f6568c84a94e6372be8fe00b57,2026-07-19T19:11:18-07:00,False,True,True,feat(pi/handoff): backtest export contract (#561) (#929)
+7382ea08820d9f4c73a853d39ee3435b7ed80766,2026-07-19T19:06:29-07:00,False,True,True,feat(pi/attribution): waterfall response shape + sum invariant (#560) (#928)
+70758feac41511be6c64dfe627d4d53e9d58c61c,2026-07-19T18:53:37-07:00,False,True,True,chore(fmp_cached): mypy hygiene pass — first-order type-ignores (#909) (#924)
+0f6dcd47319fb54d93b1d3ce58765c5d29d238ac,2026-07-19T18:52:24-07:00,False,True,True,feat(pi/whatif): short-position support + signed rollups (#904) (#927)
+80958d207f8ebff4dfa2a9531f198504b5f309f2,2026-07-19T18:43:11-07:00,False,True,True,feat(pi/whatif): cash line + funding-mode support (#903) (#926)
+4744c1666adef3bd90489b7fee27eeeadf7d7f31,2026-07-19T18:33:49-07:00,False,True,True,chore(audit): fmp_cached coverage across P0 Data-Layer clusters (#827) (#925)
+bdbe16a8da746f922ab4928aba52c5de872814eb,2026-07-19T18:28:51-07:00,False,True,True,chore(audit): TradingView 31-indicator coverage on portfolio_basket (#780) (#922)
+981e257200af817350658241ef8d438b84fdb573,2026-07-19T18:00:00-07:00,False,True,True,docs(memories): route-cadence lessons from portfolio-intel session (2026-07-20)
+3c6508694c6f99a75bfebea509b5705185e8cb02,2026-07-19T17:35:16-07:00,False,True,True,feat(portfolio-intel): /portfolio_intel/smart_money.rollup route (#527)
+37c6dced820a9fca9c691f33befe04e270759ae6,2026-07-19T17:26:16-07:00,False,True,True,feat(portfolio-intel): /portfolio_intel/events.timeline route (#542)
+34744c380bae92f3c77a790cebff10a280282d23,2026-07-19T17:16:18-07:00,False,True,True,feat(portfolio-intel): /portfolio_intel/risk.metrics + .concentration routes (#528)
+6f3a0c553eea59d70daa259d1df5df88fbc0f977,2026-07-19T16:16:05-07:00,False,True,True,feat(portfolio-intel): /portfolio_intel/xray route + basket look-through (#541)
+f08436c25466cb12ae9aed859227091d4a55026d,2026-07-19T15:28:03-07:00,False,True,True,feat(portfolio-intel): unblock EtfHoldings for SPY + DIA + fix SSGA parser normalize bug (#512)
+2671e895e450c75dc5248d0372522f890d3dd3e9,2026-07-19T14:38:09-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into portfolio
+09b5a30b573e87153c7e74dadb15c6970cbcd36a,2026-07-19T13:59:41-07:00,False,True,True,fix(cftc): null-safe record parsing in build_choices (closes #902) (#907)
+e342e3ffbd01a70778e8cb4f4b6503120eb2785f,2026-07-19T11:23:55-07:00,False,True,True,feat(portfolio-intel): stateless What-If diff engine (#558)
+8340e612477c2323a57fe643751a0fb3a47f03ac,2026-07-19T07:57:30-07:00,False,True,True,docs(memories): session-close summary 2026-07-19 (29 Done / 71 Todo)
+7da7aaf2a6a2d60861337383461131d8f2f2c4ec,2026-07-19T07:56:07-07:00,True,True,True,Merge pull request #901 from prajoria/feat/pi-app/risk-metrics-var-contribution-gh-539
+292fd3f0004fd3e4a4aa623cef23d65d681bf02f,2026-07-19T07:55:34-07:00,True,True,True,Merge pull request #899 from prajoria/feat/pi-app/events-smartmoney-analytics-gh-537
+a3d4d16d0656bec51995d02adbf1742e7f9c943d,2026-07-19T07:51:19-07:00,False,True,True,"feat(portfolio-intel): risk metrics + VaR contribution (#539, #540)"
+7106f7ac1d943f82208b739da692b43b63d7a264,2026-07-19T07:49:25-07:00,False,True,True,fix(fmp_trading): refuse symlink at write target before unlink (closes #896) (#900)
+4a3e11361e642d7c1cf34e421f5a395edc6ae73c,2026-07-19T07:48:28-07:00,False,True,True,"feat(portfolio-intel): Event Calendar merge + Smart-Money aggregator (#537, #538)"
+ac6e6d290ea4f65d7d46f0513c042cd2273d9f5d,2026-07-19T07:47:01-07:00,True,True,True,Merge pull request #897 from prajoria/feat/pi-app/xray-lookthrough-rollups-hhi-gh-526
+bea0c5be87959f531ac903bf796608ab0ac4e77a,2026-07-19T07:46:55-07:00,False,True,True,fix(fmp_trading): also pre-install openbb-core from local tree (closes #894) (#898)
+c3dbbc6cac9dceea83b10101d058b1176556a77d,2026-07-19T07:45:15-07:00,False,True,True,"feat(portfolio-intel): X-Ray look-through + rollups + HHI concentration (#526, #535, #536)"
+66714e3b5dab9b26a5450149d5790f306a76f664,2026-07-19T07:36:42-07:00,False,True,True,docs(memories): autopilot batch 2026-07-19 (cycles 9-12) shipped
+65d6484bea756588f9779136910fb293094ef91e,2026-07-19T07:35:07-07:00,True,True,True,Merge pull request #893 from prajoria/feat/pi-app/simple-fill-model-broker-protocol-gh-892
+a64ad76f67472311ad1d85fcb38146ddae9443f0,2026-07-19T07:33:47-07:00,False,True,True,feat(portfolio-intel): SimpleFillModel implementing openbb_backtest Broker Protocol (#892)
+3946bbeb983e2bc6b09486f35929282ea0682025,2026-07-19T07:28:19-07:00,True,True,True,Merge pull request #891 from prajoria/feat/pi-ops/local-deps-fork-extensions-gh-876
+b76009da09f2266a11e592b346165f6aee4a48a6,2026-07-19T07:26:44-07:00,False,True,True,chore(dev-install): add 4 fork-only extensions to LOCAL_DEPS (#876)
+10ee38efa4c348c3204569ce7b1e42034d02d8c2,2026-07-19T07:25:27-07:00,True,True,True,Merge pull request #890 from prajoria/feat/pi-ops/auto-close-on-portfolio-merge-gh-847
+1810d9ddc4f8dbc67a478cce126cf063d7ba3948,2026-07-19T07:24:01-07:00,False,True,True,ci(portfolio-intel): auto-close #NN cited in merge commits on portfolio push (#847)
+543b75ea16865ccbee9e6a60eefbaf3c02f494f1,2026-07-19T07:21:42-07:00,True,True,True,Merge pull request #889 from prajoria/feat/pi-tools/testdata-generator-in-pe-gh-888
+333ac9107c9980774ea4e00c7bc6ea5c0b0b1b3b,2026-07-18T23:34:39-07:00,False,True,True,feat(portfolio_export): add pe-testdata generator + 7 round-trip smoke tests (#888)
+5db064a2261fae95598096eab9924303dfec0b34,2026-07-18T23:31:32-07:00,True,True,True,Merge pull request #887 from prajoria/feat/pi-ops/vendor-portfolio-export-gh-886
+3d84759b263553f4296465aac42923f0b00bafd8,2026-07-18T23:09:24-07:00,False,True,True,chore(vendor): black-format portfolio_export + exempt tools/ from platform lint (#886)
+431e22a8ec4995ca740ebd5d560bdf968ad69315,2026-07-18T23:06:14-07:00,False,True,True,fix(vendor): remove duplicate portfolio-export/ path — vendor targets openbb_platform/tools/ only (#886)
+6b9b0eae604c67725209f7b617578a9fcd59c25b,2026-07-18T23:05:40-07:00,False,True,True,feat(tools): vendor portfolio_export into openbb_platform/tools/ (#886)
+98b3ac6513ce7bee20b28d70ed6adc61183c15f2,2026-07-18T22:36:21-07:00,True,True,True,Merge pull request #885 from prajoria/feat/pi-app/fix-extension-about-nameerror-gh-849
+52fb625a84afe69d3befa0305158b9a4f2dbfd96,2026-07-18T12:28:56-07:00,False,True,True,fix(portfolio-intel): drop 'from __future__ import annotations' to unbreak about() codegen (#849)
+d5683fdf109ffdb41e209ccd277d1446c66ed720,2026-07-18T12:25:27-07:00,False,True,True,fix(fmp_trading): accept lazy-import as valid for agent guard (closes #871) (#884)
+640965a6e06abcd5f68a9d1b1bc0490d356614b4,2026-07-18T12:23:56-07:00,False,True,True,fix(fmp_trading): pre-install in-tree deps in architecture test (closes #870) (#883)
+6516a5c82153219f3d2d0c77dfae663b03abf66c,2026-07-18T12:23:04-07:00,False,True,True,fix(cftc): degrade build_choices on upstream failure so API boots (closes #874) (#882)
+082595d345d63e2af9d36687fe6faec913e211aa,2026-07-18T12:21:02-07:00,False,True,True,fix(fmp_trading): re-export OutputPathEscapesJail from reporting.errors (closes #868) (#881)
+f1c1fa5adafd5a3e210763495bf9bed91f4ae8c6,2026-07-18T12:19:27-07:00,False,True,True,fix(agents): swap asyncio.get_event_loop() for asyncio.run() on Py3.12 (closes #873) (#880)
+733e588e90422fb88df9527a30b825c38d1647ff,2026-07-18T12:18:38-07:00,False,True,True,fix(backtest): autouse fixture to clean up test-registered strategies (closes #869) (#879)
+c38e03978963ba59e79e46dad6358560676386ab,2026-07-18T12:17:08-07:00,False,True,True,fix(fmp_cached): add pytest.mark.asyncio module marker to 2 test files (closes #867) (#878)
+9b52b1ce66f5a6850464d2238bed3aa0d138667c,2026-07-18T12:13:59-07:00,False,True,True,fix(tests): skip path-based deps in extension version-match check (closes #872) (#877)
+5f964895dc29433427ca660e38d0dedb68f35574,2026-07-18T12:12:25-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into portfolio
+e0e8c1f30dc49b42074b99a696f7930ae2d7cb00,2026-07-18T11:59:18-07:00,False,True,True,docs(memories): cycle 6 (dev_install pip rewrite) + full test setup verify
+ab671c50d33c0de61a0cb8757fef5b508f21c76a,2026-07-18T11:58:32-07:00,True,True,True,Merge pull request #866 from prajoria/feat/pi-ops/dev-install-pip-based-gh-865
+6e01d0d52b0937fd54cce9af6390b613163416f2,2026-07-18T11:44:08-07:00,False,True,True,fix(pyproject): declare openbb-portfolio-intel in main pyproject (#865)
+9fd63ab89e6e6656740e298ed81dd593ab85fcdc,2026-07-18T11:15:37-07:00,False,True,True,style(dev-install): move noqa T201 onto the print line (#865)
+0e918e617d946bf98c7acc9fc79f02ae4fd93d9a,2026-07-18T11:13:55-07:00,False,True,True,style(dev-install): fix pylint C0415 + W0621 (#865)
+8307849843472f3530dfe07fc035ff061180ebcf,2026-07-18T11:11:48-07:00,False,True,True,style(dev-install): reformat long print line to satisfy black (#865)
+8d6cb23e16af72aca6dbc887f7582f0f4647d074,2026-07-18T11:09:47-07:00,False,True,True,fix(dev-install): rewrite as pip-based to actually populate fresh venvs (#865)
+4e945e650b5e7404db561cccb4337a773af9e861,2026-07-18T11:05:02-07:00,True,True,True,Merge pull request #858 from prajoria/feat/pi-ops/add-openbb-backtest-to-devinstall-gh-856
+7dab99843471c23711635eb551ebb31b7e69876f,2026-07-18T10:58:18-07:00,True,True,True,Merge branch 'portfolio' into feat/pi-ops/add-openbb-backtest-to-devinstall-gh-856
+d5205e2421d2c1aa913c50c4faeb19114e9df011,2026-07-18T10:58:18-07:00,False,True,True,revert(dev-install): drop dev_install.py change — poetry path is no-op in fresh pip venvs
+da1f497cf0903876b52364725118887adec61270,2026-07-18T10:04:40-07:00,False,True,True,"fix(fmp_trading): doctor pings surviving cache helper, not ghost ping_cache (closes #861) (#864)"
+857986d553fb271a52ab5507fbb88ce5a75bab34,2026-07-18T10:00:13-07:00,False,True,True,fix(tests): repair 2 broken imports under --import-mode=importlib (closes #860) (#863)
+43f709a34d58acac710c36439e074ffa7865fed3,2026-07-18T09:50:31-07:00,False,True,True,fix(core): add missing __init__.py to api/ + api/auth/ (closes #859) (#862)
+ed2f542e0a86ba0597213b106edfb00e13901e6b,2026-07-18T09:25:20-07:00,False,True,True,docs(env): document .venv_portfolio as the isolated portfolio-work env
+ed9858cde4ff438d017c268a02e35d05e28ec794,2026-07-18T09:02:47-07:00,False,True,True,chore(dev-install): add openbb-backtest + openbb-portfolio-intel to sweep (#856)
+ddf408f150f6d053913478347203ed48965b35f2,2026-07-18T09:01:07-07:00,True,True,True,Merge pull request #857 from prajoria/feat/pi-ops/closes-syntax-tighten-prose-gh-851
+6fda44756d018fcf28c3c067c0379699f126ba3d,2026-07-18T08:59:40-07:00,False,True,True,ci(portfolio-intel): tighten closes-syntax heuristic on backticked prose (#851)
+452cb3716658951757b33b9317df58cecbd26680,2026-07-17T23:06:56-07:00,False,True,True,docs(memories): develop absorb #3 + backtest verify + #498 resolution
+2aac84c211da8912fc19efcef71e1271d239855e,2026-07-17T23:05:13-07:00,False,True,True,test(financialtoolkit): add integration tests for 25 uncovered routes (closes #813) (#855)
+da4ac3079a808812448993cf805c705bb0e6b5a7,2026-07-17T23:03:57-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into portfolio
+acbe00aa42b752c2e6eaa060e93d412fe89dda7c,2026-07-17T20:03:49-07:00,False,True,True,docs(memories): PR #850 shipped — #802 entry-point crash fixed
+c1d5d6464b062eb22671272bc3482d82573963bb,2026-07-17T20:03:17-07:00,True,True,True,Merge pull request #850 from prajoria/feat/pi-ops/portfolio-intel-entry-point-gh-802
+563b5feb28198ebc982abb835da0df3f474a97da,2026-07-17T19:53:37-07:00,False,True,True,fix(sec): record 4 missing VCR cassettes; skip broken ownership_changes (closes #753) (#853)
+cfef57e24afbe4db58e20b1ea750754d156e4da3,2026-07-17T19:43:28-07:00,False,True,True,fix(fmp): re-record test_fmp_etf_holdings_fetcher cassette (closes #751) (#852)
+adc739fcb0ef657cb2c448866f74b68d563db5c8,2026-07-17T19:42:15-07:00,False,True,True,fix(portfolio-intel): guard against None exc.name in _include_subrouters (#802)
+1e59073afb9c3d38eef6321bda0fb6aebf9a2b3b,2026-07-17T19:38:10-07:00,False,True,True,fix(portfolio-intel): accept ancestor-missing in _include_subrouters guard (#802)
+863ac93b8dd07f23c96927e485f10be7d40d1c1d,2026-07-17T19:33:19-07:00,False,True,True,docs(memories): PR #837 shipped + GH default-branch auto-close finding
+99e41c5e37e429cfcc4aea516800fd44c3a16086,2026-07-17T17:23:36-07:00,False,True,True,fix(fmp_cached): realign test_fmp_cached_fetchers with current API (closes #784) (#846)
+b2304854379e3a4ca6e5f360bd94f84e0816bdc0,2026-07-17T17:22:39-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into portfolio
+a07ca84310956d74259a00895a2023fae5108149,2026-07-17T17:21:04-07:00,True,True,True,Merge pull request #837 from prajoria/feat/pi-ops/enforce-closes-syntax-gh-826
+4d19564c9f06785af42bf21d39ac3ec3580b47a5,2026-07-16T18:11:31-07:00,False,True,True,fix(fmp_cached): record VCR cassettes + fix date-in-URL bug (closes #785) (#845)
+23191a5e4329630c4185900ae4630d4b68a021b7,2026-07-16T17:20:31-07:00,False,True,True,fix(agents): mark ADK-dependent tests requires_agents (closes #818) (#843)
+b0592232ff721d1e4bc61f64120db51ed8295a7e,2026-07-16T17:18:34-07:00,False,True,True,fix(mcp_server): update tests for bundled system_prompt + server_prompts.json (closes #822) (#842)
+6ba8ec8d07dad18931018a269d6c469b78b2b121,2026-07-16T17:09:55-07:00,False,True,True,fix(platform_api): use PurePosixPath in unix-absolute-path test (closes #825) (#841)
+3752813f720a5c7f9a7bbfce571862b8defa9fde,2026-07-16T17:07:22-07:00,False,True,True,fix(backtest): importorskip empyrical in optional-import test (closes #819) (#840)
+1ad3f289fa0d7e39682e9b559591c768e02dcea1,2026-07-16T17:06:19-07:00,False,True,True,fix(core): remove deferred annotations from routers — restore app.openapi() (#824) (#839)
+af8db2dcf3af9c3d525c171661bced0d0ffe399d,2026-07-16T16:59:12-07:00,False,True,True,ci(portfolio-intel): add SME to codespell allowlist (unblocks CI)
+49ba8ecc867e615a9b07073d0a5f2d9e30a38b41,2026-07-16T16:56:17-07:00,False,True,True,ci(portfolio-intel): enforce Closes #NN syntax on feat/pi-* PRs (#826)
+d61d4f8c9a237a6328e213d346502152ea4bb3a5,2026-07-16T16:33:27-07:00,False,True,True,fix(fmp_cached): use obb.equity (not removed obb.provider) in import regression test (#836)
+b38d0d8c4cf6ab1614efe51b4f013d2ff6ea0a8b,2026-07-16T15:52:52-07:00,False,True,True,fix(fmp_trading): implement all 4 design decisions from doc — closes #821 (#835)
+842a5bb7cec6159c78db3257fbe6e16e8cea0dd1,2026-07-16T15:30:31-07:00,False,True,True,docs(design-questions): 4 open decisions for remaining fmp_trading tests (#821) (#834)
+4bfb4e902b649e5f2019f5c790fb960ebb6846c0,2026-07-16T14:43:21-07:00,False,True,True,fix(fmp_trading): risk_clamp payload shape + xlsx_builder .tmp extension (#821) (#833)
+bed150127531d2a17633ded0345a2930f02501b5,2026-07-16T14:39:15-07:00,False,True,True,fix(fmp_trading): V + T-partial signal wiring + strict-mode edge cases (#821) (#832)
+a080f4615de0d35df7df8da68969073d5c1f3cb4,2026-07-16T14:33:23-07:00,False,True,True,fix(fmp_trading): replay wire-protocol type + TestRunTick fixture stubs (#821) (#831)
+ce8d632a9dc8da883da1adcd1aaef269d809acb6,2026-07-16T14:25:46-07:00,False,True,True,"fix(fmp_trading): 5 clusters — models.errors, PathTraversal, missing imports, tz-guard (#821) (#830)"
+20a49a3a4346e81cd5c88b699b61a6e93a9c1501,2026-07-16T14:19:17-07:00,False,True,True,fix(fmp_trading): make Quote trade-tape fields + TickData.session_status optional (#821 cluster C) (#829)
+dee2564a2933c69130dbd7b1c0ddc65574bf2f0f,2026-07-16T13:06:51-07:00,False,True,True,fix(techtrade): declare pandas-ta-classic as runtime dep (closes #817) (#828)
+dffc68ebfdaf980c234f17f4d6ddc0a0f159c1dc,2026-07-16T02:07:23-07:00,False,True,True,docs(portfolio): fix Stage-4 memory count (10 Done / 82 Todo of 92)
+869c5b70254a3369eb716bd7087d9cd774795cc0,2026-07-16T02:06:57-07:00,False,True,True,docs(portfolio): Stage 4 tracker-hygiene pass complete
+876cc104d5fb7c55fb115857e4b0e53ea27add7e,2026-07-16T02:00:25-07:00,False,True,True,docs(portfolio): Project #4 tracker-sync audit + Nadia's M1-M4 roadmap
+e481263bbaf10333e1ec16cce4bbf5cb7f1b844b,2026-07-16T01:48:26-07:00,False,True,True,docs(portfolio): softened provider rule + planning-approach doc
+63ded32f2d7cb4960328f3629a31b30612e767bc,2026-07-16T00:35:48-07:00,False,True,True,"docs(openbb-dev-cycle): align skill with retired-bd, portfolio-branch, gh-primary protocol"
+79818d75e329b9fb7a290ccfa6c49a45e0000b1f,2026-07-16T00:02:45-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into portfolio
+a96c84af217bebe177b4a2163987fdf439297296,2026-07-16T00:02:21-07:00,False,True,True,docs(portfolio): record Project #4 (Portfolio Intelligence Engine) ↔ prajoria/OpenBB:portfolio mapping and workflow rules
+6fe2be9214506e2db0fe63ea4ff305ae997672a9,2026-07-15T23:39:13-07:00,False,True,True,fix(ci): restore Unit test Platform CI — exclude vendored + fix fixture imports (#815)
+6ae7235a35fc34ba856975810c55d1ca8135290a,2026-07-15T23:21:00-07:00,False,True,True,fix(techtrade tests): use relative imports for tests.fixtures (unblock CI) (#814)
+c50704291a630ed84b0f5c3c78c0b67b73cbea53,2026-07-15T23:11:33-07:00,False,True,True,feat(techtrade): add examples= + integration tests for 11 routes across 6 router files (closes #806) (#811)
+8fe8e40929339e06d6f75f39339906f00184ec7d,2026-07-15T23:11:30-07:00,False,True,True,feat(fmp_trading): add examples= + integration tests for 3 routes (closes #804) (#810)
+e8392ef5de2956cd841ead89e7b88da63e0af74a,2026-07-15T23:11:26-07:00,False,True,True,feat(regime): add examples= for about + integration tests for both routes (closes #805) (#809)
+6c481a1262e3d6cf9563ec17089cabb1f654d12a,2026-07-15T23:11:23-07:00,False,True,True,feat(backtest): add examples= + integration tests for all 11 routes (closes #803) (#808)
+9d5537957ed1f43e3fd8a965898511a80eb0fead,2026-07-15T23:11:05-07:00,False,True,True,fix(extensions/tests): exempt fmp_cached from provider allowlist gate (closes #807) (#812)
+a509048b90edcf2b0cf89ecd5ac316f3d19bb3dc,2026-07-15T23:11:02-07:00,False,True,True,fix(fmp_cached tests): satisfy Fetcher subclass contract in TTLWrapper Generic tests (#801)
+01983fb686fcffe2f9ef8a591e16b258cf3ae4b8,2026-07-15T23:10:59-07:00,False,True,True,fix(fmp_cached tests): lowercase expected substring in SQL assertion (Cat 4) (#800)
+bcaedd2794c371c59de67464fc1d489c73a090ee,2026-07-15T23:10:56-07:00,False,True,True,"fix(fmp_cached tests): skip test_flattened_cache — it's a manual demo, not a test (#799)"
+95d9a8f3089d6705c42470f8ab332c6df9c32c63,2026-07-15T23:10:53-07:00,False,True,True,fix(fmp_cached tests): stop purging sys.modules in import-regression test (#798)
+842a1dea5c28806b6e6a09bb6b9f9e911b765a75,2026-07-15T23:10:49-07:00,False,True,True,fix(fmp_cached): route TTL wrapper DB calls through module namespace (#793) (#797)
+7fc766c99f015c805504031c1a393d4e32352cac,2026-07-15T23:10:46-07:00,False,True,True,fix(dev-env): unblock fresh venv install + Windows router test collection (#791)
+d9ae5803ab8376ed2c984bdadc51377720054725,2026-07-14T23:32:07-07:00,False,True,True,test(fmp_cached): mark test_fmp_cached_fetchers as integration to stop cross-test pollution (#785) (#789)
+e573100e36ccff44bc783ab7124f9b836a4a00de,2026-07-14T23:21:40-07:00,False,True,True,"test(fmp_cached): repair mock drift — replace_rows, _fmp_record year/quarter, mock_cache signature (#784, partial) (#788)"
+ba66a06d15cfcf6c6bb40ab3352429d7addbb087,2026-07-14T23:16:31-07:00,False,True,True,test(fmp_cached): update _get_cached_institutional call sites for year/quarter kwargs (#783) (#787)
+ac6e0c4d1867577dbe6b820d49c08a46e888ba26,2026-07-14T23:15:12-07:00,False,True,True,test(fmp_cached): mark 3 integration test files with pytestmark = pytest.mark.integration (#782) (#786)
+6b35c4f2aef0fc73b14d543f4e749a958e9e982a,2026-07-14T22:50:52-07:00,False,True,True,fix(fmp_cached): pre-check financial_ratios UNIQUE index to eliminate 1061 ERROR log noise (#776) (#779)
+78d4658d018c470103b05fa2d0d6a6f749dccf03,2026-07-14T22:47:11-07:00,False,True,True,"fix(fmp_cached): setup_database create_cache_tables is sync, not async (#775) (#778)"
+3a7b6b20697afb8ee21a36e3dbed93bdb00dfc49,2026-07-14T22:45:04-07:00,False,True,True,fix(fmp_cached): guard empty-symbols in aftermarket_quote._fetch_fresh_rows (#774) (#777)
+67750a0cbf28f33040204e127c3aa2380db29656,2026-07-14T22:38:32-07:00,False,True,True,"docs(claude-md): retire bd, use GitHub Issues only across all branches (#773)"
+341659c5e705a11bae2d85a09cb1eadaf9ef1901,2026-07-14T22:31:52-07:00,False,True,True,docs(fmp_cached): add MySQL setup guide + troubleshooting (refs #771) (#772)
+7a29039334ef36113ce735cd9cd067df5d4926c1,2026-07-14T21:22:02-07:00,False,True,True,fix(tests): tradingeconomics bad providers.X import (same class as #763) (#770)
+4adebdae34fc7d54527354c683469963f365c934,2026-07-14T18:07:45-07:00,False,True,True,fix(pyproject): PR #766 review follow-ups — alpha sort + path-existence guard (#769)
+a349772e38889293d756a587379b3652d16a0abf,2026-07-14T17:53:18-07:00,False,True,True,test(infra): --import-mode=importlib to fix tests-namespace collisions (#761)
+85112a544cf9673573900d6e9d113f28a6f188f1,2026-07-14T17:52:47-07:00,False,True,True,fix(tests): correct broken `extensions.X` imports (closes #763) (#768)
+0f514ff2a67aa9f24e7c65c4c8408d965527a4f8,2026-07-14T09:52:20-07:00,False,True,True,fix(pyproject): declare 7 fork-specific extensions + guard test (env consistency root cause) (#766)
+05fbc8920aa2b9b498e5297577cbde7b518a316d,2026-07-13T21:36:41-07:00,False,True,True,"fix(tests): resolve #754 + #744 + review fixes (aliases, guards, comments) (#758)"
+b2b8211b69ce4a4440ab0aaf79d708f6d336dd3d,2026-07-13T21:29:48-07:00,False,True,True,fix(copilot-api): ASCII proxy banner + retry; harden proxy launcher (#760)
+a26394956fc2605d8414d65d80132859affa9f3e,2026-07-13T12:00:24-07:00,False,True,True,docs(hygiene): Phase C — codify gh-primary coordination protocol (#737)
+d17bd471794026304af30ae1cc9eb6919ec1167f,2026-07-13T11:59:07-07:00,False,True,True,feat(portfolio-intel): shared .env smoke test (bd-qy83.1.9) (#474)
+7a24b20d5412f7da419b670de9da798c56a49442,2026-07-13T11:58:03-07:00,False,True,True,ci(portfolio-intel): PR template + base-branch guard for feat/pi-* (bd-qy83.1.2) (#471)
+addcfa8c7077cf52d015f4bec73f23fe0a958bb5,2026-07-13T11:56:20-07:00,False,True,True,test(portfolio-intel): QA SEV-1 cross-account isolation spec (pending) (bd-qy83.1.8) (#473)
+b1aaeba1d3c86249ab3253a124f38d597211ca73,2026-07-13T11:56:11-07:00,False,True,True,feat(portfolio-intel): Playwright E2E harness for widget tests (bd-qy83.1.7) (#468)
+6c22341ed34bc47c19e9ec702efd461fe9d42acb,2026-07-13T11:56:06-07:00,False,True,True,feat(portfolio-intel): draft paper_* migration + structural tests (bd-qy83.1.5) (#467)
+ab884351ad26aa3f2c04479a9f33ea2cd5ceb8ad,2026-07-13T11:56:01-07:00,False,True,True,feat(portfolio-intel): scaffold openbb-portfolio-intel extension (bd-qy83.1.4) (#466)
+568604f2b603e474e392873cb0e39dbf05227573,2026-07-13T11:55:56-07:00,False,True,True,fix(fmp_cached): resolve cache_schema.py used-before-defined NameError (#487)
+59da53f8cf3fedf58ff3dbae6b45f97f757f502a,2026-07-13T11:10:46-07:00,False,True,True,test(fmp_cached): regression tests for cache_schema module import (#484)
+a4f1c421a4a1652e3920fdd9824aeabfdd69146c,2026-07-13T11:10:41-07:00,False,True,True,fix(platform): narrow python range to <3.14 to unblock dev_install.py -e (#483)
+a60c70d662fd3d7342f688cbe2548c654c3f5781,2026-07-13T11:10:35-07:00,False,True,True,docs(skills): update openbb-dev-cycle to v3 (GitHub Issues as primary tracker) (#736)
+b741e96b4280b3f3ae5bcbc1d56c37bf2c8882ca,2026-07-12T22:57:04-07:00,False,True,True,docs(hygiene): bd → GitHub Issues migration plan (#489)
+adde3648bc7bf031acec133d8fef194a0b92b78b,2026-07-12T22:56:30-07:00,False,True,True,"chore(dev-cycle): GitHub Issues primary, bd fallback, TaskCreate ephemeral (#490)"
+c07e07571de9d711b158e6cb885782267de87791,2026-07-11T18:03:45-07:00,True,True,True,Merge pull request #470 from prajoria/pr/develop/sync-trading_technicals
+335ed36cb0b91a73a6da86607c691c836a79b1f6,2026-07-11T17:55:32-07:00,False,True,True,style(pr#470): black-format 12 diff files for CI General Code Linting
+76c35a1ab479f036f9c33732404071a354f5c207,2026-07-11T17:53:14-07:00,False,True,True,fix(lint): skip Analysis/docs/Full Research.md in codespell
+3f061be3ea8c1652fe82bc4f41368570ab653d9c,2026-07-11T17:51:21-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into pr/develop/sync-trading_technicals
+25ce0efe940444ddaaa07c6019a149978ce00878,2026-07-11T17:42:19-07:00,False,True,True,fix(lint): resolve codespell + markdown-lint CI failures on PR #470
+7c0824cf9e4118fd9011d06aa67c3911ab58f954,2026-07-11T17:34:38-07:00,True,True,True,Merge remote-tracking branch 'origin/develop' into pr/develop/sync-trading_technicals
+3ee464b56255b2f1c3135ed2796865e3db2f037d,2026-07-11T17:32:41-07:00,False,True,True,feat(fmp_trading): widen TickEvent.payload to carry quotes (bd-9nd.12) (#479)
+dfbdfcc2a1ec446018851e6b756a7d8f3dfebad1,2026-07-11T17:31:14-07:00,False,True,True,refactor(fmp_trading): tick_loop accepts injected DataProvider (bd-9nd.9) (#478)
+f52e3e184faf25cad980fd28642039a557324139,2026-07-11T17:31:03-07:00,False,True,True,"chore(fmp_trading): aggregate clamp events + WARN on Decimal parse (bd-9nd.10, bd-9nd.11) (#477)"
+b00ca890313a855197e029102b7dc5570d722919,2026-07-11T17:30:53-07:00,False,True,True,fix(fmp_trading): TOCTOU + symlink hardening for report writes (bd-9nd.8) (#476)
+a2fa780f2d1f7bdba9e5734e268586f8bca8b7c5,2026-07-11T17:17:13-07:00,False,True,True,fix(pr#470): resolve all 12 review findings (C1-C5 + I1-I10)
+2c140e21706f6b7b7365603226f7d91ee1c2eeba,2026-07-11T16:15:55-07:00,True,True,True,merge(trading_technicals -> develop): sync 41 commits of confluence-panel + Analysis-hardening + regime + provider work
+5e1b1f274dcb12d3eb1897ab4d5b737be530f8ff,2026-07-11T10:12:58-07:00,True,True,True,merge(develop): pull 54 upstream commits including bd-c4h fmp_cached import fixes
+eeaaaf383783ce59b9fd459a6a7325ae921e7d47,2026-07-11T10:05:17-07:00,True,True,True,Merge pull request #464 from prajoria/fix/fmp-cached-import-breakage
+d0ed898f4efffac08470a162ab96dd896e6d252d,2026-07-11T10:04:30-07:00,False,True,True,docs(portfolio-intel): PRD + execution plan + bd batch scripts
+a8d6fc71f06656fc9a8bf3f1a39f75bd1b0b8b3d,2026-07-11T10:04:27-07:00,False,True,True,fix(fmp_cached): review-round-2 hardening on bd-c4h TTL-wrapper fix (PR #464)
+d5d6d7d3f07466c14aadf54faeac996117549381,2026-07-11T10:00:35-07:00,False,True,True,fix(fmp_cached): FLATTENED_TABLES forward-ref + TTL wrapper Generic (bd-c4h)
+a32727c9d912786b4a60382ece0503621a0497f0,2026-07-10T23:38:21-07:00,True,True,True,Merge pull request #448 from prajoria/fmp_trading
+a7ce9c8d1e60fe875ecedf53fce93a05cb16cbe1,2026-07-10T23:38:05-07:00,False,True,True,docs(notebooks): refresh nb01 §4 techtrade engine for bd-luy + bd-hpxh state (#459)
+d5b946d0f4940511f1daa961eeb3ff7f7ed894ee,2026-07-10T23:37:35-07:00,False,True,True,fix(fmp_trading): 3 pre-merge review findings (PR #448 P1)
+d1fb91e00b52f4904790459a47a79dd3c30a07e3,2026-07-10T23:33:37-07:00,True,True,True,merge: bring develop into fmp_trading before merging PR #448
+7b2958d4d99d55a0082a78e4a4381df0043d908b,2026-07-10T23:27:42-07:00,False,True,True,docs+feat(fmp_trading): P5.4 CLI subcommands + README + config examples (#454)
+fbefc04c29c96d9d468d4712a182b629bcde9657,2026-07-10T23:26:44-07:00,True,True,True,merge(develop): pull 26 upstream fmp_cached/QC/techtrade fixes into trading_technicals
+711eca2200167a445ef2465e53527e14d56ee10f,2026-07-10T23:23:38-07:00,False,True,True,feat(fmp_trading): P5.3 real replay() + StubbedDataProvider + comparator (#453)
+5f729bcc5342c20490016027853669f73ce375b5,2026-07-10T23:21:28-07:00,False,True,True,feat(fmp_trading): P5.2 xlsx_builder + 3 security-review fixes (#452)
+41af52f2991d12c10542995501d31d9860c001f3,2026-07-10T23:18:03-07:00,False,True,True,feat(fmp_trading): P5.1 report(md/json/all) — MD + JSON + orchestrator (#451)
+9bb5ae9507f3cbc8ac75d16404c449ba9426e398,2026-07-10T23:15:02-07:00,False,True,True,docs(techtrade): confluence-panel-expansion Phase 4 docs (bd-znw) (#457)
+4411b82349475ffab2af8991243a1540244929cb,2026-07-10T23:14:38-07:00,False,True,True,feat(fmp_trading): P5.0 reporting.journal_reader + shared metrics helper (#450)
+b3e7f21e386dd9120ba0be70368efa9ceeb03a9a,2026-07-10T23:09:46-07:00,False,True,True,fix(plans): fold 4 P0 + 5 P1 + 6 P2 review findings into Phase 5 plan
+14e02db365c9c22429e008a4aebeb6362b1fea1a,2026-07-10T23:04:53-07:00,False,True,True,chore/feat: leaf-bead sweep — bd-vwl + bd-85w + bd-tnz (#456)
+a7ef106a82962dc4a3d680df6f37da07cba85ad0,2026-07-10T22:51:46-07:00,False,True,True,"docs(plans): Phase 5 implementation plan — 5 beads, drift-corrected"
+4138745e9d72a22dc765194c90150698c4b9a702,2026-07-10T22:36:55-07:00,False,True,True,feat(techtrade): configurable extended-vote allowlist — resolves bd-hpxh (#449)
+3d68f0be38712333764e9c5dff5205d7fa723dc3,2026-07-10T22:33:37-07:00,False,True,True,docs(specs): Phase 5 design spec — report() + replay() + CLI polish
+d05b5dba2ab114ec7cb5006b0bdcf26de0b015b3,2026-07-10T22:10:50-07:00,False,True,True,fix(fmp_trading): P3.3 security-review round 3 — allowlist + sanitizer
+3b27a5282edb453042278eae989fc4f8c7a7d67a,2026-07-10T22:06:20-07:00,False,True,True,feat(fmp_trading): P3.3 stdio MCP server + core-unchanged tests + AC-1-ext E2E + security fix (#446)
+a07ceff3c9edd67b94a8da9a28335ae6dbadfa5c,2026-07-10T22:03:04-07:00,False,True,True,fix(fmp_trading): 4 security-review findings on P3.1 pre_open
+890dfd0d61c576f83cc7d85bd9aac4d7f16ecaf8,2026-07-10T22:00:53-07:00,False,True,True,feat(fmp_trading): P3.2 PostCloseAgentTurn + Jinja narrator (#84) + EndOfDayReport (#445)
+10af229d83005f572e33777377fdab8ee32d7bcd,2026-07-10T21:58:55-07:00,False,True,True,feat(fmp_trading): P3.1 PreOpenAgentTurn + backend + all P0/P1 defenses (#444)
+7417dff3bd20c1be2064d1f3573e6b0aa5232bf4,2026-07-10T21:53:47-07:00,False,True,True,"fix(providers,techtrade): silent-failure fixes — bd-3ka + bd-5in + bd-udq (#447)"
+1db717570cb122f056cc4c5241d761e31ef34bae,2026-07-10T21:51:37-07:00,False,True,True,feat(fmp_trading): P3.0 state_store + fmp_trading_state MySQL table (#443)
+c1086656d16ba2503a44a768cbfa106126271ed4,2026-07-10T21:47:37-07:00,False,True,True,docs(plans): Phase 3 implementation plan — 4 beads (P3.0..P3.3)
+df93b33ed4af1253ba8e28d97ac017ab2cc905b1,2026-07-10T21:41:09-07:00,False,True,True,docs(specs): address Phase 3 review comments — 4 P0s + 6 P1s + 5 P2s
+276f3b3deccde5457d60f60dda5723aeff2c58fd,2026-07-10T21:28:42-07:00,False,True,True,fix(analysis): entry_rec ladder + tests — bd-3xq QC sweep (#441)
+cdfaf5cbec71d5445b6bfffb0dd2c86c0ee7a308,2026-07-10T21:23:55-07:00,False,True,True,docs(specs): D6 add MySQL-backed state persistence to Phase 3 design
+245b9497b6be010eadc717ad52ee3672927ad13d,2026-07-10T20:13:31-07:00,False,True,True,feat(techtrade): movers R7 rules + recorded fixtures (supersedes #325 post bd-lw3 merge) (#438)
+666fd3ee4d5fbbb9fe25cfeb6dca1d6e9d527fc4,2026-07-10T20:11:02-07:00,False,True,True,docs(specs): Phase 3 design spec — agent turns + MCP tool server
+cc931b1d288422c1aed026a871973c5202a5d9b1,2026-07-10T19:56:57-07:00,False,True,True,feat(techtrade): trend-family expansion — Aroon + Ichimoku (bd-luy)
+d0632b9d132a74fc1310b60d6517cb056e2b448a,2026-07-10T10:19:53-07:00,False,True,True,"test(fmp_trading): AC-1 end-to-end 6.5h simulated session (P2.7, #381)"
+5a1280375354764f19ac6b1ee6658f1f759a8a83,2026-07-10T10:18:48-07:00,False,True,True,fix(fmp_trading): tz-safety + dedup + partial-failure guards on flat-by-close (security review)
+a12a752b4007af38e68c7af3280bc280ea3f283e,2026-07-10T09:52:58-07:00,False,True,True,"test(fmp_trading): AC-5 no-look-ahead golden test at 5-min granularity (P2.6, #380)"
+7604198bf2c04fb1fe44a5541ac1416b4807bb76,2026-07-10T09:52:08-07:00,False,True,True,"feat(fmp_trading): flat-by-close state machine + AC-6 (P2.5, #379)"
+d76d13a6bf397646570ca2080828bf27740b5346,2026-07-10T08:18:50-07:00,False,True,True,"feat(fmp_trading): wire techtrade signals -> RiskManager -> PaperBroker (P2.4, #378)"
+ac838085a50e84e74b2ef0a7921d2420df8b6ac0,2026-07-10T07:43:23-07:00,False,True,True,"feat(fmp_trading): IntradaySession skeleton + tick loop (P2.3, #377)"
+0662081d08d05ec24ff71d8747f0b7a4d7bceb49,2026-07-09T23:29:50-07:00,False,True,True,"feat(fmp_cached): create_ttl_wrapper_class + migrate ExchangeMarketHours to 24h TTL (P2.2, #376)"
+2736dc61194bef4122bdb1f4d76f285fd0e6c197,2026-07-09T23:04:19-07:00,False,True,True,docs(plans): rewrite Phase 2 P2.1 + P2.2 against real fmp_cached primitives (#OpenBBTechnical-8v9)
+77cf8d76e13d79ee2d1b1c378728201dd5e9f4fe,2026-07-09T22:52:00-07:00,False,True,True,docs(plans): bd-luy trend family expansion plan (Aroon + Ichimoku)
+ef58dec12f367502b4d28f163c13f41d269a97c8,2026-07-09T21:45:56-07:00,False,True,True,fix(fmp_cached): wrap 6 aextract_data _store calls in try/except (bd-e3v8) (#428)
+aad5a4a27776d04faadbc8dfd36a9b83d72566dd,2026-07-09T21:41:28-07:00,False,True,True,"fix(fmp_cached): add UNIQUE(symbol,date,period) to financial_ratios (bd-hyzu) (#427)"
+74dbc46f39ef42a19267e897ea1788ccda77a2bf,2026-07-09T21:32:18-07:00,False,True,True,fix(fmp_cached): filter institutional_ownership cache reads by year/quarter (bd-uolr) (#426)
+c38a402020a8e293e125e260d6b973fe79ab1f55,2026-07-09T20:33:07-07:00,False,True,True,fix(fmp_cached): narrow credential-helper except from Exception to (JSON/OS/Unicode) (bd-gv1e) (#424)
+0ad2e3716dda6f0302b27a01d7ad0ad4651c8654,2026-07-09T20:00:35-07:00,False,True,True,feat(fmp_cached): P2.1 tier-1 caching for intraday bars + aftermarket-quote (#375)
+eb06442df5b5b6375b14af7ffcf32c3820c5308a,2026-07-09T19:55:42-07:00,False,True,True,fix(tools): autocommit=False + explicit txn wrap for Fidelity persist (bd-2650) (#422)
+efa2b5fd0eeef81380360486179f071302bf5cee,2026-07-09T19:46:36-07:00,False,True,True,test(techtrade): build_signals-layer classic-path golden invariance (bd-o4q) (#421)
+af3ab9ca6ce7e1df9f9e1abbca08d84c23113e20,2026-07-09T19:42:12-07:00,False,True,True,fix(fmp_cached): route 8 DELETE+INSERT sites through replace_rows (bd-n3sf) (#418)
+ab961498f917def331d14dd5e73ba7558f309c24,2026-07-08T23:07:51-07:00,False,True,True,feat(techtrade): confluence panel expansion foundation (bd-7ct) (#419)
+d5e4b936fb5e54329d741efb58b704a534283503,2026-07-08T22:55:59-07:00,False,True,True,feat(fmp-trading): P1.6 doctor() command + openbb-daytrade doctor CLI (#374)
+4a8945f4d0e3454e7da32f7d5b6cf14aefdd91fc,2026-07-08T22:54:08-07:00,False,True,True,feat(fmp-trading): P1.5 BandwidthMeter + monthly persistence + conservation-mode (#373)
+f932b31f070ce1c0796249561e9c5e0850c0b99c,2026-07-08T22:52:19-07:00,False,True,True,"feat(fmp-trading): P1.4/J4 typed JournalEvent subclasses (#372, #412)"
+60e1cc5784726d4ee9714388c9de5ff61f4468a3,2026-07-08T22:49:42-07:00,True,True,True,merge: bring journaling-primitive (J1-J3) into fmp_trading
+f279c176056ec5c1f3ddda183f3ced8791987019,2026-07-08T22:48:49-07:00,False,True,True,feat(fmp-trading): P1.3 RiskManager with 8 gates + tests (#371)
+66f0af886a526cc4546f5e8ce5a9f728020a0ead,2026-07-08T22:47:05-07:00,False,True,True,feat(fmp-trading): P1.2 core data models + round-trip tests (#370)
+b596c1df1e4b272ba77063f849590eaa1f613240,2026-07-08T22:41:43-07:00,False,True,True,feat(fmp-trading): P1.1 extension scaffold (#369)
+8200698b166e2fc05e5ab72c38df154797448bd1,2026-07-08T22:39:58-07:00,False,True,True,feat(core-journal): J3 replay() real body + AC-8 determinism golden (#411)
+e26f3f9a29e22a77f23eb137dbbaf1c1e2264fab,2026-07-08T22:38:36-07:00,False,True,True,feat(core-journal): J2 writer + reader real bodies (#410)
+c28e188b16d967a0510aee610ce5afa453c3a7bc,2026-07-08T22:36:44-07:00,False,True,True,feat(core-journal): J1 scaffold — openbb_core_journal sibling package (#409)
+f010d117519e6b84b4e11b3cebc7bb20e4dd40b3,2026-07-08T22:28:44-07:00,False,True,True,docs(dispositions): #91 3-tier fallback code — DROP with rationale (#368)
+c730c5b262d2d5388c87fee1adcad41f03c4c117,2026-07-08T22:15:18-07:00,False,True,True,fix(qc): close DDL-injection cluster with safe_identifier (bd-9loj) (#416)
+6691fc2eb6577af54f0542b50b8cf2d19b02f19b,2026-07-08T22:09:47-07:00,False,True,True,docs(plans): bd-7ct foundation PR implementation plan (14 steps)
+1994afb6370460fb50ac75f966a6a080f5b0d2f1,2026-07-08T22:08:57-07:00,False,True,True,feat(fmp_cached): register six Phase-0 intraday fetchers (tier-2) (#365)
+32ee423faea8f97469a6419dca57948ebb84f7a7,2026-07-08T22:07:38-07:00,False,True,True,feat(fmp): register six Phase-0 intraday fetchers in provider (#364)
+ff9dd3add41ca3d5334c1806407f537d2bcefebe,2026-07-08T22:05:47-07:00,False,True,True,feat(fmp): batch quote short + market hours + intraday indicators (#364)
+dd44aaf3c26c42f0281610f48caa010cea912092,2026-07-08T22:01:58-07:00,False,True,True,docs(specs): confluence panel expansion — design + §10 expert review + Option C rollout
+e3b5a4d3dd4a9f79ba64aa33ecefaa7f57583a75,2026-07-08T22:01:48-07:00,False,True,True,feat(fmp): intraday bars + aftermarket quote/trade fetchers (#364)
+e33d3ccdb9a6b135dcf0d676d00d77b4d8b9b4c5,2026-07-08T20:30:38-07:00,False,True,True,docs(notebooks): expand vote-attribution section with 3 reference tables
+81f8c2c42c3cb1e1f1e15b6d69e9530a7c5030c9,2026-07-08T18:47:12-07:00,False,True,True,docs(notebooks): enrich 03-single-position-deep-dive markdown for novice traders
+52d26e46cecf985d54ccdc0bb3af60c58595af02,2026-07-08T18:43:55-07:00,False,True,True,test(architecture): parity contract for fmp/fmp_cached (#366)
+64aad38d0e76ad219378538ca4209e355427eb60,2026-07-08T18:42:54-07:00,False,True,True,"test(architecture): CI guardrail against provider=""fmp"" in app code (#367)"
+0bedd361f958e30a8abd60fe4eb32cc9bb2fdf21,2026-07-08T18:42:07-07:00,False,True,True,feat(fmp_cached): add Tier-0 db-helpers safe_identifier + replace_rows (bd-kh08) (#414)
+6f8ff0d431040d45b82ff085bbfad12f5439aec8,2026-07-08T18:30:00-07:00,False,True,True,docs(notebooks): enrich markdown with educational context + Investopedia links
+995d78b42ad0e6266a7ddbe99a1cddfecbfc9374,2026-07-07T23:19:15-07:00,False,True,True,docs(core-journal): PRD — shared journaling + replay primitive
+4a9fdc1854da3d6fac7881a1a792d6ed0042c74c,2026-07-07T22:59:11-07:00,False,True,True,fix(techtrade): movers pct_change/volume 3-defect regression (bd-lw3) (#407)
+34ae7788d0c7cb5688fea6e5e48c2ac918f9fb1b,2026-07-07T22:51:46-07:00,False,True,True,"chore: update beads integration, hooks, gitignore, and dev-cycle skill"
+55768f2a372f11fb88cf08335c9f531709fbd674,2026-07-07T22:44:51-07:00,False,True,True,fix(analysis): weekly-trend recompute preserves hard-override composite caps (bd-29n) (#406)
+80d1b91e6cb48f05514cfb6e28774b928faf0ebd,2026-07-07T22:30:57-07:00,False,True,True,"feat(regime): obb.regime.detect router + REST + Workspace widget (B4, bd-0h2.16) (#405)"
+fb24204ef540283cff53149165a531d30a45e837,2026-07-07T22:27:14-07:00,False,True,True,"feat(analysis): wire MarketRegime into P7 composite + tranches (B2+B3, bd-0h2.14/15) + iter-1 fixes (#404)"
+1af628e70fda71e22dfcb12b6cea9751f9f331ba,2026-07-07T22:08:08-07:00,False,True,True,docs(fmp_trading): 6-phase implementation plans + 47-issue tracker mirror
+ff968150990c40ebac9a7ccb097b1ec34139a759,2026-07-07T22:08:05-07:00,False,True,True,"feat(regime): scaffold openbb-regime extension + MarketRegime detector (Phase B0+B1, bd-0h2.12/13) (#349)"
+8eecbdd2ce3c6aabd9c2a5a058105441b792aaca,2026-07-06T22:15:07-07:00,False,True,True,fix(fmp_cached): add refresh=True cache-bypass for financial_ratios (bd-ygoh) (#355)
+bc684a97966126d361b48e852316dc18460ea820,2026-07-06T22:02:09-07:00,False,True,True,fix(fmp_cached): raise on unexpected _fetch_from_fmp_api response shape (bd-wwvk) (#354)
+9f4c5db0b1024645b87ad030b6d2d46c586245ef,2026-07-06T21:54:36-07:00,False,True,True,fix(fmp_cached): severity-scaled logging for partial gap-fill (bd-lyzk) (#352)
+1c341722d5a0e5a5385165c997b7e7eb4befb9a2,2026-07-06T21:41:49-07:00,False,True,True,fix(fmp_cached): add intraday cache density guard to _detect_missing_ranges (bd-isvv) (#348)
+bfbaf2c6957e32bda08f95c92e326c9af5089040,2026-07-06T21:27:57-07:00,False,True,True,fix(fmp_cached): raise on DDL failure in create_all_flattened_tables + use logger (bd-jt4r) (#344)
+23c288cf42435c38970cfd973f336a7ddffd9fe8,2026-07-06T21:24:43-07:00,False,True,True,test(analysis): widen bd-zuw NaN-default treatment to _make_mock_p2/p3/p4/p5 (#346)
+96b2058e69a8878ef1f56d49635e86a6bd86ddb4,2026-07-06T21:22:35-07:00,False,True,True,fix(fmp_cached): raise-on-all-dropped + WARNING log in institutional_ownership.transform_data (bd-0bp1) (#345)
+56e161518408ccfad0b144f8236f5e59a31e2b6e,2026-07-06T21:19:40-07:00,False,True,True,feat(analysis): stop cap + trailing stop rules on Phase7Result — A8 (bd-0h2.11) (#343)
+17890a8ad0dd2a8576d2fca858a4df3beed751bf,2026-07-06T20:11:14-07:00,False,True,True,fix(fmp_cached): rebuild fetch_query via query.model_copy across 9 wrapper models (bd-t7p2) (#342)
+53892f7af31fb6e43f3b985e870451d0006d1d2c,2026-07-06T19:28:38-07:00,False,True,True,fix(tools): honor refresh_etf_holdings_cache --api-key at runtime (bd-2k86) (#341)
+8b5382b92dc420205516287b86d28e35a72e6566,2026-07-06T19:20:38-07:00,False,True,True,fix(techtrade): raise on non-locked ConfluenceWeights.volume override (bd-qu2h + bd-c2fr) (#340)
+e266f1fa693e30dbb00bbbee7131d98917488c4d,2026-07-06T19:17:53-07:00,False,True,True,feat(analysis): earnings_revision_3m_direction on Phase1Result — A7 (bd-0h2.10) (#337)
+20bd45ff7ad2c183b2499ab1e3514e15b0318530,2026-07-06T19:11:51-07:00,False,True,True,fix(backtest): honor config.engine when run(engine=) defaults to 'auto' (bd-q7u5) (#339)
+017f9b033bb6ab22413749b7aa70ab6fb83ea47f,2026-07-06T19:05:50-07:00,False,True,True,fix(analysis): raise on non-fmp_cached provider instead of warn (bd-omi) (#338)
+90b66290d47bc9e38851f19e917239ed4fc8d220,2026-07-06T18:50:18-07:00,False,True,True,test(analysis): _make_mock_p6 loud NaN defaults for unused scalars — bd-zuw (#336)
+26b99db1ef7b60bd3e85c7f646a3cd7256f02cc7,2026-07-06T18:50:15-07:00,False,True,True,docs(rules): codify R7.7-R7.11 — mutation testing + AST wiring + caplog patterns (#335)
+600f1de6cfdb81f42d012347fd054d6c6f82af33,2026-07-06T18:46:41-07:00,False,True,True,docs(fmp_trading): PRD — FMP day-trading automation extension
+8e72b202ccea14568ea8f9e3c74f631cbbdb62d6,2026-07-06T18:45:23-07:00,False,True,True,feat(analysis): momentum_accel_63d on Phase6Result — A6 (bd-0h2.9) (#331)
+03f7e7d070b2b76ecbb431dac06a483fdefedb9f,2026-07-06T18:31:00-07:00,False,True,True,fix(qc): validate + fully-cover interval/adjustment routing in fmp_cached (#334)
+409857a1441a561be11a6420dab9f941f9474089,2026-07-06T18:17:46-07:00,False,True,True,fix(qc): require explicit @mcp_tool decorator to expose MCP tools (#333)
+d499be3a26458869b636824a562eebcabcdcff3e,2026-07-06T18:02:11-07:00,False,True,True,fix(qc): sanitize MCP tool exceptions before returning to LLM (#332)
+e03b931c9d35b390828e913374c1daf9210cf6f6,2026-07-06T16:28:13-07:00,False,True,True,fix(qc): harden quant-scraper git argv against flag-injection + hangs (#330)
+97eaf5bfc690bd58ef21ed43cb14e0643d3be43c,2026-07-06T15:09:30-07:00,False,True,True,fix(qc): route FMP apikey via params= + redact HTTPError.url (#329)
+150b51c8f1266f2a4cbed4e65b6845854b06348b,2026-07-04T16:42:13-07:00,False,True,True,fix(qc): sandbox 3 path-traversal sites with safe_join (#327)
+b9b7ed3381158c62eeded4621e6243c54c43f241,2026-07-04T15:56:12-07:00,False,True,True,feat(qc): add safe_join + parse_currency Tier-0 helpers (#326)
+d8611986fc1499e1f781a345b8cce08f0aea97eb,2026-07-04T00:39:16-07:00,False,True,True,docs: fix markdown lint violations in AGENTS.md and CLAUDE.md
+2883508eec44ecaf7719c65fa41c6ffc4ed57f63,2026-07-03T17:20:30-07:00,False,True,True,"docs(notebooks): expand section 4 (Technical Setup) — indicator catalog, confluence rules, beginner explanations"
+3947c4b1b8f82393b9f38d27ae1373f1b1b2ff49,2026-07-03T02:59:19-07:00,False,True,True,fix(analysis): PR #304 iter-3 QC review — entry_rec default-off parity + rework NaN-PEG test to actually fire
+fc4781b14f4cc934c4988ed0ba1d0413b0c3ca7d,2026-07-03T02:44:46-07:00,False,True,True,fix(analysis): PR #304 iter-2 review — entry_rec coherence + peg_gate_str parity + NaN diagnostic + flag test derivation
+a72ea2f01daa7fa4678881e6192db1ff8d536290,2026-07-03T01:15:12-07:00,False,True,True,"fix(analysis): PR #304 review — flag PEG tightening, tighten tests, add combined-flags coverage"
+c3f588d571c7141e4593b1ced706cc8b8ded62ab,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): PEG ratio + Fair Value tightening — A5
+69498251696a9f862b7cb0df5ce2a63290390dcc,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): sector-adjusted WACC fallback behind use_sector_wacc flag — A4b
+ed1a34faabc73ac07561010d9f610a7efd3c270c,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): two-stage DCF fade behind use_two_stage_dcf flag — A4a
+1745f434dc14b0a74ca6a7738db7d58f668ce35f,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): vol_63d_trend classifier on Phase5Result — A3
+bac3e1cc01888b9eb7b8d0f2187e2bb05308bf84,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): kurtosis + skewness on Phase5Result — A2
+4fdba9a8b8cd99bf198c36b3e6b91f95f7cc7905,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): free_float_pct + short_interest_pct on Phase1Result — A1
+4aed0067d4f59c49661880c7cbf79204dc5cf01c,2026-07-03T00:41:42-07:00,False,True,True,feat(analysis): AnalysisFeatureFlags scaffolding — Phase A0
