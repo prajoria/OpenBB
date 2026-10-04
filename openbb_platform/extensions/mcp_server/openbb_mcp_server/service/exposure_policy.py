@@ -201,7 +201,7 @@ class ExposurePolicy:
 
     def classify_provider_model(self, row: ProviderModelMetadata) -> ExposureDecision:
         """Classify a provider/model registration by actual routing state."""
-        routed = row.status == "routed" and row.provider_registered
+        routed = bool(row.commands) and row.provider_registered
         rule_name: Literal["routed", "unrouted"] = "routed" if routed else "unrouted"
         rule = self.document.providers[rule_name]
         return ExposureDecision(
@@ -242,7 +242,7 @@ class ExposurePolicy:
                 and record.access_class in self.document.profiles.get(profile_name, ())
                 and record.id in self.document.reviewed_metadata_ids
             )
-        scope = _scope_for_path(record.operation.path)
+        scope = _scope_for_path(record.operation.path, self.document)
         if scope is None:
             return False
         try:
@@ -258,19 +258,19 @@ class ExposurePolicy:
         )
 
 
-def _scope_for_path(path: str) -> str | None:
-    """Infer the audited scope from its stable path namespace."""
-    if path.startswith("/api/v1/"):
-        return "portfolio-venv-core-in-process"
-    if path.startswith(("/pi/", "/tt/")) or path in {
-        "/",
-        "/widgets.json",
-        "/apps.json",
-    }:
-        return "live-intelligence-custom"
-    if path.startswith(("/portfolio/", "/espp/", "/equity/", "/market/", "/stock/")):
-        return "live-portfolio-custom"
-    return None
+def _scope_for_path(path: str, document: PolicyDocument) -> str | None:
+    """Infer one unambiguous audited scope from reviewable asset namespaces."""
+    matches = {
+        scope
+        for scope, exact_paths in document.scope_exact_paths.items()
+        if path in exact_paths
+    }
+    matches.update(
+        scope
+        for scope, prefixes in document.scope_path_prefixes.items()
+        if any(path.startswith(prefix) for prefix in prefixes)
+    )
+    return next(iter(matches)) if len(matches) == 1 else None
 
 
 def evaluate_exposure(

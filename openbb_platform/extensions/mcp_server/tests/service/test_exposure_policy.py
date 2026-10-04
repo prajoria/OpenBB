@@ -65,9 +65,9 @@ def test_all_317_audited_operations_classify_exactly_once(policy):
         decision.rule_id.startswith("deny-unreviewed") for decision in decisions
     )
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 218,
-        "workspace_indirect": 62,
-        "metadata_only": 6,
+        "direct": 215,
+        "workspace_indirect": 61,
+        "metadata_only": 10,
         "restricted": 31,
     }
 
@@ -261,6 +261,8 @@ def test_provider_models_preserve_routed_and_unimplemented_denominators(policy):
     assert gap_decision.disposition == "unimplemented"
     assert gap_decision.admitted_profiles == ()
     assert gap_decision.reason
+    inconsistent = routed.model_copy(update={"commands": ()})
+    assert policy.classify_provider_model(inconsistent).disposition == "unimplemented"
 
 
 def test_all_181_provider_rows_classify_with_audited_partition(policy):

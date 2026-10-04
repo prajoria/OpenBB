@@ -133,6 +133,23 @@
       ]
     },
     {
+      "id": "public-health-and-about",
+      "priority": 90,
+      "paths": [
+        "/api/v1/backtest/about",
+        "/api/v1/portfolio_intel/about",
+        "/api/v1/techtrade/about",
+        "/pi/health/providers"
+      ],
+      "disposition": "metadata_only",
+      "access_class": "public_metadata",
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ]
+    },
+    {
       "id": "private-core-paper-state",
       "priority": 85,
       "scopes": ["portfolio-venv-core-in-process"],
