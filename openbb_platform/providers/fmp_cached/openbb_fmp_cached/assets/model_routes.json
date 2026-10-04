@@ -7,10 +7,151 @@
       "canonical_route": "/fmp_cached/stock_list",
       "command": "stock_list",
       "model": "StockList",
-      "providers": [
-        "fmp",
-        "fmp_cached"
-      ]
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/etf_list",
+      "command": "etf_list",
+      "model": "EtfList",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/actively_trading_list",
+      "command": "actively_trading_list",
+      "model": "ActivelyTradingList",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/available_countries",
+      "command": "available_countries",
+      "model": "AvailableCountries",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/available_exchanges",
+      "command": "available_exchanges",
+      "model": "AvailableExchanges",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/available_industries",
+      "command": "available_industries",
+      "model": "AvailableIndustries",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/available_sectors",
+      "command": "available_sectors",
+      "model": "AvailableSectors",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/commodities_list",
+      "command": "commodities_list",
+      "model": "CommoditiesList",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/cryptocurrency_list",
+      "command": "cryptocurrency_list",
+      "model": "CryptocurrencyList",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/forex_list",
+      "command": "forex_list",
+      "model": "ForexList",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/index_list",
+      "command": "index_list",
+      "model": "IndexList",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/dowjones_constituent",
+      "command": "dowjones_constituent",
+      "model": "DowjonesConstituent",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/nasdaq_constituent",
+      "command": "nasdaq_constituent",
+      "model": "NasdaqConstituent",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/sp500_constituent",
+      "command": "sp500_constituent",
+      "model": "Sp500Constituent",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/historical_dowjones_constituent",
+      "command": "historical_dowjones_constituent",
+      "model": "HistoricalDowjonesConstituent",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/historical_nasdaq_constituent",
+      "command": "historical_nasdaq_constituent",
+      "model": "HistoricalNasdaqConstituent",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/historical_sp500_constituent",
+      "command": "historical_sp500_constituent",
+      "model": "HistoricalSp500Constituent",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/market_risk_premium",
+      "command": "market_risk_premium",
+      "model": "MarketRiskPremium",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/risk_premium",
+      "command": "risk_premium",
+      "model": "RiskPremium",
+      "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
