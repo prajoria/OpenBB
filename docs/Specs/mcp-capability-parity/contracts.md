@@ -29,6 +29,10 @@ record identity and provides coverage counts without changing the denominator.
   Recognizable key/password/token assignments, bearer tokens, URL userinfo and
   private-key material are rejected wherever metadata accepts text. This is a
   metadata hygiene guard, not a general-purpose secret detector.
+- Pydantic retains rejected values in raw `ValidationError.errors()` data even
+  when human-readable input display is disabled. API/logging boundaries must use
+  `sanitized_validation_errors()` or `sanitized_validation_error_json()` and
+  must never serialize a raw validation exception.
 - Direct Platform records need both an operation and a tool name. Direct
   Workspace/Agents/Daytrade records need a tool name and source references to
   their explicit registration; HTTP operation metadata is optional.

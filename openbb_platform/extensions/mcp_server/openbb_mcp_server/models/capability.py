@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Iterator, Mapping
-from typing import Annotated, Literal, get_args
+from typing import Annotated, Any, Literal, get_args
 from urllib.parse import unquote, urlsplit
 
 from pydantic import (
@@ -14,6 +14,7 @@ from pydantic import (
     Field,
     StrictBool,
     StrictInt,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -97,6 +98,16 @@ def _decoded_path(value: str) -> str:
             return decoded
         decoded = candidate
     raise ValueError("percent encoding did not converge to a stable value")
+
+
+def sanitized_validation_errors(error: ValidationError) -> list[dict[str, Any]]:
+    """Return structured validation errors without rejected inputs or context."""
+    return error.errors(include_input=False, include_context=False)
+
+
+def sanitized_validation_error_json(error: ValidationError) -> str:
+    """Serialize validation errors without rejected inputs or context."""
+    return error.json(include_input=False, include_context=False)
 
 
 class OperationKey(BaseModel):
@@ -406,4 +417,6 @@ __all__ = [
     "Persistence",
     "Surface",
     "VerificationState",
+    "sanitized_validation_error_json",
+    "sanitized_validation_errors",
 ]
