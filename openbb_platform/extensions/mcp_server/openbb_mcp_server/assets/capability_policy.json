@@ -51,7 +51,8 @@
       "methods": ["POST"],
       "paths": [
         "/tt/execute/approve-plan",
-        "/tt/execute/cancel"
+        "/tt/execute/cancel",
+        "/tt/execute/write-batch"
       ],
       "disposition": "restricted",
       "access_class": "financial_mutation",
@@ -62,7 +63,6 @@
       "id": "deny-unhardened-congress-url-fetches",
       "priority": 100,
       "scopes": ["portfolio-venv-core-in-process"],
-      "path_prefixes": ["/api/v1/uscongress"],
       "paths": [
         "/api/v1/uscongress/bill_text",
         "/api/v1/uscongress/amendment_text",
@@ -83,7 +83,6 @@
       "priority": 95,
       "scopes": ["portfolio-venv-core-in-process", "live-intelligence-custom"],
       "paths": [
-        "/tt/execute/write-batch",
         "/api/v1/backtest/bundle/ingest",
         "/api/v1/techtrade/export",
         "/api/v1/techtrade/tune"
@@ -161,6 +160,7 @@
         "/pi/alerts",
         "/pi/backtest",
         "/tt/audit",
+        "/tt/position",
         "/tt/execute/paper-status"
       ],
       "disposition": "workspace_indirect",

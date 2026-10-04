@@ -65,10 +65,10 @@ def test_all_317_audited_operations_classify_exactly_once(policy):
         decision.rule_id.startswith("deny-unreviewed") for decision in decisions
     )
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 214,
+        "direct": 219,
         "workspace_indirect": 62,
         "metadata_only": 6,
-        "restricted": 35,
+        "restricted": 30,
     }
 
 
@@ -89,7 +89,11 @@ def test_post_compute_and_text_operations_are_provider_reads(policy, path):
 
 @pytest.mark.parametrize(
     "path",
-    ["/tt/execute/approve-plan", "/tt/execute/cancel"],
+    [
+        "/tt/execute/approve-plan",
+        "/tt/execute/cancel",
+        "/tt/execute/write-batch",
+    ],
 )
 def test_execution_actions_are_denied_in_every_profile(policy, path):
     """Execution-like actions require a later sandbox and approval contract."""
@@ -197,6 +201,7 @@ def test_route_level_restriction_is_an_unconditional_deny(policy):
     [
         ("/tt/execute/paper-status", "GET"),
         ("/tt/execute/paper-status/markdown", "GET"),
+        ("/tt/position/plan-card", "GET"),
         ("/pi/risk/dashboard", "GET"),
         ("/pi/alerts", "GET"),
         ("/api/v1/portfolio_intel/paper/alerts", "POST"),
@@ -212,7 +217,7 @@ def test_account_scoped_reads_do_not_leak_into_standard(policy, path, method):
 def test_side_effect_policy_does_not_depend_on_transport_method(policy):
     """Reviewed exact operation identity, not POST itself, supplies privilege."""
     decision = policy.classify_operation(
-        "live-intelligence-custom", "POST", "/tt/execute/write-batch"
+        "portfolio-venv-core-in-process", "POST", "/api/v1/techtrade/export"
     )
     assert decision.access_class == "filesystem_write"
     assert decision.admitted_profiles == ("portfolio-ops",)
