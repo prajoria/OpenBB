@@ -55,8 +55,9 @@ from openbb_mcp_server.models.settings import MCPSettings
 from openbb_mcp_server.models.tools import CategoryInfo, SubcategoryInfo, ToolInfo
 from openbb_mcp_server.service.mcp_service import MCPService
 from openbb_mcp_server.utils.app_import import parse_args
-from openbb_mcp_server.utils.fastapi import (
-    get_api_prefix,
+
+from ..utils.fastapi import (
+    get_mcp_route_identity,
     process_fastapi_routes_for_mcp,
 )
 
@@ -93,21 +94,6 @@ def _get_mcp_config_from_route(fa_route: APIRoute | None) -> dict:
     if isinstance(cfg, dict):
         return cfg
     return {}
-
-
-def _strip_api_prefix(path: str, api_prefix: str) -> str:
-    """Strip the exact api_prefix (from SystemService) from an absolute path.
-
-    Returns the remainder without a leading slash.
-    """
-    if not path:
-        return ""
-    if not path.startswith("/"):
-        path = "/" + path
-    remainder = (
-        path[len(api_prefix) :] if api_prefix and path.startswith(api_prefix) else path
-    )
-    return remainder.lstrip("/")
 
 
 def _read_system_prompt_file(file_path: str) -> str | None:
@@ -186,9 +172,7 @@ def _add_prompts_from_json(mcp: FastMCP, settings: MCPSettings) -> None:
     # User-provided path takes priority; fall back to bundled assets/server_prompts.json.
     _server_prompts_file = settings.server_prompts_file
     if not _server_prompts_file:
-        _bundled_prompts = (
-            MCPSettings.get_default_assets_dir() / "server_prompts.json"
-        )
+        _bundled_prompts = MCPSettings.get_default_assets_dir() / "server_prompts.json"
         if _bundled_prompts.exists():
             _server_prompts_file = str(_bundled_prompts)
             logger.debug("Using bundled server prompts: %s", _server_prompts_file)
@@ -404,7 +388,6 @@ def create_mcp_server(
     processed_data = process_fastapi_routes_for_mcp(fastapi_app, settings)
 
     route_lookup = processed_data.route_lookup
-    api_prefix = get_api_prefix(settings)
     tool_prompts_map: dict = {}
 
     for prompt_def in processed_data.prompt_definitions:
@@ -441,33 +424,14 @@ def create_mcp_server(
             )
             mcp_cfg = {}
 
-        # Use the exact API prefix to determine category/subcategory/tool
-        local_path = _strip_api_prefix(route.path, api_prefix)
-        segments = [seg for seg in local_path.split("/") if seg and "{" not in seg]
-
-        if segments:
-            category = segments[0]
-            if len(segments) == 1:
-                subcategory = "general"
-                tool = segments[0]
-            elif len(segments) == 2:
-                subcategory = "general"
-                tool = segments[1]
-            else:
-                subcategory = segments[1]
-                tool = "_".join(segments[2:])
-        else:
-            category, subcategory, tool = "general", "general", "root"
-
-        # Name override
-        if name := mcp_cfg.get("name"):
-            component.name = name
-        else:
-            component.name = (
-                f"{category}_{subcategory}_{tool}"
-                if subcategory != "general"
-                else f"{category}_{tool}"
-            )
+        identity = get_mcp_route_identity(
+            route.path,
+            settings,
+            name_override=mcp_cfg.get("name"),
+        )
+        category = identity.category
+        subcategory = identity.subcategory
+        component.name = identity.component_name
 
         # Tags
         component.tags.add(category)

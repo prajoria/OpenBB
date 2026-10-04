@@ -11,7 +11,6 @@ from openbb_mcp_server.app.app import (
     _extract_brief_description,
     _get_mcp_config_from_route,
     _read_system_prompt_file,
-    _strip_api_prefix,
     create_mcp_server,
 )
 from openbb_mcp_server.models.settings import MCPSettings
@@ -39,13 +38,6 @@ def test_get_mcp_config_from_route():
     )
     assert _get_mcp_config_from_route(route) == {"expose": True}
     assert _get_mcp_config_from_route(None) == {}
-
-
-def test_strip_api_prefix():
-    """Test _strip_api_prefix function."""
-    assert _strip_api_prefix("/api/v1/test", "/api/v1") == "test"
-    assert _strip_api_prefix("/test", "/api/v1") == "test"
-    assert _strip_api_prefix("/api/v1/test/path", "/api/v1") == "test/path"
 
 
 def test_read_system_prompt_file(tmp_path):
