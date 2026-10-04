@@ -254,6 +254,16 @@ def test_rejected_credential_field_name_is_hidden_from_published_errors(
     assert details[0]["loc"] == ("<rejected-field>",)
 
 
+def test_url_parser_errors_do_not_publish_rejected_path_contents():
+    """Parser diagnostics are replaced before validation errors are published."""
+    rejected_path = "//DO_NOT_LOG_THIS\uff0fapi"
+    with pytest.raises(ValidationError) as captured:
+        module.OperationKey(method="GET", path=rejected_path)
+    assert "DO_NOT_LOG_THIS" not in module.sanitized_validation_error_json(
+        captured.value
+    )
+
+
 @pytest.mark.parametrize(
     "changes",
     [

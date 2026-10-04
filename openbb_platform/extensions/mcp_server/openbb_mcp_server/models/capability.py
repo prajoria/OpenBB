@@ -6,7 +6,7 @@ import json
 import re
 from collections import Counter
 from typing import Annotated, Any, Literal, get_args
-from urllib.parse import unquote, urlsplit
+from urllib.parse import SplitResult, unquote, urlsplit
 
 from pydantic import (
     BaseModel,
@@ -110,6 +110,14 @@ def _decoded_path(value: str) -> str:
     raise ValueError("percent encoding did not converge to a stable value")
 
 
+def _safe_urlsplit(value: str) -> SplitResult:
+    """Split URL-like metadata without propagating parser input in errors."""
+    try:
+        return urlsplit(value)
+    except ValueError:
+        raise ValueError("path contains invalid URL syntax") from None
+
+
 def sanitized_validation_errors(error: ValidationError) -> list[dict[str, Any]]:
     """Return structured validation errors without rejected inputs or context."""
     sanitized = []
@@ -158,11 +166,11 @@ class OperationKey(BaseModel):
         _validate_safe_text(value, field_name="path")
         decoded = _decoded_path(value)
         _validate_safe_text(decoded, field_name="decoded path")
-        parsed = urlsplit(decoded)
+        if not decoded.startswith("/") or decoded.startswith("//"):
+            raise ValueError("path must be one absolute API path")
+        parsed = _safe_urlsplit(decoded)
         segments = decoded.replace("\\", "/").split("/")
         invalid_path = (
-            not decoded.startswith("/"),
-            decoded.startswith("//"),
             bool(parsed.scheme),
             bool(parsed.netloc),
             bool(parsed.query),
@@ -277,7 +285,7 @@ class CapabilityRecord(BaseModel):
                 raise ValueError("source_refs require a nonempty path or module prefix")
             elif not _QUALIFIED_SYMBOL_RE.fullmatch(symbol):
                 raise ValueError("source_refs contain an invalid qualified symbol")
-            parsed = urlsplit(path_part)
+            parsed = _safe_urlsplit(path_part)
             decoded_segments = path_part.split("/")
             invalid_reference = (
                 bool(parsed.scheme),
