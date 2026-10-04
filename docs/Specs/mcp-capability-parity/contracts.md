@@ -32,8 +32,8 @@ record identity and provides coverage counts without changing the denominator.
 - Direct Platform records need both an operation and a tool name. Direct
   Workspace/Agents/Daytrade records need a tool name and source references to
   their explicit registration; HTTP operation metadata is optional.
-- Restricted and unimplemented records need an explanatory reason. They remain
-  in gross coverage.
+- Restricted and unimplemented records need an explanatory reason or a reviewed
+  decision reference. They remain in gross coverage.
 - Duplicate capability IDs are rejected by the inventory. Aliases with distinct
   IDs may share an implementation.
 - JSON round trips preserve all three false verification flags.
@@ -46,6 +46,12 @@ serializing the wire alias `schema`. Pydantic's inherited deprecated
 runtime probe emitted a shadowing warning. The alias preserves the published
 JSON contract without suppressing warnings or overriding a framework method.
 Default serialization uses aliases, including nested inventory serialization.
+
+Validated records, evidence states, inventories and nested sequences are
+immutable. Collectors construct replacement models when evidence changes rather
+than mutating a previously validated contract. Disposition counts use an
+immutable mapping-compatible Pydantic model so their JSON wire shape remains an
+object while post-validation item mutation is impossible.
 
 `CapabilityRecord` adds optional `implementation_id`. An inventory cannot
 reliably infer implementation identity from a tool alias, route or model-key

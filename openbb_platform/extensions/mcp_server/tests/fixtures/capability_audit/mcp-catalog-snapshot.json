@@ -1,0 +1,838 @@
+{
+  "audit_date_local": "2026-10-03",
+  "parent_commit": "39f171603c9bc4a28778e668ba981cf0e4358b9a",
+  "workspace_commit": "c373557b4b7ba6620f516085cdf675bb6a21921c",
+  "scope": "in-process catalog enumeration, not running dual-launcher services",
+  "platform": {
+    "profile": "installed-portfolio-venv-in-process-default-core-app",
+    "initial_tools": [
+      "available_categories",
+      "available_tools",
+      "activate_tools",
+      "deactivate_tools",
+      "activate_category",
+      "install_skill",
+      "list_prompts",
+      "get_prompt",
+      "list_resources",
+      "read_resource"
+    ],
+    "categories": [
+      {
+        "name": "backtest",
+        "subcategories": [
+          {
+            "name": "bundle",
+            "tool_count": 2
+          },
+          {
+            "name": "general",
+            "tool_count": 8
+          }
+        ],
+        "total_tools": 10
+      },
+      {
+        "name": "cftc",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 2
+          }
+        ],
+        "total_tools": 2
+      },
+      {
+        "name": "commodity",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 6
+          },
+          {
+            "name": "price",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 7
+      },
+      {
+        "name": "crypto",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 1
+          },
+          {
+            "name": "price",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 2
+      },
+      {
+        "name": "currency",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 2
+          },
+          {
+            "name": "price",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 3
+      },
+      {
+        "name": "derivatives",
+        "subcategories": [
+          {
+            "name": "futures",
+            "tool_count": 2
+          },
+          {
+            "name": "options",
+            "tool_count": 4
+          }
+        ],
+        "total_tools": 6
+      },
+      {
+        "name": "economy",
+        "subcategories": [
+          {
+            "name": "gdp",
+            "tool_count": 3
+          },
+          {
+            "name": "general",
+            "tool_count": 26
+          },
+          {
+            "name": "shipping",
+            "tool_count": 4
+          },
+          {
+            "name": "survey",
+            "tool_count": 9
+          }
+        ],
+        "total_tools": 42
+      },
+      {
+        "name": "equity",
+        "subcategories": [
+          {
+            "name": "calendar",
+            "tool_count": 5
+          },
+          {
+            "name": "compare",
+            "tool_count": 2
+          },
+          {
+            "name": "discovery",
+            "tool_count": 9
+          },
+          {
+            "name": "estimates",
+            "tool_count": 8
+          },
+          {
+            "name": "fundamental",
+            "tool_count": 25
+          },
+          {
+            "name": "general",
+            "tool_count": 5
+          },
+          {
+            "name": "ownership",
+            "tool_count": 6
+          },
+          {
+            "name": "price",
+            "tool_count": 3
+          },
+          {
+            "name": "shorts",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 64
+      },
+      {
+        "name": "etf",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 9
+          }
+        ],
+        "total_tools": 9
+      },
+      {
+        "name": "fixedincome",
+        "subcategories": [
+          {
+            "name": "corporate",
+            "tool_count": 3
+          },
+          {
+            "name": "general",
+            "tool_count": 2
+          },
+          {
+            "name": "government",
+            "tool_count": 6
+          },
+          {
+            "name": "rate",
+            "tool_count": 10
+          },
+          {
+            "name": "spreads",
+            "tool_count": 3
+          }
+        ],
+        "total_tools": 24
+      },
+      {
+        "name": "imf_utils",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 8
+          }
+        ],
+        "total_tools": 8
+      },
+      {
+        "name": "index",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 4
+          },
+          {
+            "name": "price",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 5
+      },
+      {
+        "name": "news",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 2
+          }
+        ],
+        "total_tools": 2
+      },
+      {
+        "name": "portfolio_intel",
+        "subcategories": [
+          {
+            "name": "backtest",
+            "tool_count": 1
+          },
+          {
+            "name": "events",
+            "tool_count": 1
+          },
+          {
+            "name": "general",
+            "tool_count": 1
+          },
+          {
+            "name": "news",
+            "tool_count": 1
+          },
+          {
+            "name": "paper",
+            "tool_count": 1
+          },
+          {
+            "name": "risk",
+            "tool_count": 2
+          },
+          {
+            "name": "sentiment",
+            "tool_count": 1
+          },
+          {
+            "name": "smart_money",
+            "tool_count": 1
+          },
+          {
+            "name": "xray",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 10
+      },
+      {
+        "name": "regime",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 1
+          }
+        ],
+        "total_tools": 1
+      },
+      {
+        "name": "regulators",
+        "subcategories": [
+          {
+            "name": "sec",
+            "tool_count": 8
+          }
+        ],
+        "total_tools": 8
+      },
+      {
+        "name": "techtrade",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 11
+          }
+        ],
+        "total_tools": 11
+      },
+      {
+        "name": "uscongress",
+        "subcategories": [
+          {
+            "name": "general",
+            "tool_count": 12
+          }
+        ],
+        "total_tools": 12
+      }
+    ],
+    "activated_tools": [
+      "activate_category",
+      "activate_tools",
+      "available_categories",
+      "available_tools",
+      "backtest_about",
+      "backtest_bundle_ingest",
+      "backtest_bundle_list",
+      "backtest_factor_eval",
+      "backtest_pipeline",
+      "backtest_reconcile",
+      "backtest_run",
+      "backtest_sweep",
+      "backtest_tearsheet",
+      "backtest_validate",
+      "cftc_cot",
+      "cftc_cot_search",
+      "commodity_petroleum_status_report",
+      "commodity_price_spot",
+      "commodity_psd_data",
+      "commodity_psd_report",
+      "commodity_short_term_energy_outlook",
+      "commodity_weather_bulletins",
+      "commodity_weather_bulletins_download",
+      "crypto_price_historical",
+      "crypto_search",
+      "currency_price_historical",
+      "currency_search",
+      "currency_snapshots",
+      "deactivate_tools",
+      "derivatives_futures_curve",
+      "derivatives_futures_historical",
+      "derivatives_options_chains",
+      "derivatives_options_snapshots",
+      "derivatives_options_surface",
+      "derivatives_options_unusual",
+      "economy_available_indicators",
+      "economy_balance_of_payments",
+      "economy_calendar",
+      "economy_central_bank_holdings",
+      "economy_composite_leading_indicator",
+      "economy_country_profile",
+      "economy_cpi",
+      "economy_direction_of_trade",
+      "economy_export_destinations",
+      "economy_fomc_documents",
+      "economy_fred_regional",
+      "economy_fred_release_table",
+      "economy_fred_search",
+      "economy_fred_series",
+      "economy_gdp_forecast",
+      "economy_gdp_nominal",
+      "economy_gdp_real",
+      "economy_house_price_index",
+      "economy_indicators",
+      "economy_interest_rates",
+      "economy_money_measures",
+      "economy_pce",
+      "economy_primary_dealer_fails",
+      "economy_primary_dealer_positioning",
+      "economy_retail_prices",
+      "economy_risk_premium",
+      "economy_share_price_index",
+      "economy_shipping_chokepoint_info",
+      "economy_shipping_chokepoint_volume",
+      "economy_shipping_port_info",
+      "economy_shipping_port_volume",
+      "economy_survey_bls_search",
+      "economy_survey_bls_series",
+      "economy_survey_economic_conditions_chicago",
+      "economy_survey_inflation_expectations",
+      "economy_survey_manufacturing_outlook_ny",
+      "economy_survey_manufacturing_outlook_texas",
+      "economy_survey_nonfarm_payrolls",
+      "economy_survey_sloos",
+      "economy_survey_university_of_michigan",
+      "economy_total_factor_productivity",
+      "economy_unemployment",
+      "equity_calendar_dividend",
+      "equity_calendar_earnings",
+      "equity_calendar_events",
+      "equity_calendar_ipo",
+      "equity_calendar_splits",
+      "equity_compare_company_facts",
+      "equity_compare_peers",
+      "equity_discovery_active",
+      "equity_discovery_aggressive_small_caps",
+      "equity_discovery_filings",
+      "equity_discovery_gainers",
+      "equity_discovery_growth_tech",
+      "equity_discovery_latest_financial_reports",
+      "equity_discovery_losers",
+      "equity_discovery_undervalued_growth",
+      "equity_discovery_undervalued_large_caps",
+      "equity_estimates_analyst_search",
+      "equity_estimates_consensus",
+      "equity_estimates_forward_ebitda",
+      "equity_estimates_forward_eps",
+      "equity_estimates_forward_pe",
+      "equity_estimates_forward_sales",
+      "equity_estimates_historical",
+      "equity_estimates_price_target",
+      "equity_fundamental_balance",
+      "equity_fundamental_balance_growth",
+      "equity_fundamental_cash",
+      "equity_fundamental_cash_growth",
+      "equity_fundamental_dividends",
+      "equity_fundamental_employee_count",
+      "equity_fundamental_esg_score",
+      "equity_fundamental_filings",
+      "equity_fundamental_historical_attributes",
+      "equity_fundamental_historical_eps",
+      "equity_fundamental_historical_splits",
+      "equity_fundamental_income",
+      "equity_fundamental_income_growth",
+      "equity_fundamental_latest_attributes",
+      "equity_fundamental_management",
+      "equity_fundamental_management_compensation",
+      "equity_fundamental_management_discussion_analysis",
+      "equity_fundamental_metrics",
+      "equity_fundamental_ratios",
+      "equity_fundamental_reported_financials",
+      "equity_fundamental_revenue_per_geography",
+      "equity_fundamental_revenue_per_segment",
+      "equity_fundamental_search_attributes",
+      "equity_fundamental_trailing_dividend_yield",
+      "equity_fundamental_transcript",
+      "equity_historical_market_cap",
+      "equity_market_snapshots",
+      "equity_ownership_form_13f",
+      "equity_ownership_government_trades",
+      "equity_ownership_insider_trading",
+      "equity_ownership_institutional",
+      "equity_ownership_major_holders",
+      "equity_ownership_share_statistics",
+      "equity_price_historical",
+      "equity_price_performance",
+      "equity_price_quote",
+      "equity_profile",
+      "equity_screener",
+      "equity_search",
+      "equity_shorts_fails_to_deliver",
+      "etf_countries",
+      "etf_equity_exposure",
+      "etf_historical",
+      "etf_holdings",
+      "etf_info",
+      "etf_nport_disclosure",
+      "etf_price_performance",
+      "etf_search",
+      "etf_sectors",
+      "fixedincome_bond_indices",
+      "fixedincome_corporate_commercial_paper",
+      "fixedincome_corporate_hqm",
+      "fixedincome_corporate_spot_rates",
+      "fixedincome_government_svensson_yield_curve",
+      "fixedincome_government_tips_yields",
+      "fixedincome_government_treasury_auctions",
+      "fixedincome_government_treasury_prices",
+      "fixedincome_government_treasury_rates",
+      "fixedincome_government_yield_curve",
+      "fixedincome_mortgage_indices",
+      "fixedincome_rate_ameribor",
+      "fixedincome_rate_dpcredit",
+      "fixedincome_rate_ecb",
+      "fixedincome_rate_effr",
+      "fixedincome_rate_effr_forecast",
+      "fixedincome_rate_estr",
+      "fixedincome_rate_iorb",
+      "fixedincome_rate_overnight_bank_funding",
+      "fixedincome_rate_sofr",
+      "fixedincome_rate_sonia",
+      "fixedincome_spreads_tcm",
+      "fixedincome_spreads_tcm_effr",
+      "fixedincome_spreads_treasury_effr",
+      "get_prompt",
+      "imf_utils_get_dataflow_dimensions",
+      "imf_utils_list_dataflow_choices",
+      "imf_utils_list_dataflows",
+      "imf_utils_list_port_id_choices",
+      "imf_utils_list_table_choices",
+      "imf_utils_list_tables",
+      "imf_utils_presentation_table",
+      "imf_utils_presentation_table_choices",
+      "index_available",
+      "index_constituents",
+      "index_price_historical",
+      "index_search",
+      "index_snapshots",
+      "install_skill",
+      "list_prompts",
+      "list_resources",
+      "news_company",
+      "news_world",
+      "portfolio_intel_about",
+      "portfolio_intel_backtest_run",
+      "portfolio_intel_events_timeline",
+      "portfolio_intel_news_timeline",
+      "portfolio_intel_paper_alerts",
+      "portfolio_intel_risk_concentration",
+      "portfolio_intel_risk_metrics",
+      "portfolio_intel_sentiment_rollup",
+      "portfolio_intel_smart_money_rollup",
+      "portfolio_intel_xray_look_through",
+      "read_resource",
+      "regime_detect",
+      "regulators_sec_cik_map",
+      "regulators_sec_filing_headers",
+      "regulators_sec_htm_file",
+      "regulators_sec_institutions_search",
+      "regulators_sec_rss_litigation",
+      "regulators_sec_schema_files",
+      "regulators_sec_sic_search",
+      "regulators_sec_symbol_map",
+      "techtrade_about",
+      "techtrade_export",
+      "techtrade_movers",
+      "techtrade_orders",
+      "techtrade_plan",
+      "techtrade_scan",
+      "techtrade_segments",
+      "techtrade_signals",
+      "techtrade_simulate",
+      "techtrade_tune",
+      "techtrade_validate",
+      "uscongress_amendment_info",
+      "uscongress_amendment_text",
+      "uscongress_amendment_text_urls",
+      "uscongress_amendments",
+      "uscongress_bill_info",
+      "uscongress_bill_text",
+      "uscongress_bill_text_urls",
+      "uscongress_bills",
+      "uscongress_committee_choices",
+      "uscongress_committee_document_urls",
+      "uscongress_committee_documents",
+      "uscongress_committee_info"
+    ],
+    "resources": [
+      {
+        "name": "system_prompt_resource",
+        "uri": "resource://system_prompt"
+      },
+      {
+        "name": "build_workspace_app/SKILL.md",
+        "uri": "skill://build_workspace_app/SKILL.md"
+      },
+      {
+        "name": "build_workspace_app/_manifest",
+        "uri": "skill://build_workspace_app/_manifest"
+      },
+      {
+        "name": "configure_mcp_server/SKILL.md",
+        "uri": "skill://configure_mcp_server/SKILL.md"
+      },
+      {
+        "name": "configure_mcp_server/_manifest",
+        "uri": "skill://configure_mcp_server/_manifest"
+      },
+      {
+        "name": "develop_extension/SKILL.md",
+        "uri": "skill://develop_extension/SKILL.md"
+      },
+      {
+        "name": "develop_extension/_manifest",
+        "uri": "skill://develop_extension/_manifest"
+      },
+      {
+        "name": "work_with_server/SKILL.md",
+        "uri": "skill://work_with_server/SKILL.md"
+      },
+      {
+        "name": "work_with_server/_manifest",
+        "uri": "skill://work_with_server/_manifest"
+      }
+    ],
+    "resource_templates": [
+      {
+        "name": "build_workspace_app_files",
+        "uriTemplate": "skill://build_workspace_app/{path*}"
+      },
+      {
+        "name": "configure_mcp_server_files",
+        "uriTemplate": "skill://configure_mcp_server/{path*}"
+      },
+      {
+        "name": "develop_extension_files",
+        "uriTemplate": "skill://develop_extension/{path*}"
+      },
+      {
+        "name": "work_with_server_files",
+        "uriTemplate": "skill://work_with_server/{path*}"
+      }
+    ],
+    "prompts": [
+      "system_prompt",
+      "equity_deep_dive",
+      "equity_earnings_preview",
+      "equity_technical_scan",
+      "equity_peer_comparison",
+      "equity_sector_rotation",
+      "yield_curve_analysis",
+      "corporate_bond_spread_analysis",
+      "macro_dashboard",
+      "gdp_vs_inflation_analysis",
+      "fed_policy_tracker",
+      "crypto_market_overview",
+      "crypto_coin_analysis",
+      "crypto_defi_analysis",
+      "market_news_brief",
+      "company_news_sentiment",
+      "earnings_calendar_review",
+      "etf_holdings_analysis",
+      "etf_comparison",
+      "etf_screening",
+      "options_chain_analysis",
+      "fx_rate_analysis",
+      "fx_cross_rates",
+      "market_index_performance",
+      "portfolio_performance_review",
+      "portfolio_risk_assessment",
+      "commodity_price_trend",
+      "commodity_energy_analysis",
+      "ipo_analysis",
+      "dividend_analysis",
+      "short_interest_analysis",
+      "insider_trading_analysis",
+      "credit_rating_analysis",
+      "economic_calendar_review",
+      "global_market_overview",
+      "reit_analysis",
+      "merger_arbitrage_analysis",
+      "factor_exposure_analysis",
+      "global_macro_trade_idea",
+      "portfolio_stock_deep_dive",
+      "financialtoolkit_performance_scorecard",
+      "financialtoolkit_valuation_screen",
+      "fmp_cached_portfolio_refresh"
+    ]
+  },
+  "workspace": {
+    "profile": "workspace-in-process-no-browser",
+    "tools": [
+      "get_workspace_snapshot",
+      "get_widget_data",
+      "list_available_widgets",
+      "get_widget_schema",
+      "get_params_options",
+      "read_widget",
+      "create_widget",
+      "update_widget",
+      "update_widget_layout",
+      "delete_widget",
+      "manage_dashboard",
+      "manage_navigation_bar",
+      "navigate_workspace",
+      "add_generative_widget",
+      "manage_backends",
+      "manage_apps",
+      "assign_tasks_to_agents",
+      "get_skill_content"
+    ],
+    "resources": [
+      {
+        "name": "App Builder Index",
+        "uri": "openbb://workspace/app-builder/index"
+      },
+      {
+        "name": "What Workspace Is",
+        "uri": "openbb://workspace/overview/what-is-workspace"
+      },
+      {
+        "name": "AI Agent Contract",
+        "uri": "openbb://workspace/overview/ai-agent-contract"
+      },
+      {
+        "name": "Backend Contract",
+        "uri": "openbb://workspace/contract/backend"
+      },
+      {
+        "name": "widgets.json Spec",
+        "uri": "openbb://workspace/specs/widgets-json"
+      },
+      {
+        "name": "apps.json Spec",
+        "uri": "openbb://workspace/specs/apps-json"
+      },
+      {
+        "name": "Widget Types",
+        "uri": "openbb://workspace/specs/widget-types"
+      },
+      {
+        "name": "Widget Parameters",
+        "uri": "openbb://workspace/specs/widget-parameters"
+      },
+      {
+        "name": "Layout Grid and Groups",
+        "uri": "openbb://workspace/specs/layout-grid"
+      },
+      {
+        "name": "Build an App",
+        "uri": "openbb://workspace/guides/build-an-app"
+      },
+      {
+        "name": "Review an App",
+        "uri": "openbb://workspace/guides/review-app"
+      },
+      {
+        "name": "Debug an App",
+        "uri": "openbb://workspace/guides/debug-app"
+      },
+      {
+        "name": "Convert an Existing Endpoint to a Widget",
+        "uri": "openbb://workspace/guides/convert-endpoint-to-widget"
+      },
+      {
+        "name": "Minimal Backend (Generic HTTP)",
+        "uri": "openbb://workspace/examples/generic-http/minimal"
+      },
+      {
+        "name": "Minimal Backend (Python + FastAPI)",
+        "uri": "openbb://workspace/examples/python-fastapi/minimal"
+      },
+      {
+        "name": "Common Errors",
+        "uri": "openbb://workspace/validation/common-errors"
+      }
+    ],
+    "resource_templates": [
+      {
+        "name": "Offloaded tool result",
+        "uriTemplate": "openbb://workspace/results/{result_id}"
+      }
+    ],
+    "prompts": [
+      "workspace_tool_usage",
+      "workspace_session_context"
+    ],
+    "no_browser_result": {
+      "ok": false,
+      "command": "get_workspace_snapshot",
+      "request_id": null,
+      "message": "No browser session has been started.",
+      "data": null,
+      "error": {
+        "code": "unavailable",
+        "message": "No browser session has been started.",
+        "details": null,
+        "retryable": false
+      },
+      "warnings": []
+    }
+  },
+  "workspace_live_integrated": {
+    "endpoint": "http://127.0.0.1:8000/mcp",
+    "scope": "authenticated metadata listing only; temporary token revoked by wrapper",
+    "tools": [
+      "add_generative_widget",
+      "assign_tasks_to_agents",
+      "create_widget",
+      "delete_widget",
+      "get_params_options",
+      "get_skill_content",
+      "get_widget_data",
+      "get_widget_schema",
+      "get_workspace_snapshot",
+      "list_available_widgets",
+      "manage_apps",
+      "manage_backends",
+      "manage_dashboard",
+      "manage_navigation_bar",
+      "navigate_workspace",
+      "read_widget",
+      "update_widget",
+      "update_widget_layout"
+    ],
+    "resources": [
+      "openbb://workspace/app-builder/index",
+      "openbb://workspace/contract/backend",
+      "openbb://workspace/examples/generic-http/minimal",
+      "openbb://workspace/examples/python-fastapi/minimal",
+      "openbb://workspace/guides/build-an-app",
+      "openbb://workspace/guides/convert-endpoint-to-widget",
+      "openbb://workspace/guides/debug-app",
+      "openbb://workspace/guides/review-app",
+      "openbb://workspace/overview/ai-agent-contract",
+      "openbb://workspace/overview/what-is-workspace",
+      "openbb://workspace/specs/apps-json",
+      "openbb://workspace/specs/layout-grid",
+      "openbb://workspace/specs/widget-parameters",
+      "openbb://workspace/specs/widget-types",
+      "openbb://workspace/specs/widgets-json",
+      "openbb://workspace/validation/common-errors"
+    ],
+    "resource_templates": [
+      "openbb://workspace/results/{result_id}"
+    ],
+    "prompts": [
+      "workspace_session_context",
+      "workspace_tool_usage"
+    ]
+  },
+  "agents": {
+    "source_registry_tools": [
+      "get_positions",
+      "get_sector_exposure"
+    ]
+  },
+  "daytrade": {
+    "evidence": "source declarations only; stdio server has no registered handlers",
+    "declared_tools": [
+      "quote_batch",
+      "market_movers",
+      "company_news",
+      "session_status",
+      "journal_summary",
+      "fills_for_session"
+    ],
+    "registered_wire_handlers": 0
+  }
+}
