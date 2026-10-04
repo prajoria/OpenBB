@@ -1,9 +1,11 @@
 """Regression tests for the General Code Linting workflow toolchain."""
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "general-linting.yml"
+DEVTOOLS = ROOT / "openbb_platform" / "extensions" / "devtools" / "pyproject.toml"
 REQUIRED_COMMANDS = frozenset({"black", "mypy", "pylint", "ruff", "codespell"})
 
 
@@ -42,3 +44,10 @@ def test_workflow_verifies_every_invoked_lint_command_is_available():
         )
     )
     assert invoked == verified == REQUIRED_COMMANDS
+    dependency_section = DEVTOOLS.read_text(encoding="utf-8").split(
+        "[tool.poetry.dependencies]", maxsplit=1
+    )[1].split("\n[", maxsplit=1)[0]
+    declared = frozenset(
+        re.findall(r"^([a-z][a-z0-9_-]*)\s*=", dependency_section, flags=re.MULTILINE)
+    )
+    assert declared >= REQUIRED_COMMANDS
