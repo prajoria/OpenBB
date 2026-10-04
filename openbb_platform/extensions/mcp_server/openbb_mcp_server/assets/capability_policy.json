@@ -308,6 +308,91 @@
       "reason": "Provider registration has no callable command for this provider/model."
     }
   },
+  "traceability": {
+    "work_families": {
+      "fmp-routing-waves": {
+        "owner_issues": ["#2162 Typed provider route framework", "#2171 Complete FMP parity gate"],
+        "rationale": "Own every FMP Cached registration and routing gap without reducing the denominator.",
+        "source_evidence": ["openbb_platform/extensions/mcp_server/openbb_mcp_server/assets/capability_policy_operations.csv", "openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py"],
+        "review_triggers": ["provider registration added or removed", "command/model mapping changed", "persistence classification changed"],
+        "implementation_state": "adapter_gap"
+      },
+      "portfolio-custom-api": {
+        "owner_issues": ["#2172 Review Portfolio API", "#2173 Implement Portfolio adapter"],
+        "rationale": "Portfolio, ESPP and stock-analysis routes require an explicit private-data adapter.",
+        "source_evidence": ["openbb_platform/extensions/portfolio/openbb_portfolio/portfolio_router.py"],
+        "review_triggers": ["custom route added", "privacy disposition changed", "adapter profile changed"],
+        "implementation_state": "adapter_gap"
+      },
+      "intelligence-widgets": {
+        "owner_issues": ["#2174 Review Intelligence and Trading Desk adapter"],
+        "rationale": "Live widgets and snapshots are implemented products whose MCP adapter remains reviewed separately.",
+        "source_evidence": ["openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/widgets_endpoints.py"],
+        "review_triggers": ["widget route added", "account scope changed", "snapshot contract changed"],
+        "implementation_state": "adapter_gap"
+      },
+      "jobs-and-cache-operations": {
+        "owner_issues": ["#2178 Cache observability", "#2180 Job-backed maintenance"],
+        "rationale": "Durable jobs and cache operations require authenticated operator-only surfaces.",
+        "source_evidence": ["openbb_platform/core/openbb_core/api/router/jobs.py", "openbb_platform/tools/portfolio_utils/portfolio_utils/jobs.py"],
+        "review_triggers": ["job kind added", "cache mutation added", "authorization changed"],
+        "implementation_state": "adapter_gap"
+      },
+      "execution-controls": {
+        "owner_issues": ["#2175 Trading Desk adapter", "#2239 Reviewed exposure policy"],
+        "rationale": "Order and broker-capable operations remain denied pending sandbox and approval enforcement.",
+        "source_evidence": ["openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/widgets_endpoints.py"],
+        "review_triggers": ["execution mode added", "approval contract changed", "broker gateway changed"],
+        "implementation_state": "approved_exclusion"
+      },
+      "agents-specialist": {
+        "owner_issues": ["#2183 Agents MCP catalog", "#2184 Agents protocol verification"],
+        "rationale": "Implemented agent functions require accurate registration and protocol evidence.",
+        "source_evidence": ["openbb_platform/extensions/agents/openbb_agents/mcp_server.py"],
+        "review_triggers": ["agent tool registered", "agent documentation changed", "tool protocol changed"],
+        "implementation_state": "adapter_gap"
+      },
+      "daytrade-specialist": {
+        "owner_issues": ["#386 Daytrade MCP tool server", "#2182 Daytrade protocol tests"],
+        "rationale": "Declarations exist but callable wire handlers are absent.",
+        "source_evidence": ["openbb_platform/extensions/fmp_trading/openbb_fmp_trading/agent"],
+        "review_triggers": ["wire handler added", "declaration changed", "transport changed"],
+        "implementation_state": "absent_product"
+      },
+      "url-fetch-hardening": {
+        "owner_issues": ["#2242 Harden caller-controlled document URL fetchers"],
+        "rationale": "Caller-controlled document URL fetches remain excluded until complete SSRF defenses pass.",
+        "source_evidence": ["openbb_platform/providers/congress_gov", "openbb_platform/providers/government_us", "openbb_platform/providers/sec"],
+        "review_triggers": ["URL parser changed", "hostname allowlist changed", "redirect handling changed", "restricted route set changed"],
+        "implementation_state": "approved_exclusion"
+      }
+    },
+    "rule_owners": {
+      "deny-execution-actions": "execution-controls",
+      "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
+      "operator-filesystem-writes": "jobs-and-cache-operations",
+      "operator-job-control": "jobs-and-cache-operations",
+      "public-manifests": "intelligence-widgets",
+      "coverage-metadata": "fmp-routing-waves",
+      "public-health-and-about": "intelligence-widgets",
+      "private-core-paper-state": "execution-controls",
+      "private-intelligence-reads": "intelligence-widgets",
+      "portfolio-custom-private": "portfolio-custom-api",
+      "portfolio-custom-provider": "portfolio-custom-api",
+      "core-provider-and-compute": "fmp-routing-waves",
+      "workspace-intelligence": "intelligence-widgets",
+      "deny-unreviewed-core": "fmp-routing-waves",
+      "deny-unreviewed-intelligence": "intelligence-widgets",
+      "provider-routed": "fmp-routing-waves",
+      "provider-unrouted": "fmp-routing-waves",
+      "specialist-agents": "agents-specialist",
+      "specialist-daytrade": "daytrade-specialist"
+    },
+    "reviewed_specialists": {
+      "agents": ["get_positions", "get_sector_exposure"],
+      "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
+    }
+  },
   "specialists": {
     "agents": {
       "disposition": "restricted",

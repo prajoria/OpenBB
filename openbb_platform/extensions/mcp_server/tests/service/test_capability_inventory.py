@@ -23,11 +23,15 @@ from openbb_mcp_server.service.capability_import_guard import (
     _checkout_entry_points,
     metadata_import_guard,
 )
+from openbb_mcp_server.service.capability_traceability import (
+    build_traceability_report,
+)
 from openbb_mcp_server.service.capability_inventory import (
     DistributionMetadata,
     ImportMetadata,
     InventorySources,
     ProfileMetadata,
+    ProviderModelMetadata,
     RepositoryMetadata,
     RuntimeMetadata,
     ServiceMetadata,
@@ -40,6 +44,7 @@ from openbb_mcp_server.service.capability_inventory import (
     validate_inventory_evidence,
     write_inventory,
 )
+from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 
 
 class DedicatedQuoteFetcher:
@@ -771,3 +776,117 @@ def test_cli_requires_explicit_metadata_only_confirmation(tmp_path):
             repo_root / "unignored-audit-output",
             repo_root,
         )
+
+
+def test_every_audited_operation_has_accountable_traceability():
+    """All reviewed operations map to owner issues and source evidence."""
+    policy = ExposurePolicy.load()
+    catalog = (
+        Path(__file__).parents[2]
+        / "openbb_mcp_server"
+        / "assets"
+        / "capability_policy_operations.csv"
+    )
+    with catalog.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    operations = [(row["scope"], row["method"], row["path"]) for row in rows]
+    report = build_traceability_report(policy, operations=operations)
+    assert len(report.items) == len(rows) == 317
+    assert report.unowned == ()
+    assert "implemented_product" in {item.implementation_state for item in report.items}
+    by_rule = {item.rule_id: item for item in report.items}
+    assert by_rule["portfolio-custom-private"].implementation_state == "adapter_gap"
+    assert (
+        by_rule["deny-execution-actions"].implementation_state == "approved_exclusion"
+    )
+    assert all(
+        item.owner_issues
+        and item.rationale
+        and item.source_evidence
+        and item.review_triggers
+        for item in report.items
+    )
+    repo_root = Path(__file__).resolve().parents[5]
+    evidence_paths = {
+        evidence
+        for family in policy.document.traceability.work_families.values()
+        for evidence in family.source_evidence
+    }
+    assert all((repo_root / evidence).exists() for evidence in evidence_paths)
+
+
+def test_dynamic_route_inventory_surfaces_unreviewed_registrations(
+    synthetic_sources,
+):
+    """Dynamically registered routes feed traceability rather than a fixed list."""
+    sources, _ = synthetic_sources
+    document = build_inventory("portfolio-read", sources=sources)
+    operations = [
+        (
+            "portfolio-venv-core-in-process",
+            record.operation.method,
+            record.operation.path,
+        )
+        for record in document.capabilities.records
+        if record.operation
+    ]
+    report = build_traceability_report(ExposurePolicy.load(), operations=operations)
+    assert any("invalid_config" in capability_id for capability_id in report.unowned)
+
+
+def test_new_operation_cannot_hide_behind_stale_denominator():
+    """Newly discovered routes remain visible as unowned policy drift."""
+    policy = ExposurePolicy.load()
+    report = build_traceability_report(
+        policy,
+        operations=[
+            (
+                "portfolio-venv-core-in-process",
+                "GET",
+                "/api/v1/new_family/new_route",
+            )
+        ],
+    )
+    assert report.items == ()
+    assert report.unowned == (
+        "operation:portfolio-venv-core-in-process:GET:/api/v1/new_family/new_route",
+    )
+
+
+def test_new_provider_is_counted_and_unknown_specialist_is_unowned():
+    """Provider growth remains counted while specialist identity requires review."""
+    provider = ProviderModelMetadata(
+        provider="fmp_cached",
+        model="BrandNewModel",
+        fetcher_class="BrandNewFetcher",
+        fetcher_module="openbb_fmp_cached.models.brand_new",
+        implementation_id="python:brand-new",
+        persistence="dedicated",
+        commands=(),
+        tool_names=(),
+        credential_fields=("fmp_cached_api_key",),
+        provider_registered=True,
+        status="unrouted",
+    )
+    report = build_traceability_report(
+        ExposurePolicy.load(),
+        provider_models=[provider],
+        specialists=[("agents", "brand_new_tool")],
+    )
+    assert len(report.items) == 1
+    assert report.items[0].capability_id == ("provider:fmp_cached:BrandNewModel")
+    assert report.items[0].implementation_state == "adapter_gap"
+    assert report.unowned == ("specialist:agents:brand_new_tool",)
+
+
+def test_every_exclusion_and_gap_rule_has_an_accountable_family():
+    """Restricted/unimplemented rules cannot exist without ownership."""
+    policy = ExposurePolicy.load()
+    owners = policy.document.traceability.rule_owners
+    excluded = {
+        rule.id
+        for rule in policy.document.rules
+        if rule.disposition in {"restricted", "unimplemented"}
+    }
+    excluded.update({"provider-unrouted", "specialist-agents", "specialist-daytrade"})
+    assert excluded <= set(owners)
