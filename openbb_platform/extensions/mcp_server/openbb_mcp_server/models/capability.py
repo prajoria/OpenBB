@@ -63,6 +63,8 @@ _QUALIFIED_SYMBOL_RE = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
 )
 _INVALID_PERCENT_ESCAPE_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+_PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+_MAX_PERCENT_ENCODING_DEPTH = 3
 _SECRET_PATTERNS = (
     re.compile(
         r"""(?ix)["']?(?:api[_-]?key|secret[_-]?key|private[_-]?key|password|"""
@@ -76,7 +78,17 @@ _SECRET_PATTERNS = (
 
 def _contains_secret_shape(value: str) -> bool:
     """Return whether *value* resembles credential material."""
-    return any(pattern.search(value) for pattern in _SECRET_PATTERNS)
+    if any(pattern.search(value) for pattern in _SECRET_PATTERNS):
+        return True
+    decoded = value
+    for _ in range(_MAX_PERCENT_ENCODING_DEPTH):
+        candidate = unquote(decoded, errors="replace")
+        if candidate == decoded:
+            return False
+        if any(pattern.search(candidate) for pattern in _SECRET_PATTERNS):
+            return True
+        decoded = candidate
+    return False
 
 
 def _validate_safe_text(value: str, *, field_name: str) -> str:
@@ -97,7 +109,7 @@ def _validate_safe_text(value: str, *, field_name: str) -> str:
 def _decoded_path(value: str) -> str:
     """Decode nested percent encoding to a stable canonical value."""
     decoded = value
-    for _ in range(len(value) + 1):
+    for _ in range(_MAX_PERCENT_ENCODING_DEPTH):
         if _INVALID_PERCENT_ESCAPE_RE.search(decoded):
             raise ValueError("percent encoding must use complete hexadecimal escapes")
         try:
@@ -107,7 +119,11 @@ def _decoded_path(value: str) -> str:
         if candidate == decoded:
             return decoded
         decoded = candidate
-    raise ValueError("percent encoding did not converge to a stable value")
+    if _INVALID_PERCENT_ESCAPE_RE.search(decoded):
+        raise ValueError("percent encoding must use complete hexadecimal escapes")
+    if _PERCENT_ESCAPE_RE.search(decoded):
+        raise ValueError("percent encoding exceeds the supported nesting depth")
+    return decoded
 
 
 def _safe_urlsplit(value: str) -> SplitResult:

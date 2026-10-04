@@ -134,6 +134,9 @@ def test_operation_normalizes_method_and_is_frozen():
         "/api/%25FF",
         "/api/%ZZ",
         "/api/%",
+        "/api/%2525252e",
+        "/api/%252525ZZ",
+        "/api/%252525",
         "/api/\u0085private",
         "/api/\u2028private",
     ],
@@ -173,6 +176,9 @@ def test_operation_rejects_noncanonical_paths(path):
         "%25FF.py",
         "%ZZ.py",
         "%.py",
+        "%2525252e.py",
+        "%252525ZZ.py",
+        "%252525.py",
     ],
 )
 def test_source_references_cannot_be_machine_paths(source):
@@ -304,6 +310,10 @@ def test_excluded_records_need_a_reason(disposition):
     [
         "api_key=synthetic-value",
         "FMP_API_KEY=synthetic-value",
+        "api_key%3Dsynthetic-value",
+        "api_key%253Dsynthetic-value",
+        "%FF api_key%3Dsynthetic-value",
+        "%FF api_key%253Dsynthetic-value",
         "MY_ACCESS_TOKEN=synthetic-value",
         "FMP_SECRET_KEY=synthetic-value",
         "PRIVATE_KEY=synthetic-value",
