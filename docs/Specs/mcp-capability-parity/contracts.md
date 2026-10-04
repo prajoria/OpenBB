@@ -55,8 +55,8 @@ Default serialization uses aliases, including nested inventory serialization.
 Validated records, evidence states, inventories and nested sequences are
 immutable. Collectors construct replacement models when evidence changes rather
 than mutating a previously validated contract. Disposition counts use an
-immutable mapping-compatible Pydantic model so their JSON wire shape remains an
-object while post-validation item mutation is impossible.
+immutable typed Pydantic model so their JSON wire shape remains an object while
+post-validation item mutation is impossible.
 
 `CapabilityRecord` adds optional `implementation_id`. An inventory cannot
 reliably infer implementation identity from a tool alias, route or model-key

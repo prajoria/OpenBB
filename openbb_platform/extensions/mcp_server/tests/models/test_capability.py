@@ -21,7 +21,9 @@ def repository_normalized_bytes(path: Path) -> bytes:
 
 def record_data() -> dict:
     """Return an independent copy of the synthetic provider-read record."""
-    return json.loads((FIXTURES / "capability_inventory.json").read_text(encoding="utf-8"))["records"][0]
+    return json.loads(
+        (FIXTURES / "capability_inventory.json").read_text(encoding="utf-8")
+    )["records"][0]
 
 
 def test_round_trip_preserves_false_flags_and_public_alias():
@@ -29,15 +31,22 @@ def test_round_trip_preserves_false_flags_and_public_alias():
     inventory = module.CapabilityInventory.model_validate_json(
         (FIXTURES / "capability_inventory.json").read_text(encoding="utf-8")
     )
-    restored = module.CapabilityInventory.model_validate_json(inventory.model_dump_json())
+    restored = module.CapabilityInventory.model_validate_json(
+        inventory.model_dump_json()
+    )
     assert restored == inventory
     assert restored.records[0].verification.schema_verified is True
     assert restored.model_dump()["records"][0]["verification"]["schema"] is True
     assert restored.model_dump()["records"][1]["verification"] == {
-        "schema": False, "offline_call": False, "live_call": False
+        "schema": False,
+        "offline_call": False,
+        "live_call": False,
     }
     assert "schema" in module.VerificationState.model_json_schema()["properties"]
-    assert "schema_verified" not in module.VerificationState.model_json_schema()["properties"]
+    assert (
+        "schema_verified"
+        not in module.VerificationState.model_json_schema()["properties"]
+    )
 
 
 @pytest.mark.parametrize("model", ["record", "operation", "verification", "inventory"])
@@ -45,7 +54,10 @@ def test_unknown_fields_are_rejected(model):
     """Every contract layer rejects fields outside its published schema."""
     cases = {
         "record": (module.CapabilityRecord, record_data()),
-        "operation": (module.OperationKey, {"method": "GET", "path": "/api/v1/synthetic"}),
+        "operation": (
+            module.OperationKey,
+            {"method": "GET", "path": "/api/v1/synthetic"},
+        ),
         "verification": (module.VerificationState, {}),
         "inventory": (module.CapabilityInventory, {"records": []}),
     }
@@ -66,7 +78,9 @@ def test_verification_flags_do_not_coerce_truthiness(value):
 def test_schema_version_is_an_exact_supported_integer(version):
     """Boolean equality and strings cannot impersonate the schema version."""
     with pytest.raises(ValidationError):
-        module.CapabilityRecord.model_validate({**record_data(), "schema_version": version})
+        module.CapabilityRecord.model_validate(
+            {**record_data(), "schema_version": version}
+        )
 
 
 @pytest.mark.parametrize("identifier", ["", " ", "bad id", "id\nsuffix"])
@@ -84,32 +98,63 @@ def test_operation_normalizes_method_and_is_frozen():
         operation.method = "POST"
 
 
-@pytest.mark.parametrize("path", [
-    "api/v1/synthetic", "https://example.invalid/api", "//example.invalid/api",
-    "/api?token=value", "/api#fragment", "/api/../private", "/api/%2e%2e/private",
-    "/api%3Ftoken=value", "/api%23fragment", "/api\\private", "/api\n/private",
-    "/api/%0a/private", "/api/%250a/private", "/api/%00/private",
-    "/%2fexample.invalid/api", "/%25252e%25252e/private", "/%25250a/private",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "api/v1/synthetic",
+        "https://example.invalid/api",
+        "//example.invalid/api",
+        "/api?token=value",
+        "/api#fragment",
+        "/api/../private",
+        "/api/%2e%2e/private",
+        "/api%3Ftoken=value",
+        "/api%23fragment",
+        "/api\\private",
+        "/api\n/private",
+        "/api/%0a/private",
+        "/api/%250a/private",
+        "/api/%00/private",
+        "/%2fexample.invalid/api",
+        "/%25252e%25252e/private",
+        "/%25250a/private",
+    ],
+)
 def test_operation_rejects_noncanonical_paths(path):
     """Only absolute path templates, never locations or request data, are accepted."""
     with pytest.raises(ValidationError):
         module.OperationKey(method="GET", path=path)
 
 
-@pytest.mark.parametrize("source", [
-    "/private/source.py", "../private.py", "src/../private.py",
-    "C:\\private\\source.py", "\\\\host\\private.py", "https://example.invalid/source.py",
-    "src/file.py:../../private.py", "module:../secret", "a.py:%2e%2e/secret",
-    ":Symbol", "src/file.py?rev=1", "src/file.py#fragment",
-    "%2Fprivate/source.py", "https%3A%2F%2Fexample.invalid/source.py",
-    "C%3A/private/source.py",
-    "src/..:Symbol", "src/.:Symbol", "src/%2e%2e:Symbol",
-])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "/private/source.py",
+        "../private.py",
+        "src/../private.py",
+        "C:\\private\\source.py",
+        "\\\\host\\private.py",
+        "https://example.invalid/source.py",
+        "src/file.py:../../private.py",
+        "module:../secret",
+        "a.py:%2e%2e/secret",
+        ":Symbol",
+        "src/file.py?rev=1",
+        "src/file.py#fragment",
+        "%2Fprivate/source.py",
+        "https%3A%2F%2Fexample.invalid/source.py",
+        "C%3A/private/source.py",
+        "src/..:Symbol",
+        "src/.:Symbol",
+        "src/%2e%2e:Symbol",
+    ],
+)
 def test_source_references_cannot_be_machine_paths(source):
     """Committed provenance cannot carry absolute machine locations."""
     with pytest.raises(ValidationError):
-        module.CapabilityRecord.model_validate({**record_data(), "source_refs": [source]})
+        module.CapabilityRecord.model_validate(
+            {**record_data(), "source_refs": [source]}
+        )
 
 
 def test_source_references_accept_qualified_symbols():
@@ -150,9 +195,7 @@ def test_rejected_credential_values_are_hidden_from_validation_errors():
     assert rejected_value not in json.dumps(
         module.sanitized_validation_errors(captured.value)
     )
-    assert rejected_value not in module.sanitized_validation_error_json(
-        captured.value
-    )
+    assert rejected_value not in module.sanitized_validation_error_json(captured.value)
     assert all(
         "input" not in detail
         for detail in module.sanitized_validation_errors(captured.value)
@@ -173,10 +216,16 @@ def test_rejected_credential_field_name_is_hidden_from_published_errors():
     assert details[0]["loc"] == ("<rejected-field>",)
 
 
-@pytest.mark.parametrize("changes", [
-    {"tool_name": None}, {"operation": None}, {"source_refs": []},
-    {"tool_name": ""}, {"implementation_id": ""},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"tool_name": None},
+        {"operation": None},
+        {"source_refs": []},
+        {"tool_name": ""},
+        {"implementation_id": ""},
+    ],
+)
 def test_direct_platform_records_require_complete_identity(changes):
     """A direct claim needs a valid Platform operation and named tool."""
     with pytest.raises(ValidationError):
@@ -186,9 +235,9 @@ def test_direct_platform_records_require_complete_identity(changes):
 @pytest.mark.parametrize("surface", ["workspace", "agents", "daytrade"])
 def test_explicit_specialist_tool_does_not_require_http_route(surface):
     """Explicit MCP registries are not forced into an invented HTTP operation."""
-    record = module.CapabilityRecord.model_validate({
-        **record_data(), "surface": surface, "operation": None
-    })
+    record = module.CapabilityRecord.model_validate(
+        {**record_data(), "surface": surface, "operation": None}
+    )
     assert record.tool_name == "synthetic_quote"
     assert record.operation is None
 
@@ -197,17 +246,21 @@ def test_explicit_specialist_tool_does_not_require_http_route(surface):
 def test_excluded_records_need_a_reason(disposition):
     """Coverage cannot silently remove restricted or missing work."""
     with pytest.raises(ValidationError, match="reason"):
-        module.CapabilityRecord.model_validate({
-            **record_data(), "disposition": disposition, "exclusion_reason": None
-        })
+        module.CapabilityRecord.model_validate(
+            {**record_data(), "disposition": disposition, "exclusion_reason": None}
+        )
 
 
-@pytest.mark.parametrize("text", [
-    "api_key=synthetic-value", "PASSWORD: synthetic-value",
-    "Authorization: Bearer synthetic-value",
-    "https://synthetic-user:synthetic-password@example.invalid",
-    "-----BEGIN PRIVATE KEY-----",
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "api_key=synthetic-value",
+        "PASSWORD: synthetic-value",
+        "Authorization: Bearer synthetic-value",
+        "https://synthetic-user:synthetic-password@example.invalid",
+        "-----BEGIN PRIVATE KEY-----",
+    ],
+)
 @pytest.mark.parametrize("field", ["requirements", "source_refs", "exclusion_reason"])
 def test_credential_shaped_metadata_is_rejected(field, text):
     """Prerequisite names are allowed; recognizable credential values are not."""
@@ -227,9 +280,12 @@ def test_counts_preserve_gross_coverage_and_identified_aliases():
     assert counts.unique_implementations == 7
     assert counts.implementation_aliases == 1
     assert counts.unidentified_records == 1
-    assert dict(counts.by_disposition) == {
-        "direct": 3, "workspace_indirect": 1, "metadata_only": 1,
-        "restricted": 3, "unimplemented": 1,
+    assert counts.by_disposition.model_dump() == {
+        "direct": 3,
+        "workspace_indirect": 1,
+        "metadata_only": 1,
+        "restricted": 3,
+        "unimplemented": 1,
     }
     assert len({record.access_class for record in inventory.records}) == 8
 
@@ -238,7 +294,9 @@ def test_duplicate_record_ids_are_rejected():
     """An alias needs its own stable ID even when its implementation is shared."""
     record = record_data()
     with pytest.raises(ValidationError, match="Duplicate capability ID"):
-        module.CapabilityInventory.model_validate({"records": [record, deepcopy(record)]})
+        module.CapabilityInventory.model_validate(
+            {"records": [record, deepcopy(record)]}
+        )
 
 
 def test_empty_inventory_has_explicit_zero_denominators():
@@ -248,7 +306,7 @@ def test_empty_inventory_has_explicit_zero_denominators():
     assert counts.unique_implementations == counts.implementation_aliases == 0
     assert counts.unidentified_records == 0
     assert set(counts.by_disposition.values()) == {0}
-    assert set(counts.by_disposition) == set(get_args(module.Disposition))
+    assert set(counts.by_disposition.model_fields) == set(get_args(module.Disposition))
 
 
 def test_assignment_revalidates_records_and_evidence():
@@ -275,20 +333,28 @@ def test_inventory_and_nested_sequences_are_immutable():
     assert inventory.coverage_counts().gross_records == 1
 
 
-@pytest.mark.parametrize("changes", [
-    {"gross_records": -1},
-    {"approved_records": 10},
-    {"approved_records": 0},
-    {
-        "unique_implementations": 0,
-        "implementation_aliases": 1,
-        "unidentified_records": 0,
-    },
-    {"by_disposition": {
-        "direct": 0, "workspace_indirect": 0, "metadata_only": 0,
-        "restricted": 0, "unimplemented": 0,
-    }},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"gross_records": -1},
+        {"approved_records": 10},
+        {"approved_records": 0},
+        {
+            "unique_implementations": 0,
+            "implementation_aliases": 1,
+            "unidentified_records": 0,
+        },
+        {
+            "by_disposition": {
+                "direct": 0,
+                "workspace_indirect": 0,
+                "metadata_only": 0,
+                "restricted": 0,
+                "unimplemented": 0,
+            }
+        },
+    ],
+)
 def test_coverage_counts_reject_impossible_denominators(changes):
     """Published counts cannot be negative or violate their partitions."""
     valid = {
@@ -298,8 +364,11 @@ def test_coverage_counts_reject_impossible_denominators(changes):
         "implementation_aliases": 0,
         "unidentified_records": 0,
         "by_disposition": {
-            "direct": 1, "workspace_indirect": 0, "metadata_only": 0,
-            "restricted": 0, "unimplemented": 0,
+            "direct": 1,
+            "workspace_indirect": 0,
+            "metadata_only": 0,
+            "restricted": 0,
+            "unimplemented": 0,
         },
     }
     with pytest.raises(ValidationError):
@@ -320,7 +389,9 @@ def test_implementation_identity_is_qualified_by_surface():
     """Coincidentally equal specialist names do not become one implementation."""
     record = record_data()
     other = {**record, "id": "agents:quote", "surface": "agents", "operation": None}
-    counts = module.CapabilityInventory.model_validate({"records": [record, other]}).coverage_counts()
+    counts = module.CapabilityInventory.model_validate(
+        {"records": [record, other]}
+    ).coverage_counts()
     assert counts.unique_implementations == 2
     assert counts.implementation_aliases == 0
 
@@ -330,9 +401,16 @@ def test_historical_audit_artifacts_are_immutable():
     root = FIXTURES / "capability_audit"
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     for name, digest in manifest["sha256"].items():
-        assert hashlib.sha256(repository_normalized_bytes(root / name)).hexdigest() == digest
+        assert (
+            hashlib.sha256(repository_normalized_bytes(root / name)).hexdigest()
+            == digest
+        )
     tables = {}
-    for name in ["mcp-api-inventory.csv", "mcp-fmp-model-coverage.csv", "portfolio-recent-commits.csv"]:
+    for name in [
+        "mcp-api-inventory.csv",
+        "mcp-fmp-model-coverage.csv",
+        "portfolio-recent-commits.csv",
+    ]:
         with (root / name).open(encoding="utf-8", newline="") as stream:
             tables[name] = list(csv.DictReader(stream))
     assert len(tables["mcp-api-inventory.csv"]) == manifest["counts"]["api_rows"] == 317
@@ -353,5 +431,7 @@ def test_historical_audit_artifacts_are_immutable():
         == manifest["counts"]["recent_commits"]
         == 948
     )
-    snapshot = json.loads((root / "mcp-catalog-snapshot.json").read_text(encoding="utf-8"))
+    snapshot = json.loads(
+        (root / "mcp-catalog-snapshot.json").read_text(encoding="utf-8")
+    )
     assert snapshot["parent_commit"] == manifest["source_commit"]

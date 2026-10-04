@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from collections.abc import Iterator, Mapping
 from typing import Annotated, Any, Literal, get_args
 from urllib.parse import unquote, urlsplit
 
@@ -56,7 +55,7 @@ Persistence = Literal[
 ]
 
 _SUPPORTED_DISPOSITIONS = get_args(Disposition)
-_APPROVED_DISPOSITIONS = frozenset(
+_APPROVED_DISPOSITIONS: frozenset[Disposition] = frozenset(
     {"direct", "workspace_indirect", "metadata_only"}
 )
 _STABLE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
@@ -86,7 +85,9 @@ def _validate_safe_text(value: str, *, field_name: str) -> str:
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ValueError(f"{field_name} entries cannot contain control characters")
     if _contains_secret_shape(value):
-        raise ValueError(f"{field_name} entries cannot contain credential-shaped values")
+        raise ValueError(
+            f"{field_name} entries cannot contain credential-shaped values"
+        )
     return value
 
 
@@ -107,9 +108,11 @@ def sanitized_validation_errors(error: ValidationError) -> list[dict[str, Any]]:
     for detail in error.errors(include_input=False, include_context=False):
         clean_detail = dict(detail)
         clean_detail["loc"] = tuple(
-            "<rejected-field>"
-            if isinstance(component, str) and _contains_secret_shape(component)
-            else component
+            (
+                "<rejected-field>"
+                if isinstance(component, str) and _contains_secret_shape(component)
+                else component
+            )
             for component in detail["loc"]
         )
         sanitized.append(clean_detail)
@@ -124,9 +127,7 @@ def sanitized_validation_error_json(error: ValidationError) -> str:
 class OperationKey(BaseModel):
     """Stable HTTP operation identity for a Platform capability."""
 
-    model_config = ConfigDict(
-        extra="forbid", frozen=True, hide_input_in_errors=True
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     method: HttpMethod
     path: str
@@ -146,18 +147,19 @@ class OperationKey(BaseModel):
         _validate_safe_text(decoded, field_name="decoded path")
         parsed = urlsplit(decoded)
         segments = decoded.replace("\\", "/").split("/")
-        if (
-            not decoded.startswith("/")
-            or decoded.startswith("//")
-            or parsed.scheme
-            or parsed.netloc
-            or parsed.query
-            or parsed.fragment
-            or "?" in decoded
-            or "#" in decoded
-            or "\\" in decoded
-            or any(segment in {".", ".."} for segment in segments)
-        ):
+        invalid_path = (
+            not decoded.startswith("/"),
+            decoded.startswith("//"),
+            bool(parsed.scheme),
+            bool(parsed.netloc),
+            bool(parsed.query),
+            bool(parsed.fragment),
+            "?" in decoded,
+            "#" in decoded,
+            "\\" in decoded,
+            any(segment in {".", ".."} for segment in segments),
+        )
+        if any(invalid_path):
             raise ValueError(
                 "path must be an absolute API path without an origin, query, "
                 "fragment, traversal, or backslash"
@@ -189,9 +191,7 @@ class VerificationState(BaseModel):
 class CapabilityRecord(BaseModel):
     """One declared capability and its current exposure/evidence state."""
 
-    model_config = ConfigDict(
-        extra="forbid", frozen=True, hide_input_in_errors=True
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     schema_version: Annotated[StrictInt, Field(ge=1, le=1)] = 1
     id: str
@@ -225,7 +225,9 @@ class CapabilityRecord(BaseModel):
     def validate_source_refs(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         """Keep provenance repository-relative and free of local path data."""
         if not values:
-            raise ValueError("source_refs must contain at least one provenance reference")
+            raise ValueError(
+                "source_refs must contain at least one provenance reference"
+            )
         canonical_values = []
         for value in values:
             _validate_safe_text(value, field_name="source_refs")
@@ -256,15 +258,16 @@ class CapabilityRecord(BaseModel):
                 raise ValueError("source_refs contain an invalid qualified symbol")
             parsed = urlsplit(path_part)
             decoded_segments = path_part.split("/")
-            if (
-                parsed.scheme
-                or parsed.netloc
-                or parsed.query
-                or parsed.fragment
-                or "?" in decoded
-                or "#" in decoded
-                or any(segment in {".", ".."} for segment in decoded_segments)
-            ):
+            invalid_reference = (
+                bool(parsed.scheme),
+                bool(parsed.netloc),
+                bool(parsed.query),
+                bool(parsed.fragment),
+                "?" in decoded,
+                "#" in decoded,
+                any(segment in {".", ".."} for segment in decoded_segments),
+            )
+            if any(invalid_reference):
                 raise ValueError(
                     "source_refs must be repository-relative paths or qualified symbols"
                 )
@@ -305,12 +308,10 @@ class CapabilityRecord(BaseModel):
         return self
 
 
-class DispositionCounts(BaseModel, Mapping[Disposition, int]):
+class DispositionCounts(BaseModel):
     """Immutable complete partition of records by exposure disposition."""
 
-    model_config = ConfigDict(
-        extra="forbid", frozen=True, hide_input_in_errors=True
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     direct: Annotated[StrictInt, Field(ge=0)] = 0
     workspace_indirect: Annotated[StrictInt, Field(ge=0)] = 0
@@ -324,21 +325,15 @@ class DispositionCounts(BaseModel, Mapping[Disposition, int]):
             raise KeyError(key)
         return getattr(self, key)
 
-    def __iter__(self) -> Iterator[Disposition]:
-        """Iterate every supported disposition in stable contract order."""
-        return iter(_SUPPORTED_DISPOSITIONS)
-
-    def __len__(self) -> int:
-        """Return the fixed number of supported disposition categories."""
-        return len(_SUPPORTED_DISPOSITIONS)
+    def values(self) -> tuple[int, ...]:
+        """Return counts in stable contract order."""
+        return tuple(self[disposition] for disposition in _SUPPORTED_DISPOSITIONS)
 
 
 class CoverageCounts(BaseModel):
     """Explicit gross, approved, and implementation-identity denominators."""
 
-    model_config = ConfigDict(
-        extra="forbid", frozen=True, hide_input_in_errors=True
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     gross_records: Annotated[StrictInt, Field(ge=0)]
     approved_records: Annotated[StrictInt, Field(ge=0)]
@@ -353,19 +348,18 @@ class CoverageCounts(BaseModel):
         if self.gross_records != sum(self.by_disposition.values()):
             raise ValueError("gross_records must equal the disposition total")
         approved_from_dispositions = sum(
-            self.by_disposition[disposition]
-            for disposition in _APPROVED_DISPOSITIONS
+            self.by_disposition[disposition] for disposition in _APPROVED_DISPOSITIONS
         )
         if self.approved_records != approved_from_dispositions:
-            raise ValueError(
-                "approved_records must equal approved disposition counts"
-            )
+            raise ValueError("approved_records must equal approved disposition counts")
         if self.gross_records != (
             self.unique_implementations
             + self.implementation_aliases
             + self.unidentified_records
         ):
-            raise ValueError("gross_records must equal the implementation identity total")
+            raise ValueError(
+                "gross_records must equal the implementation identity total"
+            )
         if self.implementation_aliases and not self.unique_implementations:
             raise ValueError(
                 "implementation aliases require at least one unique implementation"
@@ -378,9 +372,7 @@ class CoverageCounts(BaseModel):
 class CapabilityInventory(BaseModel):
     """Versioned set of unique capability records."""
 
-    model_config = ConfigDict(
-        extra="forbid", frozen=True, hide_input_in_errors=True
-    )
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     schema_version: Annotated[StrictInt, Field(ge=1, le=1)] = 1
     records: tuple[CapabilityRecord, ...]
@@ -389,7 +381,9 @@ class CapabilityInventory(BaseModel):
     def validate_unique_ids(self) -> CapabilityInventory:
         """Reject duplicate stable IDs while permitting declared aliases."""
         counts = Counter(record.id for record in self.records)
-        duplicates = sorted(identifier for identifier, count in counts.items() if count > 1)
+        duplicates = sorted(
+            identifier for identifier, count in counts.items() if count > 1
+        )
         if duplicates:
             raise ValueError(f"Duplicate capability ID: {duplicates[0]}")
         return self
@@ -412,10 +406,12 @@ class CapabilityInventory(BaseModel):
             unique_implementations=unique_implementations,
             implementation_aliases=len(identified) - unique_implementations,
             unidentified_records=len(records) - len(identified),
-            by_disposition={
-                disposition: disposition_counts[disposition]
-                for disposition in _SUPPORTED_DISPOSITIONS
-            },
+            by_disposition=DispositionCounts.model_validate(
+                {
+                    disposition: disposition_counts[disposition]
+                    for disposition in _SUPPORTED_DISPOSITIONS
+                }
+            ),
         )
 
 
