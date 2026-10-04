@@ -16,20 +16,21 @@ def _manifest() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_manifest_has_one_unique_stock_list_route():
-    """The first promoted model has one stable canonical identity."""
+def test_manifest_preserves_stock_list_route():
+    """The first promoted model retains its stable canonical identity."""
     document = _manifest()
     assert document["schema_version"] == 1
-    assert document["routes"] == [
-        {
-            "aliases": [],
-            "arguments": [],
-            "canonical_route": "/fmp_cached/stock_list",
-            "command": "stock_list",
-            "model": "StockList",
-            "providers": ["fmp", "fmp_cached"],
-        }
-    ]
+    stock_list = next(
+        route for route in document["routes"] if route["model"] == "StockList"
+    )
+    assert stock_list == {
+        "aliases": [],
+        "arguments": [],
+        "canonical_route": "/fmp_cached/stock_list",
+        "command": "stock_list",
+        "model": "StockList",
+        "providers": ["fmp", "fmp_cached"],
+    }
 
 
 def test_manifest_route_identities_and_models_are_unique():
@@ -67,7 +68,9 @@ def test_manifest_cross_validates_router_and_provider_registry():
         for item in router.api_router.routes
         if getattr(item, "path", "") == "/stock_list"
     )
-    evidence = _manifest()["routes"][0]
+    evidence = next(
+        route for route in _manifest()["routes"] if route["model"] == "StockList"
+    )
     providers = {
         provider.name
         for provider in (fmp_provider, fmp_cached_provider)

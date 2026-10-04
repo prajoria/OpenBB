@@ -4,9 +4,10 @@ import inspect
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from openbb_fmp_cached import fmp_cached_provider, fmp_cached_router
+from openbb_fmp_cached import fmp_cached_provider
 from openbb_fmp_cached.fmp_cached_router import router, stock_list
 from openbb_fmp_cached.models.symbol_lists import FMPCachedStockListFetcher
+from openbb_fmp_cached.routers import reference_router
 
 
 def test_router_exposes_stock_list_with_real_provider_model():
@@ -55,9 +56,9 @@ async def test_stock_list_delegates_to_query_and_obbject():
     query = object()
     response = object()
     with (
-        patch.object(fmp_cached_router, "Query", return_value=query) as query_cls,
+        patch.object(reference_router, "Query", return_value=query) as query_cls,
         patch.object(
-            fmp_cached_router.OBBject,
+            reference_router.OBBject,
             "from_query",
             new=AsyncMock(return_value=response),
         ) as from_query,
