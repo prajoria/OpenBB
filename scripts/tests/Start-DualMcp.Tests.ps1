@@ -31,7 +31,7 @@ Describe "start-dual-mcp reproducibility" {
         $ScriptText | Should Match '\$env:OPENBB_MCP_RUNTIME_PROFILE\s*=\s*\$Profile'
         $ScriptText | Should Match '\$env:OPENBB_MCP_CAPABILITY_PROFILE\s*=\s*\[string\]\$RuntimeProfile\.policy_profile'
         $ScriptText | Should Match '\$env:OPENBB_MCP_INSTALLATION_KIND\s*=\s*\$Installation'
-        $ScriptText | Should Match 'Invoke-WebRequest[\s\S]*-TimeoutSec \$StartupTimeoutSeconds'
+        $ScriptText | Should Match 'test_portfolio_mcp\.ps1'
         ([regex]::Matches($ScriptText, 'Set-Content -LiteralPath \$StatePath')).Count |
             Should BeGreaterThan 1
         $ScriptText | Should Match '\[System\.Threading\.Mutex\]::new'

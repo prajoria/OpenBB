@@ -94,49 +94,6 @@ function Write-Status {
     }
 }
 
-function Assert-PlatformCatalog {
-    param(
-        [int]$Port,
-        [string]$Authorization
-    )
-
-    $uri = "http://127.0.0.1:$Port/mcp"
-    $headers = @{ Accept = "application/json, text/event-stream" }
-    if ($Authorization) {
-        $headers["Authorization"] = $Authorization
-    }
-    $initializeBody = @{
-        jsonrpc = "2.0"
-        id = 1
-        method = "initialize"
-        params = @{
-            protocolVersion = "2025-06-18"
-            capabilities = @{}
-            clientInfo = @{ name = "dual-mcp-readiness"; version = "1.0" }
-        }
-    } | ConvertTo-Json -Depth 5 -Compress
-    $initialize = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
-        -ContentType "application/json" -Body $initializeBody `
-        -TimeoutSec $StartupTimeoutSeconds
-    $sessionId = [string]$initialize.Headers["Mcp-Session-Id"]
-    if (-not $sessionId) {
-        throw "OpenBB Platform MCP did not return an MCP session ID."
-    }
-    $headers["Mcp-Session-Id"] = $sessionId
-    Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
-        -ContentType "application/json" `
-        -Body '{"jsonrpc":"2.0","method":"notifications/initialized"}' `
-        -TimeoutSec $StartupTimeoutSeconds | Out-Null
-    $catalog = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
-        -ContentType "application/json" `
-        -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"available_categories","arguments":{}}}' `
-        -TimeoutSec $StartupTimeoutSeconds
-    if ($catalog.Content -notmatch '"name":\s*"equity"' -or
-        $catalog.Content -notmatch '"total_tools":\s*[1-9]') {
-        throw "OpenBB Platform MCP started without the expected financial tool catalog."
-    }
-}
-
 $StartMutex = [System.Threading.Mutex]::new(
     $false,
     "Local\OpenBB.DualMcp.Start"
@@ -350,8 +307,20 @@ try {
     $platformIdentity = Wait-ForOwnedListener -Name "OpenBB Platform MCP" `
         -LauncherIdentity $platformLauncherIdentity -Port $PlatformPort `
         -ErrorLog $PlatformErrorLog -TimeoutSeconds $StartupTimeoutSeconds
-    Assert-PlatformCatalog -Port $PlatformPort `
-        -Authorization $ServerAuthorization
+    $readinessArgs = @{
+        Profile = $Profile
+        Uri = "http://127.0.0.1:$PlatformPort/mcp"
+        TimeoutSeconds = $StartupTimeoutSeconds
+    }
+    if ($ServerAuthorization) {
+        $readinessArgs.Authorization = $ServerAuthorization
+    }
+    $ReadinessScript = Join-Path $ProfileRepositoryRoot `
+        "scripts\test_portfolio_mcp.ps1"
+    if (-not (Test-Path -LiteralPath $ReadinessScript -PathType Leaf)) {
+        throw "Selected checkout does not contain scripts\test_portfolio_mcp.ps1."
+    }
+    & $ReadinessScript @readinessArgs | Out-Host
     $workspaceProcess = Start-Process -FilePath "uv" `
         -ArgumentList (ConvertTo-NativeArguments -Arguments $workspaceArgs) -PassThru `
         -RedirectStandardOutput $WorkspaceLog -RedirectStandardError $WorkspaceErrorLog `
