@@ -63,21 +63,16 @@ def test_package_declares_provider_owned_core_entry_point():
 
 def test_manifest_cross_validates_router_and_provider_registry():
     """Manifest evidence agrees with executable route/provider ownership."""
-    route = next(
-        item
-        for item in router.api_router.routes
-        if getattr(item, "path", "") == "/stock_list"
-    )
-    evidence = next(
-        route for route in _manifest()["routes"] if route["model"] == "StockList"
-    )
-    providers = {
-        provider.name
-        for provider in (fmp_provider, fmp_cached_provider)
-        if evidence["model"] in provider.fetcher_dict
-    }
-    assert evidence["canonical_route"] == f"/fmp_cached{route.path}"
-    assert providers == set(evidence["providers"])
+    paths = {item.path for item in router.api_router.routes}
+    for evidence in _manifest()["routes"]:
+        local_path = evidence["canonical_route"].removeprefix("/fmp_cached")
+        providers = {
+            provider.name
+            for provider in (fmp_provider, fmp_cached_provider)
+            if evidence["model"] in provider.fetcher_dict
+        }
+        assert local_path in paths
+        assert providers == set(evidence["providers"])
 
 
 def test_manifest_is_in_the_importable_package():
