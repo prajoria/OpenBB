@@ -660,6 +660,64 @@ def test_non_aligned_timestamp_range_uses_bar_start_coverage():
     assert has_gap is False
 
 
+def test_hourly_alignment_uses_exchange_open_origin():
+    """Hourly bars align from 09:30 rather than midnight."""
+    fetcher = fmp_cached_provider.fetcher_dict["EquityIntradayHistorical"]
+    query = fetcher.transform_query(
+        {
+            "symbol": "AAPL",
+            "interval": "1hour",
+            "start_date": "2025-01-02T10:02:00",
+            "end_date": "2025-01-02T15:00:00",
+        }
+    )
+    rows = []
+    for hour in range(10, 15):
+        rows.append(
+            {
+                "symbol": "AAPL",
+                "interval_type": "1hour",
+                "ts": datetime(2025, 1, 2, hour, 30),
+                "open_price": 1,
+                "high_price": 1,
+                "low_price": 1,
+                "close_price": 1,
+                "volume": 1,
+                "is_extended": False,
+                "is_valid": True,
+            }
+        )
+    with patch.object(
+        equity_intraday_historical,
+        "execute_query",
+        return_value=rows,
+    ):
+        _, has_gap = equity_intraday_historical._analyze_intraday_cache(query)
+    assert has_gap is False
+
+
+def test_fresh_rows_are_sorted_like_cache_hits():
+    """Raw fallback order is deterministic across symbols and timestamps."""
+    fetcher = fmp_cached_provider.fetcher_dict["EquityIntradayHistorical"]
+    query = fetcher.transform_query(
+        {
+            "symbol": "AAPL,MSFT",
+            "interval": "5min",
+            "extended_hours": True,
+        }
+    )
+    rows = [
+        {"symbol": "MSFT", "date": "2025-01-02 10:05:00"},
+        {"symbol": "AAPL", "date": "2025-01-02 10:05:00"},
+        {"symbol": "AAPL", "date": "2025-01-02 10:00:00"},
+    ]
+    assert equity_intraday_historical._filter_fresh_rows(rows, query) == [
+        rows[2],
+        rows[1],
+        rows[0],
+    ]
+
+
 def test_tail_invalidation_only_marks_an_open_bar():
     """Completed bars are immutable while the current bar is invalidated."""
     now = datetime.now(equity_intraday_historical.ZoneInfo("America/New_York")).replace(

@@ -12,12 +12,12 @@ Environment: pymysql / cache_pool paths are mocked via unittest.mock.patch
 so these tests run in the .venv_win without a live MySQL server.
 """
 
+# ruff: noqa: D102
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
-
-import pytest
 
 
 class TestIntradayCacheAnalysis:
@@ -30,7 +30,8 @@ class TestIntradayCacheAnalysis:
         )
 
         q = FMPCachedEquityIntradayHistoricalQueryParams(
-            symbol="AAPL", interval="5min",
+            symbol="AAPL",
+            interval="5min",
         )
         rows, has_gap = _analyze_intraday_cache(q)
         assert rows == []
@@ -43,7 +44,8 @@ class TestIntradayCacheAnalysis:
         )
 
         q = FMPCachedEquityIntradayHistoricalQueryParams(
-            symbol="AAPL", interval="5min",
+            symbol="AAPL",
+            interval="5min",
             start_date=datetime(2026, 7, 8, 9, 30),
             end_date=datetime(2026, 7, 8, 16, 0),
         )
@@ -64,28 +66,35 @@ class TestIntradayCacheAnalysis:
         start = datetime(2026, 7, 8, 9, 30)
         end = datetime(2026, 7, 8, 10, 0)
         q = FMPCachedEquityIntradayHistoricalQueryParams(
-            symbol="AAPL", interval="5min", start_date=start, end_date=end,
+            symbol="AAPL",
+            interval="5min",
+            start_date=start,
+            end_date=end,
         )
-        fake_rows = [
-            {
-                "symbol": "AAPL", "interval_type": "5min", "ts": start,
-                "open_price": 180.0, "high_price": 180.5, "low_price": 179.5,
-                "close_price": 180.2, "volume": 1000, "is_extended": False,
-                "is_valid": True,
-            },
-            {
-                "symbol": "AAPL", "interval_type": "5min", "ts": end,
-                "open_price": 180.2, "high_price": 180.6, "low_price": 180.0,
-                "close_price": 180.4, "volume": 900, "is_extended": False,
-                "is_valid": True,
-            },
-        ]
+        fake_rows = []
+        timestamp = start
+        while timestamp <= end:
+            fake_rows.append(
+                {
+                    "symbol": "AAPL",
+                    "interval_type": "5min",
+                    "ts": timestamp,
+                    "open_price": 180.0,
+                    "high_price": 180.5,
+                    "low_price": 179.5,
+                    "close_price": 180.2,
+                    "volume": 1000,
+                    "is_extended": False,
+                    "is_valid": True,
+                }
+            )
+            timestamp += timedelta(minutes=5)
         with patch(
             "openbb_fmp_cached.models.equity_intraday_historical.execute_query",
             return_value=fake_rows,
         ):
             rows, has_gap = _analyze_intraday_cache(q)
-        assert len(rows) == 2
+        assert len(rows) == 7
         assert has_gap is False
 
 
@@ -97,15 +106,22 @@ class TestTailInvalidation:
             _invalidate_same_session_tail,
         )
 
+        current = datetime(2025, 1, 2, 10, 3)
         today_bar = {
-            "symbol": "MSFT", "interval": "5min",
-            "date": datetime.combine(date.today(), datetime.min.time()).replace(hour=10),
+            "symbol": "MSFT",
+            "interval": "5min",
+            "date": datetime(2025, 1, 2, 10),
             "close": 400.0,
         }
         with patch(
             "openbb_fmp_cached.models.equity_intraday_historical.execute_query"
         ) as mock_exec:
-            _invalidate_same_session_tail("MSFT", "5min", [today_bar])
+            _invalidate_same_session_tail(
+                "MSFT",
+                "5min",
+                [today_bar],
+                now=current,
+            )
         mock_exec.assert_called_once()
         # Assert UPDATE ... is_valid=FALSE appears in the SQL. Compare
         # case-insensitively AND whitespace-insensitively — the production
@@ -128,8 +144,11 @@ class TestTailInvalidation:
 
         yesterday = date.today() - timedelta(days=1)
         prior_bar = {
-            "symbol": "MSFT", "interval": "5min",
-            "date": datetime.combine(yesterday, datetime.min.time()).replace(hour=15, minute=55),
+            "symbol": "MSFT",
+            "interval": "5min",
+            "date": datetime.combine(yesterday, datetime.min.time()).replace(
+                hour=15, minute=55
+            ),
             "close": 400.0,
         }
         with patch(
@@ -162,11 +181,10 @@ class TestCredentialTranslation:
         assert result == {"fmp_api_key": "abc123"}
 
     def test_secretstr_unwrapped(self):
-        from pydantic import SecretStr
-
         from openbb_fmp_cached.models.equity_intraday_historical import (
             _translate_credentials,
         )
+        from pydantic import SecretStr
 
         result = _translate_credentials({"fmp_cached_api_key": SecretStr("secret_key")})
         assert result == {"fmp_api_key": "secret_key"}

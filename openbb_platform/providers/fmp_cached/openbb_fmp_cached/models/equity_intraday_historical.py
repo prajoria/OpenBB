@@ -338,8 +338,18 @@ def _analyze_intraday_cache(
     # Coverage check — earliest & latest cached bar bracket the requested range.
     first_ts, last_ts = cached[0]["date"], cached[-1]["date"]
     interval_delta = _interval_delta(query.interval)
-    expected_start = _align_to_interval(start, interval_delta, ceiling=True)
-    expected_end = _align_to_interval(end, interval_delta, ceiling=False)
+    expected_start = _align_session_bound(
+        start,
+        interval_delta,
+        query.extended_hours,
+        ceiling=True,
+    )
+    expected_end = _align_session_bound(
+        end,
+        interval_delta,
+        query.extended_hours,
+        ceiling=False,
+    )
     missing_start = not start_date_only and first_ts > expected_start
     requested_last = end_exclusive - timedelta(seconds=1)
     missing_end = not end_date_only and last_ts < expected_end
@@ -477,6 +487,12 @@ def _filter_fresh_rows(
         if end_exclusive is not None and value >= end_exclusive:
             continue
         result.append(row)
+    result.sort(
+        key=lambda row: (
+            str(row.get("symbol", "")),
+            str(row.get("date") or row.get("ts") or ""),
+        )
+    )
     return result
 
 
@@ -489,18 +505,21 @@ def _interval_delta(interval: str) -> timedelta:
     return timedelta(days=1)
 
 
-def _align_to_interval(
+def _align_session_bound(
     value: datetime,
     interval: timedelta,
+    extended_hours: bool,
     *,
     ceiling: bool,
 ) -> datetime:
-    midnight = value.replace(hour=0, minute=0, second=0, microsecond=0)
-    elapsed = value - midnight
+    market_open, _ = _us_session_bounds(value.date())
+    origin_time = time(4) if extended_hours else market_open
+    origin = datetime.combine(value.date(), origin_time)
+    elapsed = value - origin
     steps, remainder = divmod(elapsed, interval)
     if ceiling and remainder:
         steps += 1
-    return midnight + steps * interval
+    return origin + steps * interval
 
 
 def _has_session_gap(
@@ -534,11 +553,21 @@ def _has_session_gap(
             expected_close = datetime.combine(session_date, market_close) - delta
         bounded_open = max(
             expected_open,
-            _align_to_interval(start, delta, ceiling=True),
+            _align_session_bound(
+                start,
+                delta,
+                extended_hours,
+                ceiling=True,
+            ),
         )
         bounded_close = min(
             expected_close,
-            _align_to_interval(end, delta, ceiling=False),
+            _align_session_bound(
+                end,
+                delta,
+                extended_hours,
+                ceiling=False,
+            ),
         )
         if timestamps[0] > bounded_open or timestamps[-1] < bounded_close:
             return True
