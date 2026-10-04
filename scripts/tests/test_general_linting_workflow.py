@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "general-linting.yml"
+REQUIRED_COMMANDS = frozenset({"black", "mypy", "pylint", "ruff", "codespell"})
 
 
 def test_workflow_installs_checked_out_devtools_contract():
@@ -32,5 +33,12 @@ def test_workflow_verifies_every_invoked_lint_command_is_available():
         for line in lint_block.splitlines()
         if line.startswith("            ") and line.strip()
     }
-    invoked.add("codespell")
-    assert invoked == verified
+    invoked.update(
+        command
+        for command in REQUIRED_COMMANDS
+        if any(
+            line.strip().startswith(f"- run: {command}")
+            for line in workflow.splitlines()
+        )
+    )
+    assert invoked == verified == REQUIRED_COMMANDS
