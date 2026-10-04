@@ -64,7 +64,7 @@ _QUALIFIED_SYMBOL_RE = re.compile(
 )
 _SECRET_PATTERNS = (
     re.compile(
-        r"(?i)\b(?:api[_-]?key|password|passwd|secret|access[_-]?token|token)"
+        r"(?i)(?:api[_-]?key|password|passwd|secret|access[_-]?token|token)"
         r"\s*[:=]\s*\S+"
     ),
     re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+\S+"),
@@ -179,13 +179,21 @@ class VerificationState(BaseModel):
         frozen=True,
         hide_input_in_errors=True,
         validate_by_alias=True,
-        validate_by_name=True,
+        validate_by_name=False,
         serialize_by_alias=True,
     )
 
     schema_verified: StrictBool = Field(default=False, alias="schema")
     offline_call: StrictBool = False
     live_call: StrictBool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_private_wire_name(cls, value: Any) -> Any:
+        """Require the public ``schema`` alias in wire mappings."""
+        if isinstance(value, dict) and "schema_verified" in value:
+            raise ValueError("schema is the only supported wire field name")
+        return value
 
 
 class CapabilityRecord(BaseModel):

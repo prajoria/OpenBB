@@ -49,6 +49,12 @@ def test_round_trip_preserves_false_flags_and_public_alias():
     )
 
 
+def test_private_verification_name_is_not_a_wire_alias():
+    """Wire inputs accept only the documented ``schema`` spelling."""
+    with pytest.raises(ValidationError, match="only supported wire field"):
+        module.VerificationState.model_validate_json('{"schema_verified": true}')
+
+
 @pytest.mark.parametrize("model", ["record", "operation", "verification", "inventory"])
 def test_unknown_fields_are_rejected(model):
     """Every contract layer rejects fields outside its published schema."""
@@ -259,6 +265,8 @@ def test_excluded_records_need_a_reason(disposition):
     "text",
     [
         "api_key=synthetic-value",
+        "FMP_API_KEY=synthetic-value",
+        "MY_ACCESS_TOKEN=synthetic-value",
         "PASSWORD: synthetic-value",
         "Authorization: Bearer synthetic-value",
         "https://synthetic-user:synthetic-password@example.invalid",
