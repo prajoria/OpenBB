@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "operation_catalog": {
+    "file": "capability_policy_operations.csv",
+    "sha256": "d7ba32f2512c5db01a7b4d9b96ddd15f5f2412144ad9b6a539096cb6f6ab9a24"
+  },
+  "reviewed_metadata_ids": [
+    "platform:profile:platform-standard",
+    "platform:profile:portfolio-read",
+    "platform:profile:portfolio-ops"
+  ],
+  "scope_path_prefixes": {
+    "portfolio-venv-core-in-process": ["/api/v1/"],
+    "live-intelligence-custom": ["/pi/", "/tt/"],
+    "live-portfolio-custom": [
+      "/portfolio/",
+      "/espp/",
+      "/equity/",
+      "/market/",
+      "/stock/"
+    ]
+  },
+  "scope_exact_paths": {
+    "live-intelligence-custom": ["/", "/widgets.json", "/apps.json"]
+  },
+  "profiles": {
+    "platform-standard": [
+      "public_metadata",
+      "provider_read"
+    ],
+    "portfolio-read": [
+      "public_metadata",
+      "provider_read",
+      "private_portfolio_read"
+    ],
+    "portfolio-ops": [
+      "public_metadata",
+      "provider_read",
+      "private_portfolio_read",
+      "filesystem_write",
+      "cache_maintenance",
+      "job_control",
+      "workspace_mutation"
+    ]
+  },
+  "rules": [
+    {
+      "id": "deny-execution-actions",
+      "priority": 100,
+      "scopes": ["live-intelligence-custom"],
+      "methods": ["POST"],
+      "paths": [
+        "/tt/execute/approve-plan",
+        "/tt/execute/cancel"
+      ],
+      "disposition": "restricted",
+      "access_class": "financial_mutation",
+      "admitted_profiles": [],
+      "reason": "Execution actions require a later sandbox and human-approval contract."
+    },
+    {
+      "id": "deny-unhardened-congress-url-fetches",
+      "priority": 100,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "path_prefixes": ["/api/v1/uscongress"],
+      "paths": [
+        "/api/v1/uscongress/bill_text",
+        "/api/v1/uscongress/amendment_text",
+        "/api/v1/uscongress/bill_text_urls",
+        "/api/v1/uscongress/bill_info",
+        "/api/v1/uscongress/amendment_text_urls",
+        "/api/v1/uscongress/amendment_info",
+        "/api/v1/commodity/weather_bulletins_download",
+        "/api/v1/regulators/sec/htm_file"
+      ],
+      "disposition": "restricted",
+      "access_class": "provider_read",
+      "admitted_profiles": [],
+      "reason": "Caller-supplied document URLs require parsed-host and redirect SSRF hardening before MCP exposure."
+    },
+    {
+      "id": "operator-filesystem-writes",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process", "live-intelligence-custom"],
+      "paths": [
+        "/tt/execute/write-batch",
+        "/api/v1/backtest/bundle/ingest",
+        "/api/v1/techtrade/export",
+        "/api/v1/techtrade/tune"
+      ],
+      "disposition": "direct",
+      "access_class": "filesystem_write",
+      "admitted_profiles": ["portfolio-ops"]
+    },
+    {
+      "id": "operator-job-control",
+      "priority": 95,
+      "scopes": ["live-intelligence-custom"],
+      "paths": [
+        "/tt/scan/trigger"
+      ],
+      "disposition": "direct",
+      "access_class": "job_control",
+      "admitted_profiles": ["portfolio-ops"]
+    },
+    {
+      "id": "public-manifests",
+      "priority": 90,
+      "paths": [
+        "/",
+        "/widgets.json",
+        "/apps.json"
+      ],
+      "disposition": "metadata_only",
+      "access_class": "public_metadata",
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ]
+    },
+    {
+      "id": "coverage-metadata",
+      "priority": 90,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "path_prefixes": ["/api/v1/coverage"],
+      "disposition": "metadata_only",
+      "access_class": "public_metadata",
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ]
+    },
+    {
+      "id": "private-core-paper-state",
+      "priority": 85,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": ["/api/v1/portfolio_intel/paper/alerts"],
+      "disposition": "direct",
+      "access_class": "private_portfolio_read",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "private-intelligence-reads",
+      "priority": 80,
+      "scopes": ["live-intelligence-custom"],
+      "path_prefixes": [
+        "/pi/context/book",
+        "/pi/xray",
+        "/pi/lookthrough",
+        "/pi/concentration",
+        "/pi/whatif",
+        "/pi/attribution",
+        "/pi/paper",
+        "/pi/events",
+        "/pi/smart-money",
+        "/pi/risk",
+        "/pi/news",
+        "/pi/sentiment",
+        "/pi/alerts",
+        "/pi/backtest",
+        "/tt/audit",
+        "/tt/execute/paper-status"
+      ],
+      "disposition": "workspace_indirect",
+      "access_class": "private_portfolio_read",
+      "admitted_profiles": [
+        "portfolio-read",
+        "portfolio-ops"
+      ]
+    },
+    {
+      "id": "portfolio-custom-private",
+      "priority": 80,
+      "scopes": ["live-portfolio-custom"],
+      "path_prefixes": [
+        "/portfolio/",
+        "/espp/"
+      ],
+      "disposition": "restricted",
+      "access_class": "private_portfolio_read",
+      "admitted_profiles": [],
+      "reason": "Requires the reviewed opt-in Portfolio custom-app adapter from T21."
+    },
+    {
+      "id": "portfolio-custom-provider",
+      "priority": 70,
+      "scopes": ["live-portfolio-custom"],
+      "path_prefixes": [
+        "/equity/",
+        "/market/",
+        "/stock/"
+      ],
+      "disposition": "restricted",
+      "access_class": "provider_read",
+      "admitted_profiles": [],
+      "reason": "Requires the reviewed opt-in Portfolio custom-app adapter from T21."
+    },
+    {
+      "id": "core-provider-and-compute",
+      "priority": 10,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "path_prefixes": [
+        "/api/v1/backtest",
+        "/api/v1/cftc",
+        "/api/v1/commodity",
+        "/api/v1/crypto",
+        "/api/v1/currency",
+        "/api/v1/derivatives",
+        "/api/v1/economy",
+        "/api/v1/equity",
+        "/api/v1/etf",
+        "/api/v1/fixedincome",
+        "/api/v1/imf_utils",
+        "/api/v1/index",
+        "/api/v1/news",
+        "/api/v1/portfolio_intel",
+        "/api/v1/regime",
+        "/api/v1/regulators",
+        "/api/v1/techtrade",
+        "/api/v1/uscongress"
+      ],
+      "disposition": "direct",
+      "access_class": "provider_read",
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ]
+    },
+    {
+      "id": "workspace-intelligence",
+      "priority": 10,
+      "scopes": ["live-intelligence-custom"],
+      "path_prefixes": [
+        "/pi/context/symbol",
+        "/pi/context/provenance",
+        "/pi/equity",
+        "/pi/health",
+        "/tt/scan",
+        "/tt/position",
+        "/tt/validation",
+        "/tt/tuning",
+        "/tt/engine/status",
+        "/tt/execute/bridge"
+      ],
+      "disposition": "workspace_indirect",
+      "access_class": "provider_read",
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ]
+    },
+    {
+      "id": "deny-unreviewed-core",
+      "priority": 1,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "disposition": "restricted",
+      "access_class": "provider_read",
+      "admitted_profiles": [],
+      "reason": "Unclassified core operation requires explicit policy review."
+    },
+    {
+      "id": "deny-unreviewed-intelligence",
+      "priority": 1,
+      "scopes": ["live-intelligence-custom"],
+      "disposition": "restricted",
+      "access_class": "provider_read",
+      "admitted_profiles": [],
+      "reason": "Unclassified Intelligence operation requires explicit policy review."
+    }
+  ],
+  "providers": {
+    "routed": {
+      "disposition": "direct",
+      "access_class": "provider_read",
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ],
+      "reason": "Provider is registered for the model and has a callable command."
+    },
+    "unrouted": {
+      "disposition": "unimplemented",
+      "access_class": "provider_read",
+      "admitted_profiles": [],
+      "reason": "Provider registration has no callable command for this provider/model."
+    }
+  },
+  "specialists": {
+    "agents": {
+      "disposition": "restricted",
+      "access_class": "private_portfolio_read",
+      "reason": "Agents MCP registration and documentation require specialist verification in T33-T34."
+    },
+    "daytrade": {
+      "disposition": "unimplemented",
+      "access_class": "provider_read",
+      "reason": "Declared Daytrade tools do not yet have callable protocol handlers."
+    }
+  }
+}

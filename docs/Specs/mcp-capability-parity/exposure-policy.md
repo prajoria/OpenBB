@@ -14,6 +14,8 @@ does not replace authentication or endpoint authorization.
 Unknown capabilities are denied. Restricted and unimplemented decisions remain
 in gross counts and require a reason. Rules are ordered, stable, and
 independently reviewable in `assets/capability_policy.json`.
+Each core/Intelligence scope ends in a restricted catch-all; reviewed category
+and path families must match at a higher priority before admission.
 
 ## Profiles
 
@@ -32,9 +34,12 @@ alone authorizes invocation.
 1. Manifests, roots, health/about, catalogs and coverage metadata are
    `public_metadata`.
 2. Core data, analytics, backtest, validation, tuning and text-download
-   operations are `provider_read` even when their transport method is POST.
+   operations are `provider_read` even when their transport method is POST,
+   except persisted bundle/tuning writes and URL-fetch operations awaiting SSRF
+   hardening.
 3. Portfolio holdings, allocation, cost/tax, snapshots, ESPP, book context,
-   lookthrough and paper-state reads are `private_portfolio_read`.
+   lookthrough, account-scoped analytics and paper-state reads are
+   `private_portfolio_read`.
 4. File/workbook/order-batch exports are `filesystem_write`.
 5. Trigger/cancel job-control operations are `job_control`.
 6. Workspace-only widget/application surfaces are `workspace_indirect`.
@@ -60,6 +65,10 @@ same priority.
   `unimplemented`.
 - Metadata-only admin/catalog helpers are admitted only where their access class
   is allowed by the selected profile.
+
+Provider routed/unrouted decisions and specialist defaults live in the JSON
+asset rather than Python constants. Restricted/unimplemented asset entries may
+not list admitted profiles.
 
 ## Interfaces
 
