@@ -62,6 +62,7 @@ _STABLE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 _QUALIFIED_SYMBOL_RE = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
 )
+_INVALID_PERCENT_ESCAPE_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 _SECRET_PATTERNS = (
     re.compile(
         r"""(?ix)["']?(?:api[_-]?key|secret[_-]?key|private[_-]?key|password|"""
@@ -95,7 +96,12 @@ def _decoded_path(value: str) -> str:
     """Decode nested percent encoding to a stable canonical value."""
     decoded = value
     for _ in range(len(value) + 1):
-        candidate = unquote(decoded)
+        if _INVALID_PERCENT_ESCAPE_RE.search(decoded):
+            raise ValueError("percent encoding must use complete hexadecimal escapes")
+        try:
+            candidate = unquote(decoded, errors="strict")
+        except UnicodeDecodeError as error:
+            raise ValueError("percent encoding must contain valid UTF-8") from error
         if candidate == decoded:
             return decoded
         decoded = candidate

@@ -128,6 +128,12 @@ def test_operation_normalizes_method_and_is_frozen():
         "/%2fexample.invalid/api",
         "/%25252e%25252e/private",
         "/%25250a/private",
+        "/api/%FF",
+        "/api/%FE",
+        "/api/%C0",
+        "/api/%25FF",
+        "/api/%ZZ",
+        "/api/%",
     ],
 )
 def test_operation_rejects_noncanonical_paths(path):
@@ -161,6 +167,10 @@ def test_operation_rejects_noncanonical_paths(path):
         "src/..:Symbol",
         "src/.:Symbol",
         "src/%2e%2e:Symbol",
+        "%FF.py",
+        "%25FF.py",
+        "%ZZ.py",
+        "%.py",
     ],
 )
 def test_source_references_cannot_be_machine_paths(source):
