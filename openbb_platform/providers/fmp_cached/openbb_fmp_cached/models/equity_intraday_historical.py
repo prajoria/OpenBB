@@ -121,15 +121,14 @@ class FMPCachedEquityIntradayHistoricalFetcher(
             for symbol in symbol_text.split(",")
             if symbol.strip()
         ]
-        if not query.extended_hours:
-            unsupported = [
-                symbol for symbol in symbols if symbol.endswith(_NON_US_SUFFIXES)
-            ]
-            if unsupported:
-                raise OpenBBError(
-                    "Regular-session filtering currently supports US-listed "
-                    f"symbols only; use extended_hours=True for {unsupported}."
-                )
+        unsupported = [
+            symbol for symbol in symbols if symbol.endswith(_NON_US_SUFFIXES)
+        ]
+        if unsupported:
+            raise OpenBBError(
+                "Cached intraday sessions currently support US-listed "
+                f"symbols only; use provider=fmp for {unsupported}."
+            )
 
         # DB init; fall back to raw fmp on any DB failure (Phase 0 tier-2 posture).
         try:

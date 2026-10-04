@@ -296,6 +296,22 @@ async def test_non_us_regular_session_filter_fails_closed():
             {"fmp_cached_api_key": "test"},
         )
 
+    extended_query = fetcher.transform_query(
+        {
+            "symbol": "RELIANCE.NS",
+            "interval": "5min",
+            "extended_hours": True,
+        }
+    )
+    with (
+        patch.object(equity_intraday_historical, "init_database"),
+        pytest.raises(OpenBBError, match="provider=fmp"),
+    ):
+        await fetcher.aextract_data(
+            extended_query,
+            {"fmp_cached_api_key": "test"},
+        )
+
 
 def test_invalid_same_session_tail_forces_refresh():
     """An invalidated extending bar prevents a false cache hit."""
