@@ -94,6 +94,22 @@ The output directory contains:
 | `capabilities.csv` | One row per `CapabilityRecord`, with canonical operation and evidence fields. |
 | `provider_models.csv` | One row per provider/model registration, joined to command routes and MCP tool names. |
 
+## Lineage comparison
+
+The CLI accepts `--comparison-sha` and descriptive `--base-ref`. In GitHub CI it
+uses `GITHUB_BASE_SHA` and `GITHUB_BASE_REF` when an explicit SHA is absent.
+It never fetches, checks out, merges, resets, or resolves a local upstream.
+
+`inventory.json.lineage` records HEAD, comparison SHA/source, base name,
+Portfolio-base status, shallow state, merge base, ahead/behind counts, relation
+and warning categories. Missing objects in a full repository are
+`comparison_ref_missing`; the same condition in a shallow repository is
+`history_incomplete`. Non-Portfolio bases remain comparable but carry a
+`non_portfolio_base:<name>` warning.
+
+If no comparison SHA is supplied, lineage state is `comparison_missing`; the
+rest of the metadata inventory remains usable without inventing a baseline.
+
 No timestamps, process IDs, temporary paths, host names or absolute machine
 paths are included. Repeated runs against the same source/runtime metadata must
 produce byte-identical files.

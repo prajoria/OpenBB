@@ -28,14 +28,13 @@ from openbb_mcp_server.models.capability import (
 )
 from openbb_mcp_server.models.mcp_config import is_valid_mcp_config
 from openbb_mcp_server.models.settings import MCPSettings
-from openbb_mcp_server.service.capability_import_guard import (
-    metadata_import_guard,
-)
+from openbb_mcp_server.service.capability_import_guard import metadata_import_guard
 from openbb_mcp_server.service.capability_provenance import (
     DEFAULT_MODULES,
     DistributionMetadata,
     EnvironmentFlag,
     ImportMetadata,
+    LineageMetadata,
     RepositoryMetadata,
     RuntimeMetadata,
     ServiceMetadata,
@@ -140,6 +139,7 @@ class InventoryDocument(BaseModel):
     provider_models: tuple[ProviderModelMetadata, ...]
     collisions: tuple[CollisionMetadata, ...]
     runtime: RuntimeMetadata
+    lineage: LineageMetadata | None = None
     unavailable_components: tuple[str, ...]
     scope_limitations: tuple[str, ...]
 
