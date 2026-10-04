@@ -3,6 +3,7 @@
 # pylint: disable=C0302, R0912, W0212
 
 import asyncio
+import copy
 import json
 import os
 import re
@@ -53,6 +54,10 @@ from openbb_mcp_server.models.mcp_config import (
 from openbb_mcp_server.models.prompts import StaticPrompt
 from openbb_mcp_server.models.settings import MCPSettings
 from openbb_mcp_server.models.tools import CategoryInfo, SubcategoryInfo, ToolInfo
+from openbb_mcp_server.service.exposure_enforcement import (
+    ExposureEnforcementMiddleware,
+)
+from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 from openbb_mcp_server.service.mcp_service import MCPService
 from openbb_mcp_server.utils.app_import import parse_args
 
@@ -383,9 +388,17 @@ def create_mcp_server(
 
     category_index = CategoryIndex()
     _enabled_tools: set[str] = set()
+    _all_api_tools: set[str] = set()
+    _allowed_resource_uris: set[str] = set()
+    _allowed_resource_templates: set[str] = set()
+    capability_profile = getattr(settings, "capability_profile", None)
+    selected_policy = ExposurePolicy.load() if capability_profile else None
 
-    # Single-pass processing: filter routes, build route maps, and create lookup dictionary
-    processed_data = process_fastapi_routes_for_mcp(fastapi_app, settings)
+    # Filter an isolated route composition; preserve the original REST app.
+    composed_app = copy.copy(fastapi_app)
+    composed_app.router = copy.copy(fastapi_app.router)
+    composed_app.router.routes = list(fastapi_app.router.routes)
+    processed_data = process_fastapi_routes_for_mcp(composed_app, settings)
 
     route_lookup = processed_data.route_lookup
     tool_prompts_map: dict = {}
@@ -432,6 +445,14 @@ def create_mcp_server(
         category = identity.category
         subcategory = identity.subcategory
         component.name = identity.component_name
+        policy_admitted = (
+            selected_policy is None
+            or selected_policy.is_operation_admitted(
+                route.method,
+                route.path,
+                capability_profile,
+            )
+        )
 
         # Tags
         component.tags.add(category)
@@ -441,6 +462,7 @@ def create_mcp_server(
 
         # Compress schemas (only for OpenAPITool which has these attributes)
         if isinstance(component, OpenAPITool):
+            _all_api_tools.add(component.name)
             if component.parameters:
                 component.parameters = compress_schema(component.parameters)
             if hasattr(component, "output_schema"):
@@ -484,7 +506,7 @@ def create_mcp_server(
         else:
             should_enable = False
 
-        if should_enable and isinstance(component, OpenAPITool):
+        if should_enable and isinstance(component, OpenAPITool) and policy_admitted:
             _enabled_tools.add(component.name)
 
         # Resource-specific mime type
@@ -492,9 +514,13 @@ def create_mcp_server(
             mime_type = mcp_cfg.get("mime_type")
             if isinstance(mime_type, str) and mime_type:
                 component.mime_type = mime_type
+            if policy_admitted:
+                _allowed_resource_uris.add(str(component.uri))
+        elif isinstance(component, OpenAPIResourceTemplate) and policy_admitted:
+            _allowed_resource_templates.add(str(component.uri_template))
 
         # Register tool in the category index for discovery browsing
-        if isinstance(component, OpenAPITool):
+        if isinstance(component, OpenAPITool) and policy_admitted:
             category_index.register(
                 category=category,
                 subcategory=subcategory,
@@ -510,7 +536,7 @@ def create_mcp_server(
 
     # Create MCP server from the processed FastAPI app.
     mcp = FastMCP.from_fastapi(
-        app=fastapi_app,  # app has been modified in-place
+        app=composed_app,
         mcp_component_fn=customize_components,
         route_maps=processed_data.route_maps,
         httpx_client_kwargs=httpx_client_kwargs,
@@ -519,7 +545,7 @@ def create_mcp_server(
     )
 
     # Disable ALL non-admin tools first, then selectively re-enable.
-    all_registered = category_index.all_tool_names()
+    all_registered = _all_api_tools or category_index.all_tool_names()
     if all_registered:
         mcp.disable(names=all_registered)
 
@@ -851,6 +877,26 @@ def create_mcp_server(
             "files_written": written_files,
             "uri": f"skill://{skill_name}/SKILL.md",
         }
+
+    if capability_profile:
+        allowed_admin_names = {
+            *category_index.all_tool_names(),
+            "available_categories",
+            "available_tools",
+            "activate_tools",
+            "deactivate_tools",
+            "activate_category",
+            "list_prompts",
+            "get_prompt",
+        }
+        allowed_names = frozenset(allowed_admin_names)
+        mcp.add_middleware(
+            ExposureEnforcementMiddleware(
+                allowed_names,
+                allowed_resource_uris=frozenset(_allowed_resource_uris),
+                allowed_resource_templates=frozenset(_allowed_resource_templates),
+            )
+        )
 
     return mcp
 

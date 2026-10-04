@@ -9,6 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 _DEFAULT_SKILLS_DIR = str(Path(__file__).resolve().parent.parent / "skills")
 
 DuplicateBehavior = Literal["warn", "error", "replace", "ignore"]
+CapabilityProfile = Literal[
+    "platform-standard",
+    "portfolio-read",
+    "portfolio-ops",
+]
 
 
 class MCPSettings(BaseModel):
@@ -66,6 +71,11 @@ the exact same operations available to REST clients.""",
             Disable for multi-client or fixed toolset deployments.
         """,
         alias="OPENBB_MCP_ENABLE_TOOL_DISCOVERY",
+    )
+    capability_profile: CapabilityProfile | None = Field(
+        default=None,
+        description="Opt-in reviewed capability exposure profile. None preserves compatibility behavior.",
+        alias="OPENBB_MCP_CAPABILITY_PROFILE",
     )
 
     # Pagination configuration
