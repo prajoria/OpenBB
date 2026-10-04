@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "platform-standard": {
+      "installation": "isolated_uv",
+      "python": ">=3.10,<3.14",
+      "policy_profile": "platform-standard",
+      "app": {
+        "kind": "core",
+        "target": "openbb_core.api.rest_api:app"
+      },
+      "required_distributions": [
+        "openbb-core",
+        "openbb-platform-api",
+        "openbb-mcp-server",
+        "fastmcp"
+      ],
+      "required_modules": [
+        "openbb",
+        "openbb_core",
+        "openbb_platform_api",
+        "openbb_mcp_server",
+        "fastmcp"
+      ],
+      "optional_analytics": [],
+      "operator_access": false,
+      "maintenance_enabled": false
+    },
+    "portfolio-read": {
+      "installation": "portfolio_venv",
+      "python": ">=3.10,<3.14",
+      "policy_profile": "portfolio-read",
+      "app": {
+        "kind": "custom",
+        "target": "openbb_platform/extensions/portfolio/launch.py"
+      },
+      "required_distributions": [
+        "openbb-core",
+        "openbb-platform-api",
+        "openbb-mcp-server",
+        "openbb-fmp-cached",
+        "openbb-portfolio-custom",
+        "openbb-portfolio-intel",
+        "openbb-techtrade",
+        "openbb-backtest",
+        "openbb-regime"
+      ],
+      "required_modules": [
+        "openbb",
+        "openbb_core",
+        "openbb_platform_api",
+        "openbb_mcp_server",
+        "openbb_fmp_cached",
+        "openbb_portfolio",
+        "openbb_portfolio_intel",
+        "openbb_techtrade",
+        "openbb_backtest",
+        "openbb_regime"
+      ],
+      "optional_analytics": [
+        "openbb-financialtoolkit"
+      ],
+      "operator_access": false,
+      "maintenance_enabled": false
+    },
+    "portfolio-ops": {
+      "installation": "portfolio_venv",
+      "python": ">=3.10,<3.14",
+      "policy_profile": "portfolio-ops",
+      "app": {
+        "kind": "custom",
+        "target": "openbb_platform/extensions/portfolio/launch.py"
+      },
+      "required_distributions": [
+        "openbb-core",
+        "openbb-mcp-server",
+        "openbb-fmp-cached",
+        "openbb-portfolio-custom",
+        "openbb-portfolio-intel",
+        "openbb-techtrade",
+        "openbb-backtest",
+        "openbb-regime"
+      ],
+      "required_modules": [
+        "openbb",
+        "openbb_core",
+        "openbb_mcp_server",
+        "openbb_fmp_cached",
+        "openbb_portfolio",
+        "openbb_portfolio_intel",
+        "openbb_techtrade",
+        "openbb_backtest",
+        "openbb_regime"
+      ],
+      "optional_analytics": [
+        "openbb-financialtoolkit"
+      ],
+      "operator_access": true,
+      "maintenance_enabled": false
+    }
+  }
+}
