@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from openbb_core.app.model.abstract.error import OpenBBError
+from openbb_core.app.router import CommandMap
+from openbb_equity.equity_router import router as equity_router
 from openbb_fmp_cached import fmp_cached_provider
 from openbb_fmp_cached.routers import quote_router
 from pydantic import BaseModel, create_model
@@ -170,3 +172,13 @@ def test_existing_equity_quote_contract_is_unchanged():
     assert "EquityQuote" in fmp_cached_provider.fetcher_dict
     assert "EquityQuote" not in QUOTE_MODELS
     assert all(row["model"] != "EquityQuote" for row in _manifest())
+    command_map = CommandMap(equity_router).map
+    endpoint = command_map["/price/quote"]
+    route = next(
+        route
+        for route in equity_router.api_router.routes
+        if route.path == "/price/quote"
+    )
+    assert endpoint is route.endpoint
+    assert route.operation_id == "equity_price_quote"
+    assert route.openapi_extra["model"] == "EquityQuote"
