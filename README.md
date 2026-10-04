@@ -70,17 +70,35 @@ repository:
 ```powershell
 git submodule update --init third_party/workspace
 .\scripts\start-dual-mcp.ps1
+.\scripts\start-dual-mcp.ps1 -Profile portfolio-read
+.\scripts\start-dual-mcp.ps1 -Profile portfolio-ops
 .\scripts\start-dual-mcp.ps1 -Action Status
 .\scripts\start-dual-mcp.ps1 -Action Stop
 ```
 
-The launcher uses `uv`, serves Platform MCP at
+`platform-standard` remains the default compatibility profile. Portfolio
+profiles use the registered Portfolio application and `.venv_portfolio`; pass
+`-PortfolioPython` when that interpreter is not in the integration checkout,
+and pair it with `-PortfolioRoot` when the venv lives outside its owning
+checkout. `OPENBB_PORTFOLIO_PYTHON` provides the same interpreter override for
+automation.
+The selected profile controls the application target, capability policy,
+installation, and dependency checks as one manifest-backed unit.
+`portfolio-ops` additionally refuses to start unless
+`OPENBB_MCP_SERVER_AUTH` is a JSON `[username,password]` array whose password
+is at least 32 characters; the launcher uses the same credential for readiness.
+
+The launcher uses `uv` for Workspace and the standard isolated Platform
+profile, serves Platform MCP at
 `http://127.0.0.1:8001/mcp`, and serves Workspace MCP at
 `http://127.0.0.1:8787/mcp`. Copy `.mcp.json.example` to `.mcp.json` to
-register both endpoints with compatible MCP clients. Runtime state and logs are
-written under `%LOCALAPPDATA%\OpenBB\mcp-stack`, outside the repository. For
-older layouts, the launcher also discovers a sibling `workspace` checkout, or
-you can provide `-WorkspaceRoot`.
+register the default `openbb-platform-standard` endpoint and Workspace endpoint
+with compatible MCP clients. Rename the local client entry to match a selected
+Portfolio profile when desired. Runtime state and logs are written under
+`%LOCALAPPDATA%\OpenBB\mcp-stack`, outside the repository. PID, start time, and
+executable identity guard every stop/cleanup operation, so stale state and
+unrelated listeners are never terminated. For older layouts, the launcher also
+discovers a sibling `workspace` checkout, or you can provide `-WorkspaceRoot`.
 
 ### Integrating Open Data Platform to the OpenBB Workspace
 

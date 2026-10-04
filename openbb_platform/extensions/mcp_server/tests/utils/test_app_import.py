@@ -8,7 +8,11 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
-from openbb_mcp_server.utils.app_import import import_app, parse_args
+from openbb_mcp_server.utils.app_import import (
+    _uses_colon_notation,
+    import_app,
+    parse_args,
+)
 
 
 @pytest.fixture
@@ -117,6 +121,30 @@ def test_parse_args_with_app(dummy_app_file: Path):
         args = parse_args()
         assert isinstance(args.imported_app, FastAPI)
         assert args.imported_app.title == "Dummy App"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
+def test_parse_args_with_windows_file_path_without_instance(dummy_app_file: Path):
+    """A drive-letter colon must not replace the default app attribute."""
+    test_args = ["mcp_server", "--app", str(dummy_app_file)]
+    with patch.object(sys, "argv", test_args):
+        args = parse_args()
+        assert isinstance(args.imported_app, FastAPI)
+        assert args.imported_app.title == "Dummy App"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (r"C:\OpenBB Portfolio\app.py", False),
+        (r"C:\OpenBB Portfolio\app.py:app", True),
+        ("openbb_core.api.rest_api:app", True),
+        ("relative/app.py", False),
+    ],
+)
+def test_colon_notation_detection_is_platform_independent(value, expected):
+    """Drive-letter parsing is testable on every CI operating system."""
+    assert _uses_colon_notation(value) is expected
 
 
 def test_parse_args_with_factory_app(dummy_app_file: Path):
