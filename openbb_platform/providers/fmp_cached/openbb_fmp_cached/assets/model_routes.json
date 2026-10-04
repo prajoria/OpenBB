@@ -304,6 +304,78 @@
       "command": "all_exchange_market_hours",
       "model": "AllExchangeMarketHours",
       "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol", "interval", "start_date", "end_date", "extended_hours"],
+      "canonical_route": "/fmp_cached/equity_intraday_historical",
+      "command": "equity_intraday_historical",
+      "model": "EquityIntradayHistorical",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/exchange_market_hours",
+      "command": "exchange_market_hours",
+      "model": "ExchangeMarketHours",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/aftermarket_trade",
+      "command": "aftermarket_trade",
+      "model": "AftermarketTrade",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/aftermarket_quote",
+      "command": "aftermarket_quote",
+      "model": "AftermarketQuote",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/company_notes",
+      "command": "company_notes",
+      "model": "CompanyNotes",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["year"],
+      "canonical_route": "/fmp_cached/executive_compensation_benchmark",
+      "command": "executive_compensation_benchmark",
+      "model": "ExecutiveCompensationBenchmark",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["exchange"],
+      "canonical_route": "/fmp_cached/holidays_by_exchange",
+      "command": "holidays_by_exchange",
+      "model": "HolidaysByExchange",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol", "indicator", "period_length", "timeframe"],
+      "canonical_route": "/fmp_cached/technical_indicator_intraday",
+      "command": "technical_indicator_intraday",
+      "model": "TechnicalIndicatorIntraday",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/equity_quote_batch_short",
+      "command": "equity_quote_batch_short",
+      "model": "EquityQuoteBatchShort",
+      "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
