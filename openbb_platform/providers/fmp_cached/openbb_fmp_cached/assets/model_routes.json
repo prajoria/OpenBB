@@ -216,6 +216,94 @@
       "command": "search_exchange_variants",
       "model": "SearchExchangeVariants",
       "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/market_cap",
+      "command": "market_cap",
+      "model": "MarketCap",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/shares_float",
+      "command": "shares_float",
+      "model": "SharesFloat",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/stock_price_change",
+      "command": "stock_price_change",
+      "model": "StockPriceChange",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/stock_quote",
+      "command": "stock_quote",
+      "model": "StockQuote",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbol"],
+      "canonical_route": "/fmp_cached/stock_quote_short",
+      "command": "stock_quote_short",
+      "model": "StockQuoteShort",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbols"],
+      "canonical_route": "/fmp_cached/market_cap_batch",
+      "command": "market_cap_batch",
+      "model": "MarketCapBatch",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbols"],
+      "canonical_route": "/fmp_cached/batch_quote",
+      "command": "batch_quote",
+      "model": "BatchQuote",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbols"],
+      "canonical_route": "/fmp_cached/batch_quote_short",
+      "command": "batch_quote_short",
+      "model": "BatchQuoteShort",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbols"],
+      "canonical_route": "/fmp_cached/batch_aftermarket_trade",
+      "command": "batch_aftermarket_trade",
+      "model": "BatchAftermarketTrade",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": ["symbols"],
+      "canonical_route": "/fmp_cached/batch_aftermarket_quote",
+      "command": "batch_aftermarket_quote",
+      "model": "BatchAftermarketQuote",
+      "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [],
+      "arguments": [],
+      "canonical_route": "/fmp_cached/all_exchange_market_hours",
+      "command": "all_exchange_market_hours",
+      "model": "AllExchangeMarketHours",
+      "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
