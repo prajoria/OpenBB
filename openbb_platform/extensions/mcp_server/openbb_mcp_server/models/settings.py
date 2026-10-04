@@ -77,6 +77,29 @@ the exact same operations available to REST clients.""",
         description="Opt-in reviewed capability exposure profile. None preserves compatibility behavior.",
         alias="OPENBB_MCP_CAPABILITY_PROFILE",
     )
+    runtime_profile: CapabilityProfile | None = Field(
+        default=None,
+        description="Selected installation/app manifest.",
+        alias="OPENBB_MCP_RUNTIME_PROFILE",
+    )
+    app_target: str | None = Field(
+        default=None,
+        description="Explicit FastAPI app target; must agree with the runtime profile.",
+        alias="OPENBB_MCP_APP_TARGET",
+    )
+    enable_maintenance_operations: bool = Field(
+        default=False,
+        description="Explicit operator opt-in; profiles never enable maintenance implicitly.",
+        alias="OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS",
+    )
+    installation_kind: Literal["isolated_uv", "portfolio_venv"] | None = Field(
+        default=None,
+        alias="OPENBB_MCP_INSTALLATION_KIND",
+    )
+    selected_analytics: list[str] = Field(
+        default_factory=list,
+        alias="OPENBB_MCP_SELECTED_ANALYTICS",
+    )
 
     # Pagination configuration
     list_page_size: int | None = Field(
@@ -234,6 +257,7 @@ the exact same operations available to REST clients.""",
         "allowed_tool_categories",
         "dependencies",
         "skills_providers",
+        "selected_analytics",
         mode="before",
     )
     @classmethod
