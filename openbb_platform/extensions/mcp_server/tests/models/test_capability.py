@@ -144,6 +144,8 @@ def test_operation_rejects_noncanonical_paths(path):
         "%2Fprivate/source.py",
         "https%3A%2F%2Fexample.invalid/source.py",
         "C%3A/private/source.py",
+        "C:private.py",
+        "C%3Aprivate.py",
         "~/.ssh/id_rsa",
         "~user/private.py",
         "src/..:Symbol",

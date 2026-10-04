@@ -235,7 +235,7 @@ class CapabilityRecord(BaseModel):
             _validate_safe_text(decoded, field_name="decoded source_refs")
             if (
                 decoded.startswith(("/", "\\", "~"))
-                or re.match(r"^[A-Za-z]:[\\/]", decoded)
+                or re.match(r"^[A-Za-z]:", decoded)
                 or "://" in decoded
             ):
                 raise ValueError(
