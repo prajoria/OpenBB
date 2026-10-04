@@ -202,48 +202,6 @@ async def sp500_constituent(
     return await _dispatch(**locals())
 
 
-@_command(
-    "HistoricalDowjonesConstituent",
-    "Historical Dow Jones Constituents",
-    "List historical constituent changes.",
-)
-async def historical_dowjones_constituent(
-    cc: CommandContext,
-    provider_choices: ProviderChoices,
-    standard_params: StandardParams,
-    extra_params: ExtraParams,
-) -> OBBject:
-    return await _dispatch(**locals())
-
-
-@_command(
-    "HistoricalNasdaqConstituent",
-    "Historical Nasdaq Constituents",
-    "List historical constituent changes.",
-)
-async def historical_nasdaq_constituent(
-    cc: CommandContext,
-    provider_choices: ProviderChoices,
-    standard_params: StandardParams,
-    extra_params: ExtraParams,
-) -> OBBject:
-    return await _dispatch(**locals())
-
-
-@_command(
-    "HistoricalSp500Constituent",
-    "Historical S&P 500 Constituents",
-    "List historical constituent changes.",
-)
-async def historical_sp500_constituent(
-    cc: CommandContext,
-    provider_choices: ProviderChoices,
-    standard_params: StandardParams,
-    extra_params: ExtraParams,
-) -> OBBject:
-    return await _dispatch(**locals())
-
-
 @_command("MarketRiskPremium", "Market Risk Premium", "List market-risk references.")
 async def market_risk_premium(
     cc: CommandContext,

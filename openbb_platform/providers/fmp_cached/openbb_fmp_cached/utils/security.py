@@ -67,7 +67,7 @@ def raise_for_status_redacted(resp: Any) -> None:
     No-op on 2xx/3xx responses.
     """
     if getattr(resp, "status_code", 200) >= 400:
-        redacted_url = redact_apikey_qs(getattr(resp, "url", ""))
+        redacted_url = redact_apikey_qs(str(getattr(resp, "url", "")))
         try:  # noqa: SIM105  (older/stubbed Response objects don't allow url mutation)
             resp.url = redacted_url
         except (AttributeError, TypeError):

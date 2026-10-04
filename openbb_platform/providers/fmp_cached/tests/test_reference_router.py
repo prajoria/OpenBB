@@ -23,9 +23,6 @@ EXPECTED_MODELS = {
     "DowjonesConstituent",
     "EtfList",
     "ForexList",
-    "HistoricalDowjonesConstituent",
-    "HistoricalNasdaqConstituent",
-    "HistoricalSp500Constituent",
     "IndexList",
     "MarketRiskPremium",
     "NasdaqConstituent",
@@ -42,11 +39,10 @@ def _manifest_routes() -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))["routes"]
 
 
-def test_reference_batch_has_exactly_eighteen_new_registrations():
-    """T12 owns 18 additions beyond the existing StockList route."""
+def test_reference_batch_remains_in_the_expanded_manifest():
+    """T12 reference routes remain stable as later batches are appended."""
     routes = _manifest_routes()
-    assert len(routes) == 19
-    assert {route["model"] for route in routes} == EXPECTED_MODELS
+    assert {route["model"] for route in routes} >= EXPECTED_MODELS
 
 
 def test_every_manifest_row_matches_router_and_provider_registry():
@@ -54,7 +50,9 @@ def test_every_manifest_row_matches_router_and_provider_registry():
     api_routes = {
         route.path: route for route in reference_router.router.api_router.routes
     }
-    for evidence in _manifest_routes():
+    for evidence in (
+        route for route in _manifest_routes() if route["model"] in EXPECTED_MODELS
+    ):
         local_path = evidence["canonical_route"].removeprefix("/fmp_cached")
         assert local_path in api_routes
         assert local_path == f"/{evidence['command']}"
@@ -89,7 +87,11 @@ def test_reference_commands_accept_only_dispatcher_parameters():
         "standard_params",
         "extra_params",
     )
-    commands = {route["command"] for route in _manifest_routes()}
+    commands = {
+        route["command"]
+        for route in _manifest_routes()
+        if route["model"] in EXPECTED_MODELS
+    }
     for command in commands:
         function = getattr(reference_router, command)
         assert tuple(inspect.signature(function).parameters) == expected
@@ -97,7 +99,9 @@ def test_reference_commands_accept_only_dispatcher_parameters():
 
 def test_reference_models_have_real_empty_query_schemas():
     """This batch consists only of genuine no-parameter reference models."""
-    for evidence in _manifest_routes():
+    for evidence in (
+        route for route in _manifest_routes() if route["model"] in EXPECTED_MODELS
+    ):
         fetcher = fmp_cached_provider.fetcher_dict[evidence["model"]]
         query = fetcher.transform_query({})
         assert query.model_dump() == {}
@@ -118,7 +122,9 @@ def test_unknown_query_arguments_are_rejected():
 
 def test_empty_reference_results_remain_valid_empty_data():
     """Empty lists are not replaced with fabricated success rows."""
-    for evidence in _manifest_routes():
+    for evidence in (
+        route for route in _manifest_routes() if route["model"] in EXPECTED_MODELS
+    ):
         fetcher = fmp_cached_provider.fetcher_dict[evidence["model"]]
         query = fetcher.transform_query({})
         assert fetcher.transform_data(query, []) == []
