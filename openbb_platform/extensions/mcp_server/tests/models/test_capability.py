@@ -299,6 +299,7 @@ def test_excluded_records_need_a_reason(disposition):
         "'PRIVATE_KEY': 'synthetic-value'",
         "PASSWORD: synthetic-value",
         "Authorization: Bearer synthetic-value",
+        "Authorization: Basic synthetic-value",
         "https://synthetic-user:synthetic-password@example.invalid",
         "-----BEGIN PRIVATE KEY-----",
     ],
