@@ -234,6 +234,7 @@ def test_rejected_credential_values_are_hidden_from_validation_errors():
         "PRIVATE_KEY=DO_NOT_LOG_THIS_FIELD",
         '"FMP_SECRET_KEY": "DO_NOT_LOG_THIS_FIELD"',
         "'PRIVATE_KEY': 'DO_NOT_LOG_THIS_FIELD'",
+        "sk-live-DO_NOT_LOG_THIS_FIELD",
     ],
 )
 def test_rejected_credential_field_name_is_hidden_from_published_errors(

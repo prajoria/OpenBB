@@ -113,14 +113,19 @@ def sanitized_validation_errors(error: ValidationError) -> list[dict[str, Any]]:
     sanitized = []
     for detail in error.errors(include_input=False, include_context=False):
         clean_detail = dict(detail)
-        clean_detail["loc"] = tuple(
-            (
-                "<rejected-field>"
-                if isinstance(component, str) and _contains_secret_shape(component)
-                else component
-            )
-            for component in detail["loc"]
-        )
+        location = list(detail["loc"])
+        if detail["type"] == "extra_forbidden" and location:
+            location[-1] = "<rejected-field>"
+        else:
+            location = [
+                (
+                    "<rejected-field>"
+                    if isinstance(component, str) and _contains_secret_shape(component)
+                    else component
+                )
+                for component in location
+            ]
+        clean_detail["loc"] = tuple(location)
         sanitized.append(clean_detail)
     return sanitized
 
