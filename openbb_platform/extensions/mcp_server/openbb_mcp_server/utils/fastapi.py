@@ -4,6 +4,7 @@ import inspect
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
@@ -26,6 +27,16 @@ class ProcessedRouteData:
         self.prompt_definitions: list[dict] = []
 
 
+@dataclass(frozen=True)
+class MCPRouteIdentity:
+    """Path-derived MCP component identity."""
+
+    category: str
+    subcategory: str
+    leaf_name: str
+    component_name: str
+
+
 def get_api_prefix(settings: MCPSettings | None) -> str:
     """Get normalized API prefix (leading slash, no trailing slash). Prefer settings.api_prefix if present."""
     override = getattr(settings, "api_prefix", None)
@@ -37,6 +48,54 @@ def get_api_prefix(settings: MCPSettings | None) -> str:
     if prefix.endswith("/"):
         prefix = prefix[:-1]
     return prefix
+
+
+def get_mcp_route_identity(
+    path: str,
+    settings: MCPSettings | None = None,
+    *,
+    name_override: str | None = None,
+) -> MCPRouteIdentity:
+    """Return the shared category, subcategory, leaf, and effective name."""
+    api_prefix = get_api_prefix(settings)
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    remainder = (
+        normalized_path[len(api_prefix) :]
+        if api_prefix and normalized_path.startswith(api_prefix)
+        else normalized_path
+    )
+    segments = [
+        segment
+        for segment in remainder.lstrip("/").split("/")
+        if segment and "{" not in segment
+    ]
+    if not segments:
+        category, subcategory, leaf_name = "general", "general", "root"
+    elif len(segments) == 1:
+        category, subcategory, leaf_name = (
+            segments[0],
+            "general",
+            segments[0],
+        )
+    elif len(segments) == 2:
+        category, subcategory, leaf_name = segments[0], "general", segments[1]
+    else:
+        category, subcategory, leaf_name = (
+            segments[0],
+            segments[1],
+            "_".join(segments[2:]),
+        )
+    component_name = name_override or (
+        f"{category}_{subcategory}_{leaf_name}"
+        if subcategory != "general"
+        else f"{category}_{leaf_name}"
+    )
+    return MCPRouteIdentity(
+        category=category,
+        subcategory=subcategory,
+        leaf_name=leaf_name,
+        component_name=component_name,
+    )
 
 
 def _get_module_exclusion_targets(settings: MCPSettings | None) -> dict[str, str]:
@@ -125,28 +184,10 @@ def _create_prompt_definitions_for_route(
     # Common info for all prompts on this route
     api_prefix = get_api_prefix(settings)
     tool_uri = route.path.replace(api_prefix, "").lstrip("/").replace("/", "_")
-    path = route.path or ""
-    if not path.startswith("/"):
-        path = "/" + path
-    remainder = (
-        path[len(api_prefix) :] if api_prefix and path.startswith(api_prefix) else path
-    )
-    local_path = remainder.lstrip("/")
-    segments = [seg for seg in local_path.split("/") if seg and "{" not in seg]
-
-    if segments:
-        category = segments[0]
-        if len(segments) == 1:
-            subcategory = "general"
-            tool = segments[0]
-        elif len(segments) == 2:
-            subcategory = "general"
-            tool = segments[1]
-        else:
-            subcategory = segments[1]
-            tool = "_".join(segments[2:])
-    else:
-        category, subcategory, tool = "general", "general", "root"
+    identity = get_mcp_route_identity(route.path or "", settings)
+    category = identity.category
+    subcategory = identity.subcategory
+    tool = identity.leaf_name
 
     for i, prompt_cfg in enumerate(prompt_configs):
         if not prompt_cfg or not prompt_cfg.get("content"):

@@ -16,6 +16,7 @@ from openbb_mcp_server.utils.fastapi import (
     _should_exclude_by_module_and_path,
     get_api_prefix,
     get_mcp_config,
+    get_mcp_route_identity,
     process_fastapi_routes_for_mcp,
 )
 
@@ -36,6 +37,25 @@ def test_get_api_prefix(mock_system_service):
     assert get_api_prefix(settings) == "/custom"
     settings_empty = MCPSettings(api_prefix=" ")  # type: ignore
     assert get_api_prefix(settings_empty) == "/api"
+
+
+def test_get_mcp_route_identity():
+    """Route component identity has one shared path/name contract."""
+    settings = MCPSettings(api_prefix="/api/v1")  # type: ignore
+    identity = get_mcp_route_identity(
+        "/api/v1/equity/price/historical/{symbol}",
+        settings,
+    )
+    assert identity.category == "equity"
+    assert identity.subcategory == "price"
+    assert identity.leaf_name == "historical"
+    assert identity.component_name == "equity_price_historical"
+    overridden = get_mcp_route_identity(
+        "/api/v1/equity/quote",
+        settings,
+        name_override="custom_quote",
+    )
+    assert overridden.component_name == "custom_quote"
 
 
 def test_get_module_exclusion_targets():
