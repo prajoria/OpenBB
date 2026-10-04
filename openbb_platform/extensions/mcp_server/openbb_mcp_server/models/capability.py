@@ -64,8 +64,8 @@ _QUALIFIED_SYMBOL_RE = re.compile(
 )
 _SECRET_PATTERNS = (
     re.compile(
-        r"(?i)(?:api[_-]?key|password|passwd|secret|access[_-]?token|token)"
-        r"\s*[:=]\s*\S+"
+        r"""(?ix)["']?(?:api[_-]?key|secret[_-]?key|private[_-]?key|password|"""
+        r"""passwd|secret|access[_-]?token|token)["']?\s*[:=]\s*["']?\S+"""
     ),
     re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+\S+"),
     re.compile(r"(?i)-----BEGIN [A-Z ]*PRIVATE KEY-----"),

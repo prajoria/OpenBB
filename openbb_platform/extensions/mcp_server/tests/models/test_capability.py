@@ -212,9 +212,20 @@ def test_rejected_credential_values_are_hidden_from_validation_errors():
     )
 
 
-def test_rejected_credential_field_name_is_hidden_from_published_errors():
+@pytest.mark.parametrize(
+    "rejected_key",
+    [
+        "api_key=DO_NOT_LOG_THIS_FIELD",
+        "FMP_SECRET_KEY=DO_NOT_LOG_THIS_FIELD",
+        "PRIVATE_KEY=DO_NOT_LOG_THIS_FIELD",
+        '"FMP_SECRET_KEY": "DO_NOT_LOG_THIS_FIELD"',
+        "'PRIVATE_KEY': 'DO_NOT_LOG_THIS_FIELD'",
+    ],
+)
+def test_rejected_credential_field_name_is_hidden_from_published_errors(
+    rejected_key,
+):
     """An extra-field location cannot smuggle credential material into logs."""
-    rejected_key = "api_key=DO_NOT_LOG_THIS_FIELD"
     with pytest.raises(ValidationError) as captured:
         module.CapabilityInventory.model_validate(
             {"records": [], rejected_key: "rejected"}
@@ -267,6 +278,10 @@ def test_excluded_records_need_a_reason(disposition):
         "api_key=synthetic-value",
         "FMP_API_KEY=synthetic-value",
         "MY_ACCESS_TOKEN=synthetic-value",
+        "FMP_SECRET_KEY=synthetic-value",
+        "PRIVATE_KEY=synthetic-value",
+        '"FMP_SECRET_KEY": "synthetic-value"',
+        "'PRIVATE_KEY': 'synthetic-value'",
         "PASSWORD: synthetic-value",
         "Authorization: Bearer synthetic-value",
         "https://synthetic-user:synthetic-password@example.invalid",
