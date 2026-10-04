@@ -12,6 +12,10 @@ from openbb_mcp_server.models import capability as module
 from pydantic import ValidationError
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
+AUDIT_SOURCE_COMMIT = "39f171603c9bc4a28778e668ba981cf0e4358b9a"
+AUDIT_MANIFEST_SHA256 = (
+    "ed1a583f307ca22117da6d079bfdc6a9768c6697c39da1d91e49b18f5c5e92fa"
+)
 
 
 def repository_normalized_bytes(path: Path) -> bytes:
@@ -426,7 +430,12 @@ def test_implementation_identity_is_qualified_by_surface():
 def test_historical_audit_artifacts_are_immutable():
     """Byte-level provenance and historical gross counts remain traceable."""
     root = FIXTURES / "capability_audit"
+    assert (
+        hashlib.sha256(repository_normalized_bytes(root / "manifest.json")).hexdigest()
+        == AUDIT_MANIFEST_SHA256
+    )
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["source_commit"] == AUDIT_SOURCE_COMMIT
     for name, digest in manifest["sha256"].items():
         assert (
             hashlib.sha256(repository_normalized_bytes(root / name)).hexdigest()
@@ -461,4 +470,4 @@ def test_historical_audit_artifacts_are_immutable():
     snapshot = json.loads(
         (root / "mcp-catalog-snapshot.json").read_text(encoding="utf-8")
     )
-    assert snapshot["parent_commit"] == manifest["source_commit"]
+    assert snapshot["parent_commit"] == AUDIT_SOURCE_COMMIT
