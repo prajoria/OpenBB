@@ -102,7 +102,9 @@ def _decoded_path(value: str) -> str:
 class OperationKey(BaseModel):
     """Stable HTTP operation identity for a Platform capability."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, hide_input_in_errors=True
+    )
 
     method: HttpMethod
     path: str
@@ -151,6 +153,7 @@ class VerificationState(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
+        hide_input_in_errors=True,
         validate_by_alias=True,
         validate_by_name=True,
         serialize_by_alias=True,
@@ -164,7 +167,9 @@ class VerificationState(BaseModel):
 class CapabilityRecord(BaseModel):
     """One declared capability and its current exposure/evidence state."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, hide_input_in_errors=True
+    )
 
     schema_version: Annotated[StrictInt, Field(ge=1, le=1)] = 1
     id: str
@@ -281,7 +286,9 @@ class CapabilityRecord(BaseModel):
 class DispositionCounts(BaseModel, Mapping[Disposition, int]):
     """Immutable complete partition of records by exposure disposition."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, hide_input_in_errors=True
+    )
 
     direct: Annotated[StrictInt, Field(ge=0)] = 0
     workspace_indirect: Annotated[StrictInt, Field(ge=0)] = 0
@@ -307,7 +314,9 @@ class DispositionCounts(BaseModel, Mapping[Disposition, int]):
 class CoverageCounts(BaseModel):
     """Explicit gross, approved, and implementation-identity denominators."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, hide_input_in_errors=True
+    )
 
     gross_records: Annotated[StrictInt, Field(ge=0)]
     approved_records: Annotated[StrictInt, Field(ge=0)]
@@ -343,7 +352,9 @@ class CoverageCounts(BaseModel):
 class CapabilityInventory(BaseModel):
     """Versioned set of unique capability records."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, hide_input_in_errors=True
+    )
 
     schema_version: Annotated[StrictInt, Field(ge=1, le=1)] = 1
     records: tuple[CapabilityRecord, ...]

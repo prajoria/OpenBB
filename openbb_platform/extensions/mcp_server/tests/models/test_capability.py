@@ -134,6 +134,16 @@ def test_credential_shaped_stable_identifiers_are_rejected(field):
         )
 
 
+def test_rejected_credential_values_are_hidden_from_validation_errors():
+    """A validation failure does not echo rejected credential material."""
+    rejected_value = "api_key=DO_NOT_LOG_THIS_VALUE"
+    with pytest.raises(ValidationError) as captured:
+        module.CapabilityRecord.model_validate(
+            {**record_data(), "requirements": [rejected_value]}
+        )
+    assert rejected_value not in str(captured.value)
+
+
 @pytest.mark.parametrize("changes", [
     {"tool_name": None}, {"operation": None}, {"source_refs": []},
     {"tool_name": ""}, {"implementation_id": ""},
