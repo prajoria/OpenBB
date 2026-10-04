@@ -21,6 +21,13 @@ from openbb_mcp_server.service.capability_inventory import (
     ProviderModelMetadata,
 )
 
+ImplementationState = Literal[
+    "implemented_product",
+    "adapter_gap",
+    "absent_product",
+    "approved_exclusion",
+]
+
 
 class ExposureDecision(BaseModel):
     """One independently reviewable policy decision."""
@@ -102,6 +109,35 @@ class OperationCatalog(BaseModel):
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class WorkFamily(BaseModel):
+    """Accountable recent-work family."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    owner_issues: tuple[str, ...] = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+    source_evidence: tuple[str, ...] = Field(min_length=1)
+    review_triggers: tuple[str, ...] = Field(min_length=1)
+    implementation_state: ImplementationState
+
+
+class TraceabilityPolicy(BaseModel):
+    """Mapping from decisions to accountable work families."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    work_families: dict[str, WorkFamily]
+    rule_owners: dict[str, str]
+    reviewed_specialists: dict[str, tuple[str, ...]]
+
+    @model_validator(mode="after")
+    def require_known_family_owners(self) -> TraceabilityPolicy:
+        """Every rule owner must reference a declared family."""
+        if set(self.rule_owners.values()) - set(self.work_families):
+            raise ValueError("traceability rule references unknown work family")
+        return self
+
+
 class PolicyDocument(BaseModel):
     """Versioned policy asset."""
 
@@ -115,6 +151,7 @@ class PolicyDocument(BaseModel):
     profiles: dict[ProfileName, tuple[AccessClass, ...]]
     rules: tuple[OperationRule, ...]
     providers: dict[Literal["routed", "unrouted"], ProviderRule]
+    traceability: TraceabilityPolicy
     specialists: dict[Literal["agents", "daytrade"], SpecialistRule]
 
     @model_validator(mode="after")
@@ -136,6 +173,15 @@ class PolicyDocument(BaseModel):
             raise ValueError(
                 "restricted and unimplemented policy entries cannot admit profiles"
             )
+        valid_traceability_rules = {
+            *(rule.id for rule in self.rules),
+            "provider-routed",
+            "provider-unrouted",
+            "specialist-agents",
+            "specialist-daytrade",
+        }
+        if set(self.traceability.rule_owners) - valid_traceability_rules:
+            raise ValueError("traceability contains stale or unknown rule IDs")
         return self
 
 
