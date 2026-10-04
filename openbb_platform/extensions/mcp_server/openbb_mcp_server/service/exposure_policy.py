@@ -199,6 +199,27 @@ class ExposurePolicy:
             reason=rule.reason,
         )
 
+    def classify_path(self, method: str, path: str) -> ExposureDecision:
+        """Classify a canonical operation path through asset-owned scope maps."""
+        scope = _scope_for_path(path, self.document)
+        if scope is None:
+            raise KeyError(f"Unknown operation path: {method} {path}")
+        return self.classify_operation(scope, method, path)
+
+    def is_operation_admitted(
+        self, method: str, path: str, profile_name: ProfileName
+    ) -> bool:
+        """Return reviewed profile admission for one canonical operation."""
+        try:
+            decision = self.classify_path(method, path)
+        except (KeyError, ValueError):
+            return False
+        return (
+            decision.disposition in {"direct", "workspace_indirect", "metadata_only"}
+            and profile_name in decision.admitted_profiles
+            and decision.access_class in self.document.profiles.get(profile_name, ())
+        )
+
     def classify_provider_model(self, row: ProviderModelMetadata) -> ExposureDecision:
         """Classify a provider/model registration by actual routing state."""
         routed = bool(row.commands) and row.provider_registered
