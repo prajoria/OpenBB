@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from collections.abc import Iterator, Mapping
@@ -102,12 +103,22 @@ def _decoded_path(value: str) -> str:
 
 def sanitized_validation_errors(error: ValidationError) -> list[dict[str, Any]]:
     """Return structured validation errors without rejected inputs or context."""
-    return error.errors(include_input=False, include_context=False)
+    sanitized = []
+    for detail in error.errors(include_input=False, include_context=False):
+        clean_detail = dict(detail)
+        clean_detail["loc"] = tuple(
+            "<rejected-field>"
+            if isinstance(component, str) and _contains_secret_shape(component)
+            else component
+            for component in detail["loc"]
+        )
+        sanitized.append(clean_detail)
+    return sanitized
 
 
 def sanitized_validation_error_json(error: ValidationError) -> str:
     """Serialize validation errors without rejected inputs or context."""
-    return error.json(include_input=False, include_context=False)
+    return json.dumps(sanitized_validation_errors(error), separators=(",", ":"))
 
 
 class OperationKey(BaseModel):
@@ -355,6 +366,10 @@ class CoverageCounts(BaseModel):
             + self.unidentified_records
         ):
             raise ValueError("gross_records must equal the implementation identity total")
+        if self.implementation_aliases and not self.unique_implementations:
+            raise ValueError(
+                "implementation aliases require at least one unique implementation"
+            )
         if self.approved_records > self.gross_records:
             raise ValueError("approved_records cannot exceed gross_records")
         return self

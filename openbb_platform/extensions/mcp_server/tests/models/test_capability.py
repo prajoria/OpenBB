@@ -14,6 +14,11 @@ from pydantic import ValidationError
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
+def repository_normalized_bytes(path: Path) -> bytes:
+    """Return text bytes as Git stores them under the repository LF policy."""
+    return path.read_bytes().replace(b"\r\n", b"\n")
+
+
 def record_data() -> dict:
     """Return an independent copy of the synthetic provider-read record."""
     return json.loads((FIXTURES / "capability_inventory.json").read_text(encoding="utf-8"))["records"][0]
@@ -154,6 +159,20 @@ def test_rejected_credential_values_are_hidden_from_validation_errors():
     )
 
 
+def test_rejected_credential_field_name_is_hidden_from_published_errors():
+    """An extra-field location cannot smuggle credential material into logs."""
+    rejected_key = "api_key=DO_NOT_LOG_THIS_FIELD"
+    with pytest.raises(ValidationError) as captured:
+        module.CapabilityInventory.model_validate(
+            {"records": [], rejected_key: "rejected"}
+        )
+    details = module.sanitized_validation_errors(captured.value)
+    serialized = module.sanitized_validation_error_json(captured.value)
+    assert rejected_key not in json.dumps(details)
+    assert rejected_key not in serialized
+    assert details[0]["loc"] == ("<rejected-field>",)
+
+
 @pytest.mark.parametrize("changes", [
     {"tool_name": None}, {"operation": None}, {"source_refs": []},
     {"tool_name": ""}, {"implementation_id": ""},
@@ -260,6 +279,11 @@ def test_inventory_and_nested_sequences_are_immutable():
     {"gross_records": -1},
     {"approved_records": 10},
     {"approved_records": 0},
+    {
+        "unique_implementations": 0,
+        "implementation_aliases": 1,
+        "unidentified_records": 0,
+    },
     {"by_disposition": {
         "direct": 0, "workspace_indirect": 0, "metadata_only": 0,
         "restricted": 0, "unimplemented": 0,
@@ -306,7 +330,7 @@ def test_historical_audit_artifacts_are_immutable():
     root = FIXTURES / "capability_audit"
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     for name, digest in manifest["sha256"].items():
-        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(repository_normalized_bytes(root / name)).hexdigest() == digest
     tables = {}
     for name in ["mcp-api-inventory.csv", "mcp-fmp-model-coverage.csv", "portfolio-recent-commits.csv"]:
         with (root / name).open(encoding="utf-8", newline="") as stream:

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "source_commit": "39f171603c9bc4a28778e668ba981cf0e4358b9a",
   "sha256": {
-    "mcp-api-inventory.csv": "0a43cc289a62be960c5112226828cb6c49929c1711a4078ef01bf499492b1dac",
-    "mcp-fmp-model-coverage.csv": "8005533771d563354d6318a31f4801579b2df3aac96d04df52ecf71b6c8d37c7",
-    "mcp-catalog-snapshot.json": "0f20b50d24a5a4e61afd6eb038e65619fd04fbe2da190be794f3b7e02e58e748",
-    "portfolio-recent-commits.csv": "ecd5acd67a7ed00af939580ee384b292a265d486f446d9658d563f7003614ebb"
+    "mcp-api-inventory.csv": "d7ba32f2512c5db01a7b4d9b96ddd15f5f2412144ad9b6a539096cb6f6ab9a24",
+    "mcp-fmp-model-coverage.csv": "b7e0d3c6cbb76393cb500d275f20edd76f321efd349568c74627a080692535da",
+    "mcp-catalog-snapshot.json": "eab7872982a13075f21c74a70a8e6e7542e2403bc0b47f5930145fd9ef07afcc",
+    "portfolio-recent-commits.csv": "b2eaaf93a1653842c84ba93d0de851642a377db5dda56694c9c21b8ddc2adb67"
   },
   "counts": {
     "api_rows": 317,

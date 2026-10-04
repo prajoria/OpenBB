@@ -2,7 +2,8 @@
 
 Status: implementation specification for
 [#2152 (capability contracts and immutable audit fixtures)](https://github.com/prajoria/OpenBB/issues/2152),
-under [the MCP parity program](https://github.com/prajoria/OpenBB/issues/2123).
+under [#2132 (versioned source/API/MCP inventory)](https://github.com/prajoria/OpenBB/issues/2132)
+and [the MCP parity program](https://github.com/prajoria/OpenBB/issues/2123).
 Integration target: `portfolio`.
 
 ## Scope
