@@ -16,7 +16,7 @@ The tier-1 upgrade replaces the tier-2 passthrough registered in Phase 0
 create_fallback_fetcher_class-wrapped tier-2 version).
 """
 
-# pylint: disable=logging-fstring-interpolation,import-outside-toplevel
+# pylint: disable=logging-fstring-interpolation,import-outside-toplevel,unused-argument
 
 from __future__ import annotations
 
