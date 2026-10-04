@@ -28,7 +28,7 @@ def _parameter_values(params: Any) -> dict:
         return {}
     if hasattr(params, "model_dump"):
         return params.model_dump()
-    if is_dataclass(params):
+    if is_dataclass(params) and not isinstance(params, type):
         return asdict(params)
     return vars(params)
 
