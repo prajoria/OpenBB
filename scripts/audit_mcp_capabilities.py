@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -47,6 +48,9 @@ from openbb_mcp_server.service.capability_inventory import (  # noqa: E402
     validate_inventory_evidence,
     write_inventory,
 )
+from openbb_mcp_server.service.capability_provenance import (  # noqa: E402
+    collect_lineage_metadata,
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -69,6 +73,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         required=True,
         action="store_true",
         help="confirm that no providers, services, or transports may be probed",
+    )
+    parser.add_argument(
+        "--comparison-sha",
+        help="explicit commit SHA to compare with HEAD (preferred outside CI)",
+    )
+    parser.add_argument(
+        "--base-ref",
+        help="descriptive base branch name; does not resolve or fetch the ref",
+    )
+    parser.add_argument(
+        "--require-lineage",
+        action="store_true",
+        help="fail unless lineage comparison state is available",
     )
     return parser.parse_args(argv)
 
@@ -111,6 +128,19 @@ def run(argv: Sequence[str] | None = None) -> int:
         args.profile,
         repo_root=REPO_ROOT,
     )
+    lineage = collect_lineage_metadata(
+        REPO_ROOT,
+        comparison_sha=args.comparison_sha,
+        base_ref=args.base_ref,
+        environment={
+            key: os.environ[key]
+            for key in ("GITHUB_BASE_SHA", "GITHUB_BASE_REF", "GITHUB_EVENT_PATH")
+            if key in os.environ
+        },
+    )
+    if args.require_lineage and lineage.state != "available":
+        raise RuntimeError(f"required lineage evidence is unavailable: {lineage.state}")
+    document = document.model_copy(update={"lineage": lineage})
     validate_inventory_evidence(document)
     paths = write_inventory(document, args.output_dir)
     summary = {
@@ -118,6 +148,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         "profile": document.profile.selected_name,
         "capabilities": len(document.capabilities.records),
         "denominators": document.denominators.model_dump(mode="json"),
+        "lineage": lineage.model_dump(mode="json"),
         "provider_models": len(document.provider_models),
         "collisions": len(document.collisions),
         "unavailable_components": list(document.unavailable_components),

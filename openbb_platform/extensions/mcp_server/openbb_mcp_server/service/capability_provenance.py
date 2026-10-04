@@ -18,6 +18,20 @@ from pydantic import BaseModel, ConfigDict
 
 ComponentState = Literal["available", "missing", "unavailable"]
 ServiceState = Literal["not_probed_metadata_only"]
+LineageState = Literal[
+    "available",
+    "comparison_missing",
+    "comparison_ref_missing",
+    "history_incomplete",
+    "unrelated_history",
+]
+LineageRelation = Literal[
+    "equal",
+    "ahead",
+    "behind",
+    "diverged",
+    "unknown",
+]
 
 DEFAULT_MODULES = (
     "openbb",
@@ -120,6 +134,25 @@ class RuntimeMetadata(BaseModel):
     environment_flags: tuple[EnvironmentFlag, ...] = ()
 
 
+class LineageMetadata(BaseModel):
+    """Reproducible HEAD-to-explicit-base comparison evidence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    state: LineageState
+    head: str | None = None
+    comparison_sha: str | None = None
+    comparison_source: Literal["explicit", "github_base_sha", "missing"]
+    base_ref: str | None = None
+    base_is_portfolio: bool | None = None
+    merge_base: str | None = None
+    ahead: int | None = None
+    behind: int | None = None
+    relation: LineageRelation = "unknown"
+    shallow: bool | None = None
+    warnings: tuple[str, ...] = ()
+
+
 def normalize_import_origin(
     origin: str | None,
     *,
@@ -161,6 +194,7 @@ def _git_output(repo_root: Path, *args: str) -> str | None:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            env={**os.environ, "GIT_NO_LAZY_FETCH": "1"},
         )
     except (OSError, subprocess.CalledProcessError):
         return None
@@ -269,15 +303,124 @@ def collect_runtime_metadata(
     )
 
 
+def collect_lineage_metadata(
+    repo_root: Path,
+    *,
+    comparison_sha: str | None = None,
+    base_ref: str | None = None,
+    environment: dict[str, str] | None = None,
+) -> LineageMetadata:
+    """Compare HEAD with an explicit or GitHub-provided base without fetching."""
+    env = environment or {}
+    explicit = (comparison_sha or "").strip() or None
+    github_sha = (env.get("GITHUB_BASE_SHA") or "").strip() or None
+    github_ref = (env.get("GITHUB_BASE_REF") or "").strip() or None
+    event_path = (env.get("GITHUB_EVENT_PATH") or "").strip()
+    if not github_sha and event_path:
+        try:
+            event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError):
+            event = {}
+        pull_request = event.get("pull_request", {}) if isinstance(event, dict) else {}
+        base = pull_request.get("base", {}) if isinstance(pull_request, dict) else {}
+        if isinstance(base, dict):
+            github_sha = str(base.get("sha") or "").strip() or None
+            github_ref = github_ref or str(base.get("ref") or "").strip() or None
+    selected = explicit or github_sha
+    source: Literal["explicit", "github_base_sha", "missing"] = (
+        "explicit" if explicit else "github_base_sha" if github_sha else "missing"
+    )
+    selected_base_ref = (base_ref or github_ref or "").strip() or None
+    head = _git_output(repo_root, "rev-parse", "HEAD")
+    shallow_text = _git_output(repo_root, "rev-parse", "--is-shallow-repository")
+    shallow = shallow_text.lower() == "true" if shallow_text is not None else None
+    warnings = []
+    normalized_base_ref = selected_base_ref
+    for prefix in ("refs/heads/", "refs/remotes/origin/", "origin/"):
+        if normalized_base_ref and normalized_base_ref.startswith(prefix):
+            normalized_base_ref = normalized_base_ref.removeprefix(prefix)
+            break
+    base_is_portfolio = (
+        normalized_base_ref == "portfolio" if normalized_base_ref else None
+    )
+    if selected_base_ref and not base_is_portfolio:
+        warnings.append(f"non_portfolio_base:{selected_base_ref}")
+    if selected is None:
+        return LineageMetadata(
+            state="comparison_missing",
+            head=head,
+            comparison_source=source,
+            base_ref=selected_base_ref,
+            base_is_portfolio=base_is_portfolio,
+            shallow=shallow,
+            warnings=tuple(warnings),
+        )
+    if _git_output(repo_root, "cat-file", "-e", f"{selected}^{{commit}}") is None:
+        warnings.append("history_incomplete" if shallow else "comparison_ref_missing")
+        return LineageMetadata(
+            state=("history_incomplete" if shallow else "comparison_ref_missing"),
+            head=head,
+            comparison_sha=selected,
+            comparison_source=source,
+            base_ref=selected_base_ref,
+            base_is_portfolio=base_is_portfolio,
+            shallow=shallow,
+            warnings=tuple(warnings),
+        )
+    merge_base = _git_output(repo_root, "merge-base", selected, "HEAD")
+    counts = _git_output(
+        repo_root, "rev-list", "--left-right", "--count", f"{selected}...HEAD"
+    )
+    if merge_base is None or counts is None:
+        state: LineageState = "history_incomplete" if shallow else "unrelated_history"
+        warnings.append(state)
+        return LineageMetadata(
+            state=state,
+            head=head,
+            comparison_sha=selected,
+            comparison_source=source,
+            base_ref=selected_base_ref,
+            base_is_portfolio=base_is_portfolio,
+            shallow=shallow,
+            warnings=tuple(warnings),
+        )
+    behind, ahead = (int(value) for value in counts.split())
+    relation: LineageRelation = (
+        "equal"
+        if ahead == 0 and behind == 0
+        else (
+            "ahead"
+            if ahead and not behind
+            else "behind" if behind and not ahead else "diverged"
+        )
+    )
+    return LineageMetadata(
+        state="available",
+        head=head,
+        comparison_sha=selected,
+        comparison_source=source,
+        base_ref=selected_base_ref,
+        base_is_portfolio=base_is_portfolio,
+        merge_base=merge_base,
+        ahead=ahead,
+        behind=behind,
+        relation=relation,
+        shallow=shallow,
+        warnings=tuple(warnings),
+    )
+
+
 __all__ = [
     "DEFAULT_MODULES",
     "DistributionMetadata",
     "EnvironmentFlag",
     "ImportMetadata",
+    "LineageMetadata",
     "RepositoryMetadata",
     "RuntimeMetadata",
     "ServiceMetadata",
     "SubmoduleMetadata",
     "collect_runtime_metadata",
+    "collect_lineage_metadata",
     "normalize_import_origin",
 ]
