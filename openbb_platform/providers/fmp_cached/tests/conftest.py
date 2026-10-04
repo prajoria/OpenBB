@@ -1,9 +1,9 @@
 """Pytest configuration for FMP Cached provider tests."""
 
-import pytest
 import asyncio
-from typing import Generator
 from unittest.mock import MagicMock
+
+import pytest
 
 
 def pytest_configure(config):
@@ -19,17 +19,25 @@ def pytest_collection_modifyitems(config, items):
     """Modify test collection to add markers automatically."""
     for item in items:
         # Add unit marker to tests not marked otherwise
-        if not any(mark.name in ["integration", "slow", "database", "api"] for mark in item.iter_markers()):
+        if not any(
+            mark.name in ["integration", "slow", "database", "api"]
+            for mark in item.iter_markers()
+        ):
             item.add_marker(pytest.mark.unit)
-        
+
         # Add slow marker to performance tests
-        if "performance" in item.nodeid or "scalability" in item.nodeid:
+        is_unit_router_contract = "test_market_performance_router.py" in item.nodeid
+        if (
+            "performance" in item.nodeid
+            and not is_unit_router_contract
+            or "scalability" in item.nodeid
+        ):
             item.add_marker(pytest.mark.slow)
-        
+
         # Add database marker to database-related tests
         if "database" in item.nodeid or "cache" in item.nodeid:
             item.add_marker(pytest.mark.database)
-        
+
         # Add API marker to API-related tests
         if "fmp" in item.nodeid or "api" in item.nodeid:
             item.add_marker(pytest.mark.api)
@@ -73,10 +81,10 @@ def sample_cache_data():
             "volume": 45000000,
             "change": 1.0,
             "changePercent": 0.54,
-            "vwap": 184.5
+            "vwap": 184.5,
         },
         {
-            "symbol": "AAPL", 
+            "symbol": "AAPL",
             "date": "2024-01-03",
             "open": 185.0,
             "high": 187.0,
@@ -85,8 +93,8 @@ def sample_cache_data():
             "volume": 42000000,
             "change": 1.0,
             "changePercent": 0.54,
-            "vwap": 185.5
-        }
+            "vwap": 185.5,
+        },
     ]
 
 
@@ -107,7 +115,7 @@ def sample_fmp_response():
             "changePercent": 0.54,
             "vwap": 184.5,
             "label": "January 02, 24",
-            "changeOverTime": 0.0054
+            "changeOverTime": 0.0054,
         }
     ]
 
@@ -120,32 +128,30 @@ def cleanup_database():
 
 
 def pytest_runtest_setup(item):
-    """Setup function that runs before each test."""
+    """Set up marker-driven skips before each test."""
     # Skip slow tests unless specifically requested
-    if "slow" in [mark.name for mark in item.iter_markers()]:
-        if not item.config.getoption("--runslow", default=False):
-            pytest.skip("need --runslow option to run slow tests")
+    if "slow" in [
+        mark.name for mark in item.iter_markers()
+    ] and not item.config.getoption("--runslow", default=False):
+        pytest.skip("need --runslow option to run slow tests")
 
 
 def pytest_addoption(parser):
     """Add custom command line options."""
     parser.addoption(
-        "--runslow",
-        action="store_true",
-        default=False,
-        help="run slow tests"
+        "--runslow", action="store_true", default=False, help="run slow tests"
     )
     parser.addoption(
         "--runintegration",
-        action="store_true", 
+        action="store_true",
         default=False,
-        help="run integration tests"
+        help="run integration tests",
     )
     parser.addoption(
         "--database-url",
         action="store",
         default="sqlite:///:memory:",
-        help="database URL for testing"
+        help="database URL for testing",
     )
 
 
@@ -156,17 +162,18 @@ def pytest_addoption(parser):
 def setup_test_database():
     """Set up test database once for the entire test session."""
     import os
-    from openbb_fmp_cached.utils.database import init_database, execute_query
-    
+
+    from openbb_fmp_cached.utils.database import init_database
+
     # Force test database
-    os.environ['FMP_CACHE_TEST_MODE'] = 'true'
-    os.environ['MYSQL_DATABASE'] = 'openbb_fmp_cache_test'
-    
+    os.environ["FMP_CACHE_TEST_MODE"] = "true"
+    os.environ["MYSQL_DATABASE"] = "openbb_fmp_cache_test"
+
     # Initialize database and tables
     init_database()
-    
+
     yield
-    
+
     # Cleanup after all tests (optional - comment out if you want to inspect data)
     # try:
     #     execute_query("DROP DATABASE IF EXISTS openbb_fmp_cache_test")

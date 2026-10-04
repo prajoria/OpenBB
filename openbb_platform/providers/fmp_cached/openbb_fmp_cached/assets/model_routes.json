@@ -376,6 +376,51 @@
       "command": "equity_quote_batch_short",
       "model": "EquityQuoteBatchShort",
       "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/analyst_recommendations", "command": "analyst_recommendations", "model": "AnalystRecommendations", "providers": ["fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/ratings_snapshot", "command": "ratings_snapshot", "model": "RatingsSnapshot", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/ratings_historical", "command": "ratings_historical", "model": "RatingsHistorical", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/price_target_summary", "command": "price_target_summary", "model": "PriceTargetSummary", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/grades", "command": "grades", "model": "Grades", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/grades_historical", "command": "grades_historical", "model": "GradesHistorical", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/grades_consensus", "command": "grades_consensus", "model": "GradesConsensus", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["date"], "canonical_route": "/fmp_cached/sector_performance_snapshot", "command": "sector_performance_snapshot", "model": "SectorPerformanceSnapshot", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["date"], "canonical_route": "/fmp_cached/industry_performance_snapshot", "command": "industry_performance_snapshot", "model": "IndustryPerformanceSnapshot", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["date"], "canonical_route": "/fmp_cached/sector_pe_snapshot", "command": "sector_pe_snapshot", "model": "SectorPeSnapshot", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["date"], "canonical_route": "/fmp_cached/industry_pe_snapshot", "command": "industry_pe_snapshot", "model": "IndustryPeSnapshot", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["sector", "from", "to"], "canonical_route": "/fmp_cached/historical_sector_performance", "command": "historical_sector_performance", "model": "HistoricalSectorPerformance", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["industry", "from", "to"], "canonical_route": "/fmp_cached/historical_industry_performance", "command": "historical_industry_performance", "model": "HistoricalIndustryPerformance", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["sector", "from", "to"], "canonical_route": "/fmp_cached/historical_sector_pe", "command": "historical_sector_pe", "model": "HistoricalSectorPe", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["industry", "from", "to"], "canonical_route": "/fmp_cached/historical_industry_pe", "command": "historical_industry_pe", "model": "HistoricalIndustryPe", "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
