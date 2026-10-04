@@ -61,9 +61,18 @@ jobs:
           key: ${{ runner.os }}-linting-${{ hashFiles('**/poetry.lock') }}
           restore-keys: ${{ runner.os }}-linting-${{ hashFiles('**/poetry.lock') }}
 
-      - run: |
-          pip install openbb-devtools
-          pip install types-pytz types-requests types-termcolor types-tabulate types-PyYAML types-python-dateutil types-setuptools types-six
+      - name: Install repository lint toolchain
+        run: |
+          python -m pip install ./openbb_platform/extensions/devtools types-pytz types-requests types-termcolor types-tabulate types-PyYAML types-setuptools types-six
+      - name: Verify lint commands
+        run: |
+          for command in black mypy pylint ruff codespell; do
+            command -v "$command" >/dev/null || { echo "::error::$command is missing from the DevTools contract"; exit 1; }
+          done
+      - name: Verify lint workflow contract
+        run: |
+          python -m pytest scripts/tests/test_general_linting_workflow.py -q
+          ruff check --no-fix scripts/tests/test_general_linting_workflow.py
       - run: codespell --ignore-words=.codespell.ignore --skip="$(tr '\n' ',' < .codespell.skip | sed 's/,$//')" --quiet-level=2
       - run: |
           # Run linters for openbb_platform | cli
