@@ -265,9 +265,9 @@ def test_url_parser_errors_do_not_publish_rejected_path_contents():
     rejected_path = "//DO_NOT_LOG_THIS\uff0fapi"
     with pytest.raises(ValidationError) as captured:
         module.OperationKey(method="GET", path=rejected_path)
-    assert "DO_NOT_LOG_THIS" not in module.sanitized_validation_error_json(
-        captured.value
-    )
+    published = module.sanitized_validation_error_json(captured.value)
+    assert "DO_NOT_LOG_THIS" not in published
+    assert "invalid URL syntax" in published
 
 
 @pytest.mark.parametrize(

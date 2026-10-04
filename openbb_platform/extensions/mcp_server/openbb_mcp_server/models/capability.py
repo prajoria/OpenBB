@@ -182,9 +182,9 @@ class OperationKey(BaseModel):
         _validate_safe_text(value, field_name="path")
         decoded = _decoded_path(value)
         _validate_safe_text(decoded, field_name="decoded path")
+        parsed = _safe_urlsplit(decoded)
         if not decoded.startswith("/") or decoded.startswith("//"):
             raise ValueError("path must be one absolute API path")
-        parsed = _safe_urlsplit(decoded)
         segments = decoded.replace("\\", "/").split("/")
         invalid_path = (
             bool(parsed.scheme),
