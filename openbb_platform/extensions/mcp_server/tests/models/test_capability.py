@@ -312,6 +312,7 @@ def test_excluded_records_need_a_reason(disposition):
         "FMP_API_KEY=synthetic-value",
         "api_key%3Dsynthetic-value",
         "api_key%253Dsynthetic-value",
+        "api_key%2525253Dsynthetic-value",
         "%FF api_key%3Dsynthetic-value",
         "%FF api_key%253Dsynthetic-value",
         "MY_ACCESS_TOKEN=synthetic-value",

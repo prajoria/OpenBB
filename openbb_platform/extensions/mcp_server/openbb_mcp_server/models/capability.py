@@ -88,7 +88,7 @@ def _contains_secret_shape(value: str) -> bool:
         if any(pattern.search(candidate) for pattern in _SECRET_PATTERNS):
             return True
         decoded = candidate
-    return False
+    return bool(_PERCENT_ESCAPE_RE.search(decoded))
 
 
 def _validate_safe_text(value: str, *, field_name: str) -> str:
