@@ -10,6 +10,7 @@
         "target": "openbb_core.api.rest_api:app"
       },
       "required_distributions": [
+        "openbb",
         "openbb-core",
         "openbb-platform-api",
         "openbb-mcp-server",
@@ -22,6 +23,22 @@
         "openbb_mcp_server",
         "fastmcp"
       ],
+      "required_versions": {
+        "fastmcp": "3.4.0"
+      },
+      "distribution_sources": {
+        "openbb": "openbb_platform",
+        "openbb-core": "openbb_platform/core",
+        "openbb-platform-api": "openbb_platform/extensions/platform_api",
+        "openbb-mcp-server": "openbb_platform/extensions/mcp_server"
+      },
+      "module_sources": {
+        "openbb": "openbb_platform/core",
+        "openbb_core": "openbb_platform/core",
+        "openbb_platform_api": "openbb_platform/extensions/platform_api",
+        "openbb_mcp_server": "openbb_platform/extensions/mcp_server"
+      },
+      "optional_module_sources": {},
       "optional_analytics": [],
       "operator_access": false,
       "maintenance_enabled": false
@@ -57,6 +74,36 @@
         "openbb_backtest",
         "openbb_regime"
       ],
+      "required_versions": {},
+      "distribution_sources": {
+        "openbb-core": "openbb_platform/core",
+        "openbb-platform-api": "openbb_platform/extensions/platform_api",
+        "openbb-mcp-server": "openbb_platform/extensions/mcp_server",
+        "openbb-fmp-cached": "openbb_platform/providers/fmp_cached",
+        "openbb-portfolio-custom": "openbb_platform/extensions/portfolio",
+        "openbb-portfolio-intel": "openbb_platform/extensions/portfolio_intel",
+        "openbb-techtrade": "openbb_platform/extensions/techtrade",
+        "openbb-backtest": "openbb_platform/extensions/backtest",
+        "openbb-regime": "openbb_platform/extensions/regime",
+        "openbb-financialtoolkit": "openbb_platform/extensions/financialtoolkit"
+      },
+      "module_sources": {
+        "openbb": "openbb_platform/core",
+        "openbb_core": "openbb_platform/core",
+        "openbb_platform_api": "openbb_platform/extensions/platform_api",
+        "openbb_mcp_server": "openbb_platform/extensions/mcp_server",
+        "openbb_fmp_cached": "openbb_platform/providers/fmp_cached",
+        "openbb_portfolio": "openbb_platform/extensions/portfolio",
+        "openbb_portfolio_intel": "openbb_platform/extensions/portfolio_intel",
+        "openbb_techtrade": "openbb_platform/extensions/techtrade",
+        "openbb_backtest": "openbb_platform/extensions/backtest",
+        "openbb_regime": "openbb_platform/extensions/regime"
+      },
+      "optional_module_sources": {
+        "openbb-financialtoolkit": {
+          "openbb_financialtoolkit": "openbb_platform/extensions/financialtoolkit"
+        }
+      },
       "optional_analytics": [
         "openbb-financialtoolkit"
       ],
@@ -73,6 +120,7 @@
       },
       "required_distributions": [
         "openbb-core",
+        "openbb-platform-api",
         "openbb-mcp-server",
         "openbb-fmp-cached",
         "openbb-portfolio-custom",
@@ -84,6 +132,7 @@
       "required_modules": [
         "openbb",
         "openbb_core",
+        "openbb_platform_api",
         "openbb_mcp_server",
         "openbb_fmp_cached",
         "openbb_portfolio",
@@ -92,6 +141,36 @@
         "openbb_backtest",
         "openbb_regime"
       ],
+      "required_versions": {},
+      "distribution_sources": {
+        "openbb-core": "openbb_platform/core",
+        "openbb-platform-api": "openbb_platform/extensions/platform_api",
+        "openbb-mcp-server": "openbb_platform/extensions/mcp_server",
+        "openbb-fmp-cached": "openbb_platform/providers/fmp_cached",
+        "openbb-portfolio-custom": "openbb_platform/extensions/portfolio",
+        "openbb-portfolio-intel": "openbb_platform/extensions/portfolio_intel",
+        "openbb-techtrade": "openbb_platform/extensions/techtrade",
+        "openbb-backtest": "openbb_platform/extensions/backtest",
+        "openbb-regime": "openbb_platform/extensions/regime",
+        "openbb-financialtoolkit": "openbb_platform/extensions/financialtoolkit"
+      },
+      "module_sources": {
+        "openbb": "openbb_platform/core",
+        "openbb_core": "openbb_platform/core",
+        "openbb_platform_api": "openbb_platform/extensions/platform_api",
+        "openbb_mcp_server": "openbb_platform/extensions/mcp_server",
+        "openbb_fmp_cached": "openbb_platform/providers/fmp_cached",
+        "openbb_portfolio": "openbb_platform/extensions/portfolio",
+        "openbb_portfolio_intel": "openbb_platform/extensions/portfolio_intel",
+        "openbb_techtrade": "openbb_platform/extensions/techtrade",
+        "openbb_backtest": "openbb_platform/extensions/backtest",
+        "openbb_regime": "openbb_platform/extensions/regime"
+      },
+      "optional_module_sources": {
+        "openbb-financialtoolkit": {
+          "openbb_financialtoolkit": "openbb_platform/extensions/financialtoolkit"
+        }
+      },
       "optional_analytics": [
         "openbb-financialtoolkit"
       ],

@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Manage the OpenBB Platform and Workspace MCP servers as separate processes.
@@ -44,6 +45,7 @@ $PlatformLog = Join-Path $StateRoot "openbb-platform-mcp.log"
 $PlatformErrorLog = Join-Path $StateRoot "openbb-platform-mcp.error.log"
 $WorkspaceLog = Join-Path $StateRoot "workspace-mcp.log"
 $WorkspaceErrorLog = Join-Path $StateRoot "workspace-mcp.error.log"
+$RuntimeResolutionArtifact = Join-Path $StateRoot "runtime-resolution.json"
 
 function Read-State {
     if (-not (Test-Path -LiteralPath $StatePath)) {
@@ -310,17 +312,45 @@ foreach ($port in @($PlatformPort, $WorkspacePort)) {
 }
 
 New-Item -ItemType Directory -Path $StateRoot -Force | Out-Null
-foreach ($log in @($PlatformLog, $PlatformErrorLog, $WorkspaceLog, $WorkspaceErrorLog)) {
-    Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+foreach ($runtimeFile in @(
+    $PlatformLog,
+    $PlatformErrorLog,
+    $WorkspaceLog,
+    $WorkspaceErrorLog,
+    $RuntimeResolutionArtifact
+)) {
+    Remove-Item -LiteralPath $runtimeFile -Force -ErrorAction SilentlyContinue
 }
 
-$platformArgs = @(
+$env:OPENBB_MCP_RUNTIME_PROFILE = "platform-standard"
+$env:OPENBB_MCP_CAPABILITY_PROFILE = "platform-standard"
+$env:OPENBB_MCP_INSTALLATION_KIND = "isolated_uv"
+$env:OPENBB_MCP_APP_TARGET = "openbb_core.api.rest_api:app"
+
+$platformEnvironmentArgs = @(
     "run",
     "--no-project",
     "--python", "3.13",
+    # FastMCP 3.4.6 requires Starlette >=1.0.1, which conflicts with Platform FastAPI.
+    "--with", "fastmcp==3.4.0",
     "--with-editable", (Join-Path $OpenBBRoot "openbb_platform"),
     "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\core"),
-    "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\extensions\mcp_server"),
+    "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\extensions\platform_api"),
+    "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\extensions\mcp_server")
+)
+$RuntimeVerifier = Join-Path $OpenBBRoot "scripts\verify_mcp_runtime.py"
+$resolutionArgs = $platformEnvironmentArgs + @(
+    "python", $RuntimeVerifier,
+    "--profile", "platform-standard",
+    "--installation", "isolated_uv",
+    "--repository-root", $OpenBBRoot,
+    "--artifact", $RuntimeResolutionArtifact
+)
+& uv @resolutionArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "OpenBB Platform runtime provenance validation failed."
+}
+$platformArgs = $platformEnvironmentArgs + @(
     "python", "-m", "openbb_mcp_server.app.app",
     "--host", "127.0.0.1",
     "--port", $PlatformPort,
@@ -331,11 +361,11 @@ $workspaceArgs = @(
     "run",
     "--no-project",
     "--python", "3.13",
-    "--with", "fastmcp>=3.4.6",
-    "--with", "openbb-ai>=2.1.0",
-    "--with", "pydantic>=2.12.5",
-    "--with", "starlette>=1.6.0",
-    "--with", "uvicorn>=0.52.3",
+    "--with", "fastmcp==3.4.6",
+    "--with", "openbb-ai==2.1.0",
+    "--with", "pydantic==2.12.5",
+    "--with", "starlette==1.6.0",
+    "--with", "uvicorn==0.52.3",
     "--directory", $WorkspaceBackend,
     "python", "-m", "workspace_mcp",
     "--host", "127.0.0.1",

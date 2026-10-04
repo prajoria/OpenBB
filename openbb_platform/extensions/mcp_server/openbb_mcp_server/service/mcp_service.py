@@ -9,7 +9,7 @@ from typing import Any, Union, get_args, get_origin
 from openbb_core.app.constants import OPENBB_DIRECTORY
 from openbb_core.app.model.abstract.singleton import SingletonMeta
 
-from openbb_mcp_server.models.settings import MCPSettings
+from ..models.settings import MCPSettings
 
 
 def _merge_nested_dict(base: dict[str, Any], override: dict[str, Any]) -> None:
@@ -44,7 +44,12 @@ class MCPService(metaclass=SingletonMeta):
         self._mcp_settings = self._read_from_file(**kwargs)
 
     @classmethod
-    def _read_from_file(cls, **kwargs: Any) -> MCPSettings:
+    def _read_from_file(
+        cls,
+        *,
+        persist_default: bool = True,
+        **kwargs: Any,
+    ) -> MCPSettings:
         """
         Read MCP settings from the configuration file.
 
@@ -64,11 +69,13 @@ class MCPService(metaclass=SingletonMeta):
                     e,
                 )
         else:
-            logging.info(
-                "Creating default MCP settings file at %s", cls.MCP_SETTINGS_PATH
-            )
             default_settings = MCPSettings()
-            cls.write_to_file(default_settings)
+            if persist_default:
+                logging.info(
+                    "Creating default MCP settings file at %s",
+                    cls.MCP_SETTINGS_PATH,
+                )
+                cls.write_to_file(default_settings)
             settings_dict = default_settings.model_dump()
 
         # kwargs will override values from the file
@@ -118,23 +125,38 @@ class MCPService(metaclass=SingletonMeta):
         Returns:
             The combined MCPSettings instance.
         """
-        # Start with config file as base
-        combined_dict = self._mcp_settings.model_dump()
+        final_settings = self._merge_overrides(
+            self._mcp_settings,
+            cli_overrides,
+        )
+        self._mcp_settings = final_settings
+        return final_settings
 
-        # Load and apply environment variable overrides
-        env_overrides = self._load_settings_from_env()
+    @classmethod
+    def read_with_overrides(cls, **cli_overrides: Any) -> MCPSettings:
+        """Read effective settings without creating a file or singleton state."""
+        return cls._merge_overrides(
+            cls._read_from_file(persist_default=False),
+            cli_overrides,
+        )
+
+    @classmethod
+    def _merge_overrides(
+        cls,
+        base_settings: MCPSettings,
+        cli_overrides: dict[str, Any],
+    ) -> MCPSettings:
+        """Apply environment and CLI priority to one settings snapshot."""
+        combined_dict = base_settings.model_dump()
+        env_overrides = cls._load_settings_from_env()
         if env_overrides:
             _merge_nested_dict(combined_dict, env_overrides)
 
-        # Map and apply command line overrides
-        mapped_cli_overrides = self._map_cli_args_to_settings(cli_overrides)
+        mapped_cli_overrides = cls._map_cli_args_to_settings(cli_overrides)
         if mapped_cli_overrides:
             _merge_nested_dict(combined_dict, mapped_cli_overrides)
 
-        # Create final settings instance and update the service state
-        final_settings = MCPSettings(**combined_dict)
-        self._mcp_settings = final_settings
-        return final_settings
+        return MCPSettings(**combined_dict)
 
     @staticmethod
     def _load_settings_from_env() -> dict[str, Any]:
