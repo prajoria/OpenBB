@@ -8,21 +8,20 @@ from pathlib import Path
 from fastapi import FastAPI
 
 
+def _uses_colon_notation(app_path: str) -> bool:
+    """Distinguish module/attribute notation from a Windows drive colon."""
+    if ":" not in app_path:
+        return False
+    is_windows_drive = (
+        len(app_path) >= 2 and app_path[1] == ":" and app_path[0].isalpha()
+    )
+    return not is_windows_drive or app_path.count(":") > 1
+
+
 def import_app(app_path: str, name: str = "app", factory: bool = False) -> FastAPI:
     """Import the FastAPI app instance from a local file or module."""
     # pylint: disable=import-outside-toplevel
     from importlib import import_module, util
-
-    def _is_module_colon_notation(app_path: str) -> bool:
-        """Check if the path uses module:name notation vs a Windows path."""
-        if ":" not in app_path:
-            return False
-        # Windows absolute path check (e.g., C:\path or D:/path)
-        if len(app_path) >= 2 and app_path[1] == ":" and app_path[0].isalpha():
-            # Could still have colon notation: C:\path\file.py:app
-            parts = app_path.split(":")
-            return len(parts) > 2  # More than just drive letter colon
-        return True
 
     def _load_module_from_file_path(file_path: str):
         """Load a Python module from a file path."""
@@ -38,7 +37,7 @@ def import_app(app_path: str, name: str = "app", factory: bool = False) -> FastA
         return module
 
     # Case 1: Module path with colon notation (e.g., "my_app.main:app" or "main:app")
-    if _is_module_colon_notation(app_path):
+    if _uses_colon_notation(app_path):
         module_path, name = app_path.rsplit(":", 1)
         try:  # First try to import as a module
             module = import_module(module_path)
@@ -220,7 +219,7 @@ def parse_args():
 
     imported_app = None
     if _app_path:
-        if ":" in _app_path:
+        if _uses_colon_notation(_app_path):
             _app_instance_name = _app_path.split(":")[-1]
             _name = _app_instance_name if _app_instance_name else _name
 
