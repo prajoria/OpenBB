@@ -83,8 +83,10 @@ def _validate_safe_text(value: str, *, field_name: str) -> str:
     """Validate nonempty metadata text without leaking its content in errors."""
     if not value or value != value.strip():
         raise ValueError(f"{field_name} entries must be nonempty and trimmed")
-    if any(ord(character) < 32 or ord(character) == 127 for character in value):
-        raise ValueError(f"{field_name} entries cannot contain control characters")
+    if not value.isprintable():
+        raise ValueError(
+            f"{field_name} entries cannot contain control or non-printable characters"
+        )
     if _contains_secret_shape(value):
         raise ValueError(
             f"{field_name} entries cannot contain credential-shaped values"

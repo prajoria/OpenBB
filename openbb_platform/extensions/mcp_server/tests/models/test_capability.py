@@ -134,6 +134,8 @@ def test_operation_normalizes_method_and_is_frozen():
         "/api/%25FF",
         "/api/%ZZ",
         "/api/%",
+        "/api/\u0085private",
+        "/api/\u2028private",
     ],
 )
 def test_operation_rejects_noncanonical_paths(path):
@@ -307,6 +309,15 @@ def test_excluded_records_need_a_reason(disposition):
 @pytest.mark.parametrize("field", ["requirements", "source_refs", "exclusion_reason"])
 def test_credential_shaped_metadata_is_rejected(field, text):
     """Prerequisite names are allowed; recognizable credential values are not."""
+    value = [text] if field in {"requirements", "source_refs"} else text
+    with pytest.raises(ValidationError):
+        module.CapabilityRecord.model_validate({**record_data(), field: value})
+
+
+@pytest.mark.parametrize("text", ["line\u0085break", "line\u2028break"])
+@pytest.mark.parametrize("field", ["requirements", "source_refs", "exclusion_reason"])
+def test_non_printable_metadata_is_rejected(field, text):
+    """Unicode control and line-separator characters cannot enter metadata."""
     value = [text] if field in {"requirements", "source_refs"} else text
     with pytest.raises(ValidationError):
         module.CapabilityRecord.model_validate({**record_data(), field: value})
