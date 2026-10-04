@@ -65,10 +65,10 @@ def test_all_317_audited_operations_classify_exactly_once(policy):
         decision.rule_id.startswith("deny-unreviewed") for decision in decisions
     )
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 219,
+        "direct": 218,
         "workspace_indirect": 62,
         "metadata_only": 6,
-        "restricted": 30,
+        "restricted": 31,
     }
 
 
@@ -115,6 +115,7 @@ def test_execution_actions_are_denied_in_every_profile(policy, path):
         ("/api/v1/uscongress/amendment_info", "GET"),
         ("/api/v1/commodity/weather_bulletins_download", "POST"),
         ("/api/v1/regulators/sec/htm_file", "GET"),
+        ("/api/v1/regulators/sec/filing_headers", "GET"),
     ],
 )
 def test_unhardened_url_fetches_are_denied(policy, path, method):

@@ -71,7 +71,8 @@
         "/api/v1/uscongress/amendment_text_urls",
         "/api/v1/uscongress/amendment_info",
         "/api/v1/commodity/weather_bulletins_download",
-        "/api/v1/regulators/sec/htm_file"
+        "/api/v1/regulators/sec/htm_file",
+        "/api/v1/regulators/sec/filing_headers"
       ],
       "disposition": "restricted",
       "access_class": "provider_read",
