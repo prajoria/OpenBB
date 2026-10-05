@@ -1,7 +1,10 @@
 """Sanitized, read-only FMP cache observability contracts."""
 
-import builtins
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pymysql
 import pytest
@@ -95,6 +98,19 @@ def test_empty_and_stale_cache_states_are_explicit():
     )
     assert stale.availability == "stale"
     assert stale.stale is True
+    mixed = build_cache_health(
+        query_fn=lambda *_: [
+            {
+                "table_count": 2,
+                "estimated_row_count": 4,
+                "freshest_at": now,
+                "stalest_at": old,
+            }
+        ],
+        now=now,
+        stale_after=timedelta(days=1),
+    )
+    assert mixed.availability == "stale"
 
 
 @pytest.mark.parametrize(
@@ -157,18 +173,35 @@ async def test_portfolio_profiles_expose_only_sanitized_cache_tools(profile):
 
 def test_standard_profile_does_not_import_optional_cache_provider(monkeypatch):
     """The optional provider remains absent-safe for the standard MCP."""
-    original_import = builtins.__import__
-
-    def guarded_import(name, *args, **kwargs):
-        if name == "openbb_mcp_server.adapters.cache_admin":
-            raise AssertionError("optional cache adapter imported")
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", guarded_import)
-    settings = MCPSettings(
+    del monkeypatch
+    script = """
+import importlib.abc
+import sys
+class BlockOptional(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.startswith(("openbb_fmp_cached", "pymysql")):
+            raise ModuleNotFoundError(fullname)
+        return None
+sys.meta_path.insert(0, BlockOptional())
+from openbb_mcp_server.app.app import create_mcp_server
+from openbb_mcp_server.models.settings import MCPSettings
+from fastapi import FastAPI
+create_mcp_server(
+    MCPSettings(
         api_prefix="/api/v1",
         capability_profile="platform-standard",
         default_tool_categories=["all"],
         default_skills_dir=None,
+    ),
+    FastAPI(),
+)
+"""
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[5],
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    create_mcp_server(settings, FastAPI())
+    assert result.returncode == 0, result.stderr

@@ -4,7 +4,7 @@ import copy
 import json
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from importlib.resources import files
 from typing import Any, Literal
 
 import pymysql
@@ -14,13 +14,7 @@ from openbb_fmp_cached import fmp_cached_provider
 from openbb_fmp_cached.utils.database import execute_query
 from pydantic import BaseModel
 
-_ASSETS = (
-    Path(__file__).parents[4]
-    / "providers"
-    / "fmp_cached"
-    / "openbb_fmp_cached"
-    / "assets"
-)
+_ASSETS = files("openbb_fmp_cached").joinpath("assets")
 _HEALTH_QUERY = """
 SELECT
     COUNT(*) AS table_count,
@@ -125,7 +119,7 @@ def build_cache_health(
         availability = "empty"
         stale = None
     else:
-        stale = freshest_at is None or current - freshest_at > stale_after
+        stale = stalest_at is None or current - stalest_at > stale_after
         availability = "stale" if stale else "available"
     return CacheHealth(
         availability=availability,
