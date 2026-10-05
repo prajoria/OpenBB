@@ -18,10 +18,13 @@ When omitted, the real ``data.get_portfolio_basket_df`` and an fmp_cached
 profile lookup are used.
 """
 
+# Heavy OpenBB/data dependencies are deliberately loaded at tool call time.
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from openbb_agents._mcp_tool import mcp_tool
 
@@ -38,19 +41,19 @@ def _default_fetch():
 
 def _default_profile(symbol: str) -> dict:
     """Return {symbol, sector} for ``symbol`` via the fmp_cached provider."""
-    try:
-        from openbb import obb  # lazy — heavy import
+    from openbb import obb  # lazy — heavy import
 
-        res = obb.equity.profile(symbol=symbol, provider="fmp_cached")
-        rows = res.results if hasattr(res, "results") else res
-        if rows:
-            row = rows[0]
-            sector = getattr(row, "sector", None)
-            if sector is None and isinstance(row, dict):
-                sector = row.get("sector")
-            return {"symbol": symbol, "sector": sector or "Unknown"}
-    except Exception:  # noqa: BLE001 — degrade gracefully to Unknown
-        pass
+    equity = getattr(obb, "equity", None)
+    if equity is None:
+        raise RuntimeError("OpenBB equity extension is unavailable")
+    res = equity.profile(symbol=symbol, provider="fmp_cached")
+    rows = res.results if hasattr(res, "results") else res
+    if rows:
+        row = rows[0]
+        sector = getattr(row, "sector", None)
+        if sector is None and isinstance(row, dict):
+            sector = row.get("sector")
+        return {"symbol": symbol, "sector": sector or "Unknown"}
     return {"symbol": symbol, "sector": "Unknown"}
 
 
@@ -123,5 +126,5 @@ def get_sector_exposure(
         }
         for sector, market_value in by_sector.items()
     ]
-    rows.sort(key=lambda r: r["weight_pct"], reverse=True)
+    rows.sort(key=lambda row: cast(float, row["weight_pct"]), reverse=True)
     return rows

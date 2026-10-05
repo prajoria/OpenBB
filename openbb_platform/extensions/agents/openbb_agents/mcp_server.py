@@ -1,9 +1,9 @@
-"""stdio MCP server for OpenBB Agents.
+r"""stdio MCP server for OpenBB Agents.
 
-Auto-discovers every public function in the ``tools/`` layer and exposes each
-as an MCP tool over a stdio JSON-RPC transport.  This lets Claude Code,
-VS Code Copilot Chat, and any other MCP-capable client call portfolio and
-analysis tools without knowing the Python call path.
+Discovers explicitly marked synchronous functions in the owned ``tools/``
+modules and exposes them as MCP tools over a stdio JSON-RPC transport. This
+lets Claude Code, VS Code Copilot Chat, and other MCP clients call the two
+implemented portfolio tools without knowing the Python call path.
 
 Entry point
 -----------
@@ -18,8 +18,9 @@ Or via the installed console script::
 Discovery rules
 ---------------
 - All modules listed in ``_TOOL_MODULES`` are scanned.
-- Any top-level function whose name does **not** start with ``_`` is
-  registered as an MCP tool.
+- Only module-owned functions carrying ``@mcp_tool`` are registered.
+- Private aliases, underscore-prefixed functions, re-exports, and async
+  functions are rejected.
 - The function's first-line docstring becomes the tool description.
 - Type annotations are converted to a JSON Schema ``inputSchema``.
 
@@ -36,6 +37,9 @@ Only the annotation types present in the current tool layer are mapped:
 
 Unannotated parameters and complex types fall back to ``{}``.
 """
+
+# Imports are intentionally staged around optional MCP/tool modules.
+# pylint: disable=import-outside-toplevel,unused-import,wrong-import-position
 
 from __future__ import annotations
 
