@@ -297,7 +297,11 @@ def test_mcp_server_gates_composition_by_profile(monkeypatch, profile, expected_
         default_skills_dir=None,
     )
 
-    app_module.create_mcp_server(settings, app)
+    app_module.create_mcp_server(
+        settings,
+        app,
+        allow_unauthenticated_local=True,
+    )
 
     assert calls == [app] * expected_calls
 
@@ -312,7 +316,11 @@ async def test_portfolio_profiles_admit_exactly_approved_direct_operations(profi
         default_tool_categories=["all"],
         default_skills_dir=None,
     )
-    mcp = app_module.create_mcp_server(settings, FastAPI())
+    mcp = app_module.create_mcp_server(
+        settings,
+        FastAPI(),
+        allow_unauthenticated_local=True,
+    )
     names = {tool.name for tool in await mcp.list_tools()}
     expected = {
         f"portfolio_{path.strip('/').replace('/', '_')}"

@@ -4,12 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
+from fastmcp.server.middleware import MiddlewareContext
 from openbb_mcp_server.app.app import create_mcp_server
 from openbb_mcp_server.models.settings import MCPSettings
 from openbb_mcp_server.service.exposure_enforcement import (
     ExposureEnforcementMiddleware,
 )
-from fastmcp.server.middleware import MiddlewareContext
 
 
 def policy_app(calls: dict[str, int]) -> FastAPI:
@@ -152,6 +152,7 @@ async def test_install_skill_requires_filesystem_write_profile():
     ops = create_mcp_server(
         policy_settings(capability_profile="portfolio-ops"),
         FastAPI(),
+        allow_unauthenticated_local=True,
     )
     ops_names = {tool.name for tool in await ops.list_tools()}
     assert "install_skill" not in ops_names

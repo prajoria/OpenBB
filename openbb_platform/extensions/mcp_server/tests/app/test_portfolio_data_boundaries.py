@@ -13,6 +13,7 @@ from openbb_mcp_server.app.app import (
     _validate_portfolio_transport_security,
     create_mcp_server,
 )
+from openbb_mcp_server.app.auth import get_auth_provider
 from openbb_mcp_server.models.settings import MCPSettings
 from openbb_portfolio import portfolio_router
 
@@ -116,7 +117,11 @@ async def test_sanitized_portfolio_summary_invokes_through_mcp():
         default_tool_categories=["all"],
         default_skills_dir=None,
     )
-    mcp = create_mcp_server(settings, FastAPI())
+    mcp = create_mcp_server(
+        settings,
+        FastAPI(),
+        allow_unauthenticated_local=True,
+    )
     with patch.object(
         portfolio_router,
         "get_portfolio_basket_df",
@@ -138,7 +143,13 @@ def test_espp_widget_does_not_request_private_deposit_account():
 @pytest.mark.parametrize("profile", ["portfolio-read", "portfolio-ops"])
 @pytest.mark.parametrize(
     "server_auth",
-    [None, ("", "x" * 32), ("synthetic-user", "")],
+    [
+        None,
+        ("", "x" * 32),
+        ("synthetic-user", ""),
+        ("   ", "x" * 32),
+        ("synthetic-user", "\t"),
+    ],
 )
 def test_portfolio_network_transports_require_authentication(
     profile,
@@ -160,3 +171,19 @@ def test_portfolio_stdio_and_authenticated_network_transports_are_allowed(profil
     )
     _validate_portfolio_transport_security(local, "stdio")
     _validate_portfolio_transport_security(authenticated, "streamable-http")
+
+
+def test_programmatic_portfolio_server_requires_effective_auth_by_default():
+    """The public factory fails closed because callers may start network transport."""
+    settings = MCPSettings(capability_profile="portfolio-read")
+    with pytest.raises(RuntimeError, match="requires effective authentication"):
+        create_mcp_server(settings, FastAPI())
+
+
+def test_programmatic_portfolio_server_accepts_custom_auth_provider():
+    """Supported AuthProvider instances are retained as effective authentication."""
+    settings = MCPSettings(capability_profile="portfolio-read")
+    auth_settings = MCPSettings(server_auth=("synthetic-user", "x" * 32))
+    provider = get_auth_provider(auth_settings)
+    mcp = create_mcp_server(settings, FastAPI(), auth=provider)
+    assert mcp.auth is provider

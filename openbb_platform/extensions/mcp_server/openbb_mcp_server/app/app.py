@@ -17,6 +17,7 @@ from fastapi.routing import APIRoute
 from fastmcp import FastMCP
 from fastmcp.prompts import PromptArgument
 from fastmcp.prompts.function_prompt import FunctionPrompt
+from fastmcp.server.auth import AuthProvider
 from fastmcp.server.context import Context
 from fastmcp.server.providers.openapi import (
     OpenAPIResource,
@@ -362,6 +363,8 @@ def create_mcp_server(
     fastapi_app: FastAPI,
     httpx_kwargs: dict | None = None,
     auth: Any | None = None,
+    *,
+    allow_unauthenticated_local: bool = False,
 ) -> FastMCP:
     """Create and configure the FastMCP server from a FastAPI app instance.
 
@@ -383,8 +386,13 @@ def create_mcp_server(
     FastMCP
         The configured FastMCP server instance.
     """
-    auth_provider = None
-    if auth and isinstance(auth, list | tuple) and len(auth) == 2 and all(auth):
+    auth_provider = auth if isinstance(auth, AuthProvider) else None
+    if (
+        auth_provider is None
+        and isinstance(auth, list | tuple)
+        and len(auth) == 2
+        and all(isinstance(value, str) and value.strip() for value in auth)
+    ):
         # pylint: disable=import-outside-toplevel
         from .auth import get_auth_provider
 
@@ -396,6 +404,16 @@ def create_mcp_server(
     _allowed_resource_uris: set[str] = set()
     _allowed_resource_templates: set[str] = set()
     capability_profile = getattr(settings, "capability_profile", None)
+    if (
+        capability_profile in PORTFOLIO_PROFILES
+        and auth_provider is None
+        and not allow_unauthenticated_local
+    ):
+        raise RuntimeError(
+            "Programmatic Portfolio MCP creation requires effective authentication; "
+            "pass an AuthProvider or validated server credentials. "
+            "Local stdio callers may opt in explicitly."
+        )
     selected_policy = ExposurePolicy.load() if capability_profile else None
 
     # Filter an isolated route composition; preserve the original REST app.
@@ -999,7 +1017,7 @@ def _validate_portfolio_transport_security(
         and (
             not settings.server_auth
             or len(settings.server_auth) != 2
-            or not all(settings.server_auth)
+            or not all(value.strip() for value in settings.server_auth)
         )
     ):
         raise RuntimeError(
@@ -1044,7 +1062,11 @@ def main():
 
         # Create MCP server with comprehensive configuration
         mcp_server = create_mcp_server(
-            settings, target_app, httpx_kwargs, auth=settings.server_auth
+            settings,
+            target_app,
+            httpx_kwargs,
+            auth=settings.server_auth,
+            allow_unauthenticated_local=args.transport == "stdio",
         )
 
         if args.transport == "stdio":
