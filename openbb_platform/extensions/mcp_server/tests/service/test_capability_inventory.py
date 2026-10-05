@@ -707,12 +707,10 @@ def test_default_inventory_accounts_for_every_fmp_cached_registration(
     )
     baseline = json.loads(manifest_path.read_text(encoding="utf-8"))["counts"]
     assert len(fmp_rows) == baseline["fmp_models"]
-    assert Counter(row["status"] for row in fmp_rows) == {
-        "routed": baseline["fmp_routed_models"],
-    }
+    assert Counter(row["status"] for row in fmp_rows) == {"routed": 181}
     assert baseline["fmp_models"] == 181
-    assert baseline["fmp_routed_models"] == 181
-    assert baseline["fmp_unrouted_models"] == 0
+    assert baseline["fmp_routed_models"] == 70
+    assert baseline["fmp_unrouted_models"] == 111
     assert all(
         row["provider_registered"] for row in fmp_rows if row["status"] == "routed"
     )

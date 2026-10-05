@@ -1,5 +1,7 @@
 """Deterministic metadata-only MCP capability inventory."""
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import csv
@@ -756,11 +758,17 @@ def load_default_sources(
             from openbb_fmp_cached.fmp_cached_router import router as fmp_cached_router
 
             provider_fetchers["fmp_cached"] = fmp_cached_provider.fetcher_dict
-            for route in fmp_cached_router.api_router.routes:
-                if route.openapi_extra and route.openapi_extra.get("model"):
-                    command_models[f"/fmp_cached{route.path}"] = route.openapi_extra[
-                        "model"
-                    ]
+            prefix = f"{settings.api_prefix}/fmp_cached"
+            if not any(route.path.startswith(prefix) for route in app.router.routes):
+                app.include_router(fmp_cached_router.api_router, prefix=prefix)
+            for route in app.router.routes:
+                if (
+                    isinstance(route, APIRoute)
+                    and route.openapi_extra
+                    and route.openapi_extra.get("model")
+                ):
+                    command = route.path.removeprefix(settings.api_prefix)
+                    command_models[command] = route.openapi_extra["model"]
 
     prompts_file = (
         Path(__file__).resolve().parents[1] / "assets" / "server_prompts.json"

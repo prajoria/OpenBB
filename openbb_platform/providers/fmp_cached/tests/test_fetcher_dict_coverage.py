@@ -67,18 +67,6 @@ _KNOWN_UNCOVERED: dict[str, str] = {
         "drain to zero via #955 (chunk-batching not captured by "
         "pytest-recorder — needs special handling)"
     ),
-    "BalanceSheetStatementAsReported": "coverage tracked by routing regression #2171",
-    "CashFlowStatementAsReported": "coverage tracked by routing regression #2171",
-    "CustomDiscountedCashFlow": "coverage tracked by routing regression #2171",
-    "CustomLeveredDiscountedCashFlow": "coverage tracked by routing regression #2171",
-    "DiscountedCashFlow": "coverage tracked by routing regression #2171",
-    "FinancialStatementFullAsReported": "coverage tracked by routing regression #2171",
-    "HistoricalIndustryPerformance": "coverage tracked by routing regression #2171",
-    "HistoricalSectorPerformance": "coverage tracked by routing regression #2171",
-    "IndustryPerformanceSnapshot": "coverage tracked by routing regression #2171",
-    "LeveredDiscountedCashFlow": "coverage tracked by routing regression #2171",
-    "SecFilings8K": "coverage tracked by routing regression #2171",
-    "SectorPerformanceSnapshot": "coverage tracked by routing regression #2171",
 }
 
 # Endpoint-name → test-function suffix. Most follow the convention
@@ -93,6 +81,18 @@ _ENDPOINT_TO_TEST_STEM_OVERRIDES: dict[str, str] = {
     # CashFlowStatement → cash_flow (per test name convention)
     "CashFlowStatement": "cash_flow",
     "CashFlowStatementGrowth": "cash_flow_growth",
+    "BalanceSheetStatementAsReported": "balance_sheet_as_reported",
+    "CashFlowStatementAsReported": "cash_flow_as_reported",
+    "CustomDiscountedCashFlow": "custom_dcf",
+    "CustomLeveredDiscountedCashFlow": "custom_levered_dcf",
+    "DiscountedCashFlow": "dcf",
+    "FinancialStatementFullAsReported": "full_as_reported",
+    "HistoricalIndustryPerformance": "hist_industry_perf",
+    "HistoricalSectorPerformance": "hist_sector_perf",
+    "IndustryPerformanceSnapshot": "industry_perf_snapshot",
+    "LeveredDiscountedCashFlow": "levered_dcf",
+    "SecFilings8K": "sec_filings_8k",
+    "SectorPerformanceSnapshot": "sector_perf_snapshot",
 }
 
 
