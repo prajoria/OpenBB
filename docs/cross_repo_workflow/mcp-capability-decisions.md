@@ -43,3 +43,28 @@ An approved exclusion requires:
 
 Execution actions and unhardened caller-URL fetches are approved exclusions.
 Their presence in source or Git history does not make them MCP-admitted.
+
+## FMP Cached persistence contract
+
+The registered denominator is 181 models:
+
+- 123 use dedicated implementations and may persist according to their own
+  table and freshness contracts.
+- 58 are credential-translation-only fallback implementations and are
+  explicitly non-persistent in `persistence_descriptors.json`.
+- A model-specific TTL is separate from persistence classification. For
+  example, `AftermarketQuote` has dedicated storage but considers rows stale
+  after 60 seconds.
+
+Fallback conversion priorities do not count as implemented coverage:
+
+1. **High consumer demand:** news, movers, screening, government/insider
+   activity, targets, revenue segmentation, yields, and common historical
+   reference series.
+2. **Entitlement blocked:** endpoints recorded in `plan_limited.py`; conversion
+   waits for a lawful recording and runtime entitlement.
+3. **Backlog:** remaining fallback registrations without demonstrated consumer
+   demand.
+
+Each conversion requires its own approved issue, dedicated storage contract,
+atomic-write evidence, TTL/freshness semantics, and entitlement tests.
