@@ -209,37 +209,21 @@ def test_catalog_uses_supported_fundamental_tools():
 
     for name in corrected_prompts:
         required_tools = prompts[name]["dependencies"]["required_tools"]
-        assert "equity_fundamental_metrics" in required_tools
-
-    for name in corrected_prompts:
-        assert (
-            "equity_fundamental_ratios"
-            in prompts[name]["dependencies"]["required_tools"]
+        assert {"equity_fundamental_metrics", "equity_fundamental_ratios"} <= set(
+            required_tools
         )
-
-    deep_dive = prompts["equity_deep_dive"]
-    provider_argument = next(
-        argument
-        for argument in deep_dive["arguments"]
-        if argument["name"] == "provider"
-    )
-    assert provider_argument["default"] == "fmp"
-    assert deep_dive["dependencies"]["providers"] == ["fmp"]
-    assert (
-        "`equity_fundamental_metrics` with symbol={symbol}, " "provider={provider}"
-    ) in deep_dive["content"]
-    assert (
-        "`equity_fundamental_ratios` with symbol={symbol}, " "provider={provider}"
-    ) in deep_dive["content"]
-    peer_content = prompts["equity_peer_comparison"]["content"]
-    assert (
-        "`equity_fundamental_metrics` with symbol set to that peer and "
-        "provider={provider}"
-    ) in peer_content
-    assert (
-        "`equity_fundamental_ratios` with symbol set to that peer and "
-        "provider={provider}"
-    ) in peer_content
+        provider_argument = next(
+            argument
+            for argument in prompts[name]["arguments"]
+            if argument["name"] == "provider"
+        )
+        assert provider_argument["default"] == "fmp"
+        assert prompts[name]["dependencies"]["providers"] == ["fmp"]
+        content = prompts[name]["content"]
+        for tool in required_tools:
+            invocation = content.split(f"`{tool}`", maxsplit=1)[1]
+            invocation = invocation.split("`", maxsplit=1)[0]
+            assert "provider={provider}" in invocation
 
 
 def test_cache_refresh_prompt_is_inspection_only():
@@ -257,17 +241,24 @@ def test_cache_refresh_prompt_is_inspection_only():
         "cache_coverage",
     }
     assert prompt["dependencies"]["providers"] == []
-    assert "limit=5" not in content
-    assert "inspection only" in content
-    assert "never invokes cached provider fetchers" in content
-    assert "cannot prove per-symbol freshness" in content
-    assert "do not claim that {symbol} is fresh or stale" in content
-    assert "read may initialize or refresh persisted cache data" in content
-    assert "authenticated portfolio-ops operator" in content
-    assert "maintenance operations explicitly enabled" in content
-    assert "separately enqueue" in content
-    assert "equity_price_historical" not in content
-    assert "equity_fundamental_metrics" not in content
+    for required_boundary in (
+        "inspection only",
+        "never invokes cached provider fetchers",
+        "cannot prove per-symbol freshness",
+        "do not claim that {symbol} is fresh or stale",
+        "read may initialize or refresh persisted cache data",
+        "authenticated portfolio-ops operator",
+        "maintenance operations explicitly enabled",
+        "separately enqueue",
+        "do not enqueue or execute maintenance",
+    ):
+        assert required_boundary in content
+    for forbidden_call in (
+        "limit=5",
+        "equity_price_historical",
+        "equity_fundamental_metrics",
+    ):
+        assert forbidden_call not in content
 
 
 def test_financialtoolkit_prompts_require_optional_package():

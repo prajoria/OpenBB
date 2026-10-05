@@ -2,7 +2,7 @@
   {
     "name": "equity_deep_dive",
     "description": "Comprehensive single-stock analysis covering price history, fundamentals, valuation, analyst estimates, and news sentiment.",
-    "content": "Perform a comprehensive deep-dive analysis on {symbol}.\n\nStep 1: Fetch historical price data using `equity_price_historical` with symbol={symbol} and at least 1 year of data.\nStep 2: Get fundamental data via `equity_fundamental_metrics` with symbol={symbol}, provider={provider}, then `equity_fundamental_ratios` with symbol={symbol}, provider={provider}, for key metrics (P/E, EV/EBITDA, revenue, margins).\nStep 3: Retrieve income statement and balance sheet via `equity_fundamental_income` and `equity_fundamental_balance`.\nStep 4: Get analyst price targets and ratings using `equity_estimates_price_target` and `equity_estimates_analyst_search`.\nStep 5: Check recent earnings via `equity_calendar_earnings` and compare to estimates.\nStep 6: Fetch recent company news via `equity_news` for the past 30 days.\nStep 7: Get peer comparison using `equity_compare_peers`.\nStep 8: Synthesize all findings into a structured report with sections: Price Performance, Fundamentals, Valuation vs Peers, Analyst Consensus, Recent News & Catalysts, and Investment Thesis.",
+    "content": "Perform a comprehensive deep-dive analysis on {symbol}.\n\nStep 1: Fetch historical price data using `equity_price_historical` with symbol={symbol}, provider={provider}, and at least 1 year of data.\nStep 2: Get fundamental data via `equity_fundamental_metrics` with symbol={symbol}, provider={provider}, then `equity_fundamental_ratios` with symbol={symbol}, provider={provider}, for key metrics (P/E, EV/EBITDA, revenue, margins).\nStep 3: Retrieve income statement and balance sheet via `equity_fundamental_income` with symbol={symbol}, provider={provider}, and `equity_fundamental_balance` with symbol={symbol}, provider={provider}.\nStep 4: Get analyst price targets and ratings using `equity_estimates_price_target` with symbol={symbol}, provider={provider}, and `equity_estimates_analyst_search` with symbol={symbol}, provider={provider}.\nStep 5: Check recent earnings via `equity_calendar_earnings` with symbol={symbol}, provider={provider}, and compare to estimates.\nStep 6: Fetch recent company news via `equity_news` with symbol={symbol}, provider={provider}, for the past 30 days.\nStep 7: Get peer comparison using `equity_compare_peers` with symbol={symbol}, provider={provider}.\nStep 8: Synthesize all findings into a structured report with sections: Price Performance, Fundamentals, Valuation vs Peers, Analyst Consensus, Recent News & Catalysts, and Investment Thesis.",
     "arguments": [
       {
         "name": "symbol",
@@ -109,7 +109,7 @@
   {
     "name": "equity_peer_comparison",
     "description": "Side-by-side comparison of a stock versus its sector peers across valuation, growth, profitability, and price performance metrics.",
-    "content": "Compare {symbol} against its peer group.\n\nStep 1: Identify peer companies using `equity_compare_peers` for {symbol}.\nStep 2: For each peer (limit to top 5-7), fetch key fundamental metrics via `equity_fundamental_metrics` with symbol set to that peer and provider={provider}, then `equity_fundamental_ratios` with symbol set to that peer and provider={provider}.\nStep 3: Collect valuation metrics: P/E, P/S, P/B, EV/EBITDA for {symbol} and each peer.\nStep 4: Collect growth metrics: Revenue growth YoY, EPS growth YoY.\nStep 5: Collect profitability metrics: Gross margin, Operating margin, ROE, ROA.\nStep 6: Fetch 1-year price performance for {symbol} and peers using `equity_price_historical`.\nStep 7: Get analyst ratings for each company using `equity_estimates_analyst_search`.\nStep 8: Create a comparison table ranking {symbol} vs peers on each metric.\nStep 9: Summarize where {symbol} leads or lags versus peers, and flag any valuation premium or discount.",
+    "content": "Compare {symbol} against its peer group.\n\nStep 1: Identify peer companies using `equity_compare_peers` with symbol={symbol}, provider={provider}.\nStep 2: For each peer (limit to top 5-7), fetch key fundamental metrics via `equity_fundamental_metrics` with symbol set to that peer and provider={provider}, then `equity_fundamental_ratios` with symbol set to that peer and provider={provider}.\nStep 3: Collect valuation metrics: P/E, P/S, P/B, EV/EBITDA for {symbol} and each peer.\nStep 4: Collect growth metrics: Revenue growth YoY, EPS growth YoY.\nStep 5: Collect profitability metrics: Gross margin, Operating margin, ROE, ROA.\nStep 6: Fetch 1-year price performance for {symbol} and peers using `equity_price_historical` with provider={provider}.\nStep 7: Get analyst ratings for each company using `equity_estimates_analyst_search` with provider={provider}.\nStep 8: Create a comparison table ranking {symbol} vs peers on each metric.\nStep 9: Summarize where {symbol} leads or lags versus peers, and flag any valuation premium or discount.",
     "arguments": [
       {
         "name": "symbol",
@@ -1103,12 +1103,18 @@
   {
     "name": "factor_exposure_analysis",
     "description": "Analyze a stock or portfolio's exposure to common investment factors: value, growth, momentum, quality, and low volatility.",
-    "content": "Analyze factor exposures for {symbol}.\n\nStep 1: Fetch financial data for {symbol} via `equity_fundamental_metrics` and `equity_fundamental_ratios`.\nStep 2: Calculate Value factor score: P/E, P/B, P/S, EV/EBITDA — rank vs universe.\nStep 3: Calculate Growth factor: Revenue growth YoY, EPS growth YoY, forward EPS revisions.\nStep 4: Calculate Quality factor: ROE, ROA, gross margin, debt/equity.\nStep 5: Calculate Momentum factor: 12M-1M price return (skip most recent month to avoid reversal).\nStep 6: Calculate Low Volatility factor: 12-month realized volatility.\nStep 7: Compare each factor score to S&P 500 average and sector peers.\nStep 8: Identify which factor ETFs this stock would qualify for (VLUE, MTUM, QUAL, USMV).\nStep 9: Report: Factor Score Card, Factor vs Benchmark, Best-Fit Factor Category, and Portfolio Construction Implications.",
+    "content": "Analyze factor exposures for {symbol}.\n\nStep 1: Fetch financial data for {symbol} via `equity_fundamental_metrics` with symbol={symbol}, provider={provider}, and `equity_fundamental_ratios` with symbol={symbol}, provider={provider}.\nStep 2: Calculate Value factor score: P/E, P/B, P/S, EV/EBITDA — rank vs universe.\nStep 3: Calculate Growth factor: Revenue growth YoY, EPS growth YoY, forward EPS revisions.\nStep 4: Calculate Quality factor: ROE, ROA, gross margin, debt/equity.\nStep 5: Calculate Momentum factor: 12M-1M price return (skip most recent month to avoid reversal).\nStep 6: Calculate Low Volatility factor: 12-month realized volatility.\nStep 7: Compare each factor score to S&P 500 average and sector peers.\nStep 8: Identify which factor ETFs this stock would qualify for (VLUE, MTUM, QUAL, USMV).\nStep 9: Report: Factor Score Card, Factor vs Benchmark, Best-Fit Factor Category, and Portfolio Construction Implications.",
     "arguments": [
       {
         "name": "symbol",
         "type": "str",
         "description": "Stock ticker symbol"
+      },
+      {
+        "name": "provider",
+        "type": "str",
+        "description": "Data provider supporting both key metrics and financial ratios",
+        "default": "fmp"
       }
     ],
     "tags": [
@@ -1122,7 +1128,9 @@
         "equity_fundamental_ratios"
       ],
       "any_tool_groups": [],
-      "providers": [],
+      "providers": [
+        "fmp"
+      ],
       "optional_packages": [],
       "resources": []
     }
