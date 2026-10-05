@@ -79,7 +79,9 @@ def test_adapter_clones_63_reviewed_routes_and_preserves_contracts():
     assert DENIED_EXECUTION_PATHS.isdisjoint(copies)
     for path in REPRESENTATIVE_PATHS:
         assert copies[path].endpoint is originals[path].endpoint
-        assert copies[path].dependant is originals[path].dependant
+        assert (
+            copies[path].dependant is originals[path].dependant
+        )  # codespell:ignore dependant
         assert copies[path].response_model is originals[path].response_model
 
 
@@ -236,9 +238,9 @@ def test_adapter_exposes_no_caller_controlled_destination_overrides():
             names = {
                 field.name
                 for field in (
-                    route.dependant.query_params
-                    + route.dependant.path_params
-                    + route.dependant.body_params
+                    route.dependant.query_params  # codespell:ignore dependant
+                    + route.dependant.path_params  # codespell:ignore dependant
+                    + route.dependant.body_params  # codespell:ignore dependant
                 )
             }
             assert forbidden.isdisjoint(names)
