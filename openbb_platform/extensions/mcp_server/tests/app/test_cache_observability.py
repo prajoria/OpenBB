@@ -3,7 +3,7 @@
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pymysql
@@ -19,7 +19,7 @@ from openbb_mcp_server.models.settings import MCPSettings
 
 def test_available_cache_health_is_bounded_and_sanitized():
     """Health returns aggregates and freshness, never rows or connection data."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     calls = []
 
     def query(sql, params=()):
@@ -55,7 +55,7 @@ def test_available_cache_health_is_bounded_and_sanitized():
 
 def test_empty_and_stale_cache_states_are_explicit():
     """Empty and stale stores never look like healthy populated caches."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     empty = build_cache_health(
         query_fn=lambda *_: [
             {
