@@ -15,7 +15,11 @@ from openbb_financialtoolkit.options.options_router import router as options_rou
 from openbb_financialtoolkit.performance.performance_router import (
     router as performance_router,
 )
+from openbb_financialtoolkit.ratios.ratios_router import router as ratios_router
 from openbb_financialtoolkit.risk.risk_router import router as risk_router
+from openbb_financialtoolkit.technicals.technicals_router import (
+    router as technicals_router,
+)
 
 router = Router(prefix="", description="FinancialToolkit analysis tools.")
 router.include_router(models_router)
@@ -23,6 +27,8 @@ router.include_router(options_router)
 router.include_router(risk_router)
 router.include_router(performance_router)
 router.include_router(discovery_router)
+router.include_router(ratios_router)
+router.include_router(technicals_router)
 
 
 class FinancialToolkitAbout(BaseModel):

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "5cfa0f00fcd1742d30a554b1131d1ce0f302dbfa51c36784116388b58ec576df"
+    "sha256": "beb1c01c0acddb98b10b830caae04e7f1ad21e22277a46566daeb445b68285a5"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -256,6 +256,7 @@
         "/api/v1/economy",
         "/api/v1/equity",
         "/api/v1/etf",
+        "/api/v1/financialtoolkit",
         "/api/v1/fixedincome",
         "/api/v1/fmp_cached",
         "/api/v1/imf_utils",

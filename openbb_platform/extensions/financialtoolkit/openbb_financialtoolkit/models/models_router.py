@@ -1,5 +1,11 @@
 """Models sub-router for FinancialToolkit extension."""
 
+# Public analytical commands intentionally expose the toolkit's parameter set.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+
+from typing import Annotated
+
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -13,7 +19,13 @@ from openbb_financialtoolkit.models.models_service import ModelsService
 
 router = Router(prefix="/models", description="FinancialToolkit company model tools.")
 
-_MCP_MODELS = {"mcp_config": {"tags": ["financialtoolkit", "models"], "describe_responses": False}}
+_MCP_MODELS = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "models"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -47,7 +59,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 )
 def altman_z_score(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -87,7 +99,7 @@ def altman_z_score(
 )
 def piotroski_score(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -119,7 +131,7 @@ def piotroski_score(
 )
 def dupont(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -159,7 +171,7 @@ def dupont(
 )
 def wacc(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -193,7 +205,10 @@ def wacc(
         PythonEx(
             description="Calculate intrinsic valuation (DCF) using FinanceToolkit wrapper.",
             code=[
-                "obb.financialtoolkit.models.intrinsic_value(symbols=['AAPL'], growth_rate=0.05, perpetual_growth_rate=0.025, weighted_average_cost_of_capital=0.09, api_key='YOUR_FMP_KEY')"
+                "obb.financialtoolkit.models.intrinsic_value("
+                "symbols=['AAPL'], growth_rate=0.05, "
+                "perpetual_growth_rate=0.025, "
+                "weighted_average_cost_of_capital=0.09)"
             ],
         ),
         APIEx(
@@ -212,7 +227,7 @@ def intrinsic_value(
     growth_rate: float,
     perpetual_growth_rate: float,
     weighted_average_cost_of_capital: float,
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,

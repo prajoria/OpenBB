@@ -508,6 +508,13 @@ def create_mcp_server(
                 exc,
             )
             mcp_cfg = {}
+        if isinstance(component, OpenAPITool) and mcp_cfg.get("exclude_args"):
+            properties = component.parameters.get("properties", {})
+            required = component.parameters.get("required", [])
+            for argument in mcp_cfg["exclude_args"]:
+                properties.pop(argument, None)
+                if argument in required:
+                    required.remove(argument)
 
         identity = get_mcp_route_identity(
             route.path,

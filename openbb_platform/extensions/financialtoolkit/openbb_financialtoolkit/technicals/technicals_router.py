@@ -1,5 +1,11 @@
 """Technicals sub-router for FinancialToolkit extension."""
 
+# Public analytical commands intentionally expose the toolkit's parameter set.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+
+from typing import Annotated
+
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -10,9 +16,17 @@ from openbb_financialtoolkit.common.validators import validate_symbols
 from openbb_financialtoolkit.technicals.technicals_models import DomainCapability
 from openbb_financialtoolkit.technicals.technicals_service import TechnicalsService
 
-router = Router(prefix="/technicals", description="FinancialToolkit technical indicators.")
+router = Router(
+    prefix="/technicals", description="FinancialToolkit technical indicators."
+)
 
-_MCP_TECH = {"mcp_config": {"tags": ["financialtoolkit", "technicals"], "describe_responses": False}}
+_MCP_TECH = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "technicals"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -44,7 +58,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 )
 def collect_all(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -77,7 +91,7 @@ def collect_all(
 )
 def momentum(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -112,7 +126,7 @@ def momentum(
 )
 def overlap(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -147,7 +161,7 @@ def overlap(
 )
 def volatility(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -182,7 +196,7 @@ def volatility(
 )
 def breadth(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -217,7 +231,7 @@ def breadth(
 )
 def rsi(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -227,9 +241,14 @@ def rsi(
 ) -> OBBject[list[Data]]:
     """Calculate Relative Strength Index (RSI)."""
     records = TechnicalsService.rsi(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -247,7 +266,7 @@ def rsi(
 )
 def macd(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -259,10 +278,16 @@ def macd(
 ) -> OBBject[list[Data]]:
     """Calculate Moving Average Convergence Divergence (MACD)."""
     records = TechnicalsService.macd(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period_fast=period_fast, period_slow=period_slow, period_signal=period_signal,
-        close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period_fast=period_fast,
+        period_slow=period_slow,
+        period_signal=period_signal,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -280,7 +305,7 @@ def macd(
 )
 def bollinger_bands(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -291,9 +316,15 @@ def bollinger_bands(
 ) -> OBBject[list[Data]]:
     """Calculate Bollinger Bands."""
     records = TechnicalsService.bollinger_bands(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, std_dev=std_dev, close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        std_dev=std_dev,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -311,7 +342,7 @@ def bollinger_bands(
 )
 def moving_average(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -321,9 +352,14 @@ def moving_average(
 ) -> OBBject[list[Data]]:
     """Calculate Simple Moving Average (SMA)."""
     records = TechnicalsService.moving_average(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -341,7 +377,7 @@ def moving_average(
 )
 def ema(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -351,9 +387,14 @@ def ema(
 ) -> OBBject[list[Data]]:
     """Calculate Exponential Moving Average (EMA)."""
     records = TechnicalsService.ema(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -371,7 +412,7 @@ def ema(
 )
 def atr(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -381,9 +422,14 @@ def atr(
 ) -> OBBject[list[Data]]:
     """Calculate Average True Range (ATR)."""
     records = TechnicalsService.atr(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -401,7 +447,7 @@ def atr(
 )
 def stochastic(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -413,10 +459,16 @@ def stochastic(
 ) -> OBBject[list[Data]]:
     """Calculate Stochastic Oscillator (%K and %D)."""
     records = TechnicalsService.stochastic(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, smooth_k=smooth_k, smooth_d=smooth_d,
-        close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        smooth_k=smooth_k,
+        smooth_d=smooth_d,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -434,7 +486,7 @@ def stochastic(
 )
 def ichimoku(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -446,10 +498,16 @@ def ichimoku(
 ) -> OBBject[list[Data]]:
     """Calculate Ichimoku Cloud indicator."""
     records = TechnicalsService.ichimoku(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        conversion_period=conversion_period, base_period=base_period,
-        lagging_period=lagging_period, displacement=displacement, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        conversion_period=conversion_period,
+        base_period=base_period,
+        lagging_period=lagging_period,
+        displacement=displacement,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -467,7 +525,7 @@ def ichimoku(
 )
 def adx(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -476,9 +534,13 @@ def adx(
 ) -> OBBject[list[Data]]:
     """Calculate Average Directional Index (ADX)."""
     records = TechnicalsService.adx(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -496,7 +558,7 @@ def adx(
 )
 def obv(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -505,9 +567,13 @@ def obv(
 ) -> OBBject[list[Data]]:
     """Calculate On Balance Volume (OBV)."""
     records = TechnicalsService.obv(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        close_column=close_column, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        close_column=close_column,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))
 
@@ -518,14 +584,16 @@ def obv(
     examples=[
         PythonEx(
             description="Get support and resistance levels.",
-            code=["obb.financialtoolkit.technicals.support_resistance(symbols=['AAPL'])"],
+            code=[
+                "obb.financialtoolkit.technicals.support_resistance(symbols=['AAPL'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL"]}),
     ],
 )
 def support_resistance(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -535,8 +603,13 @@ def support_resistance(
 ) -> OBBject[list[Data]]:
     """Calculate Support and Resistance levels."""
     records = TechnicalsService.support_resistance(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        close_column=close_column, sensitivity=sensitivity, rounding=rounding,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        close_column=close_column,
+        sensitivity=sensitivity,
+        rounding=rounding,
     )
     return OBBject(results=records_to_data(records))

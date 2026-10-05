@@ -1,7 +1,11 @@
 """Risk sub-router for FinancialToolkit extension."""
 
-from typing import Literal
+# Public analytical commands intentionally expose the toolkit's parameter set.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 
+from typing import Annotated, Literal
+
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -15,7 +19,13 @@ from openbb_financialtoolkit.risk.risk_service import RiskService
 
 router = Router(prefix="/risk", description="FinancialToolkit risk tools.")
 
-_MCP_RISK = {"mcp_config": {"tags": ["financialtoolkit", "risk"], "describe_responses": False}}
+_MCP_RISK = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "risk"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -47,7 +57,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 )
 def var(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -90,7 +100,7 @@ def var(
 )
 def cvar(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -100,7 +110,9 @@ def cvar(
     rounding: int | None = None,
     growth: bool = False,
     lag: PositiveInt = 1,
-    distribution: Literal["historic", "gaussian", "studentt", "laplace", "logistic"] = "historic",
+    distribution: Literal[
+        "historic", "gaussian", "studentt", "laplace", "logistic"
+    ] = "historic",
 ) -> OBBject[list[Data]]:
     """Calculate Conditional Value at Risk (CVaR)."""
     records = RiskService.cvar(
@@ -133,7 +145,7 @@ def cvar(
 )
 def evar(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -174,7 +186,7 @@ def evar(
 )
 def garch(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
