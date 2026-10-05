@@ -54,6 +54,12 @@ def _operation_id(path: str) -> str:
     return f"portfolio_{path.strip('/').replace('/', '_')}"
 
 
+def _mcp_name_override(route: APIRoute) -> str | None:
+    extra = route.openapi_extra or {}
+    config = extra.get("mcp_config") or extra.get("x-mcp") or {}
+    return config.get("name") if isinstance(config, dict) else None
+
+
 def compose_portfolio_app(
     source_app: FastAPI,
     settings: MCPSettings | None = None,
@@ -86,7 +92,7 @@ def compose_portfolio_app(
         get_mcp_route_identity(
             route.path,
             settings,
-            name_override=(route.openapi_extra or {}).get("mcp_config", {}).get("name"),
+            name_override=_mcp_name_override(route),
         ).component_name
         for route in composed.router.routes
         if isinstance(route, APIRoute)

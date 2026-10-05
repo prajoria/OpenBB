@@ -206,17 +206,24 @@ def test_composition_rebuilds_middleware_around_the_isolated_router():
 
 
 @pytest.mark.parametrize(
-    ("path", "mcp_config"),
+    ("path", "openapi_extra"),
     [
-        ("/synthetic", {"name": "portfolio_stock_context"}),
-        ("/portfolio/stock/context", {}),
+        (
+            "/synthetic",
+            {"mcp_config": {"name": "portfolio_stock_context"}},
+        ),
+        (
+            "/synthetic",
+            {"x-mcp": {"name": "portfolio_stock_context"}},
+        ),
+        ("/portfolio/stock/context", {"mcp_config": {}}),
     ],
 )
-def test_composition_rejects_effective_mcp_name_collisions(path, mcp_config):
+def test_composition_rejects_effective_mcp_name_collisions(path, openapi_extra):
     """Existing effective MCP identities cannot hide a composed Portfolio tool."""
     app = FastAPI()
 
-    @app.get(path, openapi_extra={"mcp_config": mcp_config})
+    @app.get(path, openapi_extra=openapi_extra)
     async def conflicting_mcp_name():
         return {}
 
