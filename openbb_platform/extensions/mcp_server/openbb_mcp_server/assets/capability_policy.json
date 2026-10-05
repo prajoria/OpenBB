@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "9201ab72195ac780ab2a232f91b10e4ec88cefec1b3a78305c0ab71f82336b41"
+    "sha256": "9227d9c60d0a7783d474e88c229b67d27e961b9f310ea97a0d485c26bc9c34a9"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -181,7 +181,7 @@
         "/tt/position",
         "/tt/execute/paper-status"
       ],
-      "disposition": "workspace_indirect",
+      "disposition": "direct",
       "access_class": "private_portfolio_read",
       "admitted_profiles": [
         "portfolio-read",
@@ -278,7 +278,7 @@
         "/tt/engine/status",
         "/tt/execute/bridge"
       ],
-      "disposition": "workspace_indirect",
+      "disposition": "direct",
       "access_class": "provider_read",
       "admitted_profiles": [
         "platform-standard",
@@ -341,7 +341,7 @@
       },
       "intelligence-widgets": {
         "owner_issues": ["#2174 Review Intelligence and Trading Desk adapter"],
-        "rationale": "All 69 Intelligence operations have reviewed metadata, Workspace-mediated, operator-only, or denied mutation dispositions without duplicating widget representations as direct tools.",
+        "rationale": "All 69 Intelligence operations have reviewed metadata, direct adapter, operator-only, or denied mutation dispositions with stable Intelligence tool identities.",
         "source_evidence": [
           "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/main.py",
           "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/_app.py",

@@ -104,13 +104,15 @@ def compose_portfolio_intel_app(
         if not original.path.startswith(("/pi/", "/tt/")):
             continue
         methods = sorted(original.methods)
+        decisions = [policy.classify_path(method, original.path) for method in methods]
         if not methods or not all(
-            policy.is_operation_admitted(
+            decision.disposition in {"direct", "metadata_only"}
+            and policy.is_operation_admitted(
                 method,
                 original.path,
                 profile,
             )
-            for method in methods
+            for method, decision in zip(methods, decisions, strict=True)
         ):
             continue
         name = _tool_name(original.path)

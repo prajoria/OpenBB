@@ -69,10 +69,9 @@ def test_all_69_operations_have_effect_and_access_dispositions():
         for row in _catalog_rows()
     ]
     assert Counter(decision.disposition for decision in decisions) == {
-        "workspace_indirect": 61,
+        "direct": 62,
         "metadata_only": 4,
         "restricted": 3,
-        "direct": 1,
     }
     assert Counter(decision.access_class for decision in decisions) == {
         "provider_read": 34,
@@ -102,11 +101,11 @@ def test_state_changes_are_explicit_regardless_of_http_method():
         assert decision.admitted_profiles == ()
 
 
-def test_workspace_relationships_do_not_duplicate_direct_tools():
-    """Workspace-mediated representations stay indirect, not double-counted."""
+def test_adapter_relationships_have_unique_direct_tool_identities():
+    """Every reviewed analytic operation has one stable adapter identity."""
     policy = ExposurePolicy.load()
     rows = _catalog_rows()
-    indirect = [
+    direct_reads = [
         row
         for row in rows
         if policy.classify_operation(
@@ -114,10 +113,15 @@ def test_workspace_relationships_do_not_duplicate_direct_tools():
             row["method"],
             row["path"],
         ).disposition
-        == "workspace_indirect"
+        == "direct"
+        and row["path"] != "/tt/scan/trigger"
     ]
-    assert len(indirect) == 61
-    assert not any(row["mcp_tool"] for row in indirect)
+    names = {
+        f"intelligence_{row['path'].strip('/').replace('/', '_').replace('-', '_')}"
+        for row in direct_reads
+    }
+    assert len(direct_reads) == len(names) == 61
+    assert {row["mcp_tool"] for row in direct_reads} == names
 
 
 def test_unknown_future_widget_route_fails_closed_for_every_profile():
