@@ -52,6 +52,13 @@ No submit, broker, order, cancellation, report-writing, or replay operation is
 registered. Stdout is reserved for MCP protocol frames; diagnostics use stderr
 through the logging system.
 
+The integration suite starts this exact CLI in a bounded subprocess, performs
+the MCP initialize handshake, lists all six tools, invokes each with synthetic
+provider/journal fixtures, and closes the transport. It also verifies missing
+extras, schema validation, handler failures, and direct mutation-tool attempts.
+Removing handler registration therefore fails the transport test even if the
+static declarations remain present.
+
 **Requires:** the `[agent]` extra. Emits a friendly install-hint if
 missing rather than an ImportError stack trace.
 
