@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "beb1c01c0acddb98b10b830caae04e7f1ad21e22277a46566daeb445b68285a5"
+    "sha256": "faed6ef978be44b73c25e083d634c8878243b682e3c6e48b6f12d54a66700f2c"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -248,6 +248,7 @@
       "scopes": ["portfolio-venv-core-in-process"],
       "path_prefixes": [
         "/api/v1/backtest",
+        "/api/v1/cache",
         "/api/v1/cftc",
         "/api/v1/commodity",
         "/api/v1/crypto",
