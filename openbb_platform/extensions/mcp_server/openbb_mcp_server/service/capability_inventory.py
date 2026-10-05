@@ -1,6 +1,6 @@
 """Deterministic metadata-only MCP capability inventory."""
 
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,too-many-instance-attributes
 
 from __future__ import annotations
 
@@ -10,11 +10,13 @@ import importlib.util
 import io
 import json
 import re
+import secrets
 from collections import Counter, defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, get_args
+from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
@@ -156,6 +158,8 @@ class InventorySources:
     runtime: RuntimeMetadata
     unavailable_components: tuple[str, ...] = ()
     scope_limitations: tuple[str, ...] = ()
+    specialists: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    source_operations: tuple[tuple[str, str, str], ...] = ()
 
 
 def _canonical_json(value: Any) -> str:
@@ -499,6 +503,72 @@ def _profile_record(profile: ProfileMetadata) -> CapabilityRecord:
     )
 
 
+def _specialist_records(
+    specialists: Mapping[str, tuple[str, ...]],
+) -> list[CapabilityRecord]:
+    """Represent source-discovered separate MCP registries."""
+    records = []
+    source_refs = {
+        "agents": ("openbb_platform/extensions/agents/openbb_agents/mcp_server.py",),
+        "daytrade": (
+            "openbb_platform/extensions/fmp_trading/"
+            "openbb_fmp_trading/agent/mcp_server.py",
+        ),
+    }
+    access_classes = {
+        "agents": "private_portfolio_read",
+        "daytrade": "provider_read",
+    }
+    for surface, names in sorted(specialists.items()):
+        for name in sorted(names):
+            records.append(
+                CapabilityRecord(
+                    id=f"{surface}:tool:{name}",
+                    surface=surface,
+                    owner_lane="D-Widgets+QA",
+                    source_refs=source_refs[surface],
+                    implementation_id=f"{surface}:{name}",
+                    tool_name=name,
+                    disposition="direct",
+                    access_class=access_classes[surface],
+                    persistence="not_applicable",
+                    requirements=(f"specialist-registry:{surface}",),
+                    verification=VerificationState(schema=True),
+                )
+            )
+    return records
+
+
+def _source_operation_records(
+    operations: tuple[tuple[str, str, str], ...],
+    existing: set[tuple[str, str]],
+) -> list[CapabilityRecord]:
+    """Retain raw source operations removed by reviewed runtime adapters."""
+    records = []
+    for method, path, source_ref in operations:
+        identity = (method, path)
+        if identity in existing:
+            continue
+        records.append(
+            CapabilityRecord(
+                id=_record_id("raw-source-operation", method, path),
+                surface="platform",
+                owner_lane="D-Widgets+QA",
+                source_refs=(source_ref,),
+                decision_ref="source-registry-audit",
+                operation=OperationKey(method=method, path=path),
+                disposition="restricted",
+                access_class=(
+                    "provider_read" if method == "GET" else "financial_mutation"
+                ),
+                persistence="unverified",
+                requirements=("raw-source-registry:portfolio",),
+                verification=VerificationState(schema=True),
+            )
+        )
+    return records
+
+
 def collect_capabilities(
     profile_name: ProfileName,
     *,
@@ -624,8 +694,17 @@ def build_inventory(
     route_records, tools_by_command, inline_prompts = _collect_route_records(
         resolved_sources
     )
+    source_operation_records = _source_operation_records(
+        resolved_sources.source_operations,
+        {
+            (record.operation.method, record.operation.path)
+            for record in route_records
+            if record.operation
+        },
+    )
     records = [
         *route_records,
+        *source_operation_records,
         *_prompt_records(
             inline_prompts,
             source_ref="openbb_mcp_server/utils/fastapi.py",
@@ -634,6 +713,7 @@ def build_inventory(
             list(resolved_sources.static_prompts),
             source_ref="openbb_mcp_server/assets/server_prompts.json",
         ),
+        *_specialist_records(resolved_sources.specialists),
         _profile_record(resolved_sources.profile),
     ]
     records = sorted(records, key=lambda record: record.id)
@@ -726,12 +806,21 @@ def load_default_sources(
     repo_root: Path | None = None,
 ) -> InventorySources:
     """Load source registries without executing business or transport functions."""
+    # pylint: disable=too-many-locals
     root = (repo_root or Path(__file__).resolve().parents[5]).resolve()
     _, safe_config = _profile_config(profile_name)
     settings = MCPSettings.model_validate(safe_config)
+    settings = settings.model_copy(
+        update={
+            "capability_profile": profile_name,
+            "runtime_profile": profile_name,
+        }
+    )
     profile = load_profile_metadata(profile_name)
 
     provider_fetchers: dict[str, Mapping[str, type]] = {}
+    specialists: dict[str, tuple[str, ...]] = {}
+    source_operations: list[tuple[str, str, str]] = []
     unavailable: list[str] = []
     with metadata_import_guard(root, unavailable):
         # Keep optional/heavy registries outside synthetic metadata-only imports.
@@ -770,6 +859,78 @@ def load_default_sources(
                     command = route.path.removeprefix(settings.api_prefix)
                     command_models[command] = route.openapi_extra["model"]
 
+        if profile_name in {"portfolio-read", "portfolio-ops"}:
+            from openbb_portfolio import portfolio_router
+
+            from openbb_mcp_server.adapters.cache_admin import (
+                compose_cache_observability_app,
+            )
+            from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
+
+            for route in portfolio_router.router.routes:
+                if not isinstance(route, APIRoute):
+                    continue
+                for method in sorted(route.methods or ()):
+                    if method not in {"HEAD", "OPTIONS"}:
+                        source_operations.append(
+                            (method.upper(), route.path, _source_ref(route.endpoint))
+                        )
+
+            app = compose_portfolio_app(app, settings)
+            app = compose_cache_observability_app(app)
+            if profile_name == "portfolio-ops":
+                from openbb_mcp_server.adapters.cache_jobs import (
+                    compose_cache_jobs_app,
+                )
+
+                app = compose_cache_jobs_app(app)
+            if settings.enable_intelligence_adapter:
+                from openbb_mcp_server.adapters.portfolio_intel import (
+                    compose_portfolio_intel_app,
+                )
+                from openbb_mcp_server.service.exposure_policy import ExposurePolicy
+
+                metadata_token = secrets.token_urlsafe(32)
+                with patch.dict(
+                    "os.environ",
+                    {"PI_WIDGET_BACKEND_TOKEN": metadata_token},
+                ):
+                    from openbb_portfolio_intel.widget_backend.main import (
+                        app as intelligence_app,
+                    )
+
+                app = compose_portfolio_intel_app(
+                    app,
+                    intelligence_app,
+                    settings,
+                    ExposurePolicy.load(),
+                    upstream_token=metadata_token,
+                )
+
+        if importlib.util.find_spec("openbb_agents") is None:
+            unavailable.append("specialist:agents:package_missing")
+        else:
+            from openbb_agents.mcp_server import collect_tools
+
+            specialists["agents"] = tuple(
+                sorted(str(tool["name"]) for tool in collect_tools())
+            )
+        if importlib.util.find_spec("openbb_fmp_trading") is None:
+            unavailable.append("specialist:daytrade:package_missing")
+        else:
+            from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
+
+            specialists["daytrade"] = tuple(sorted(mcp_tool_names()))
+
+        for route in app.router.routes:
+            if (
+                isinstance(route, APIRoute)
+                and route.openapi_extra
+                and route.openapi_extra.get("model")
+            ):
+                command = route.path.removeprefix(settings.api_prefix)
+                command_models[command] = route.openapi_extra["model"]
+
     prompts_file = (
         Path(__file__).resolve().parents[1] / "assets" / "server_prompts.json"
     )
@@ -788,12 +949,18 @@ def load_default_sources(
         for fetchers in provider_fetchers.values()
         for fetcher in fetchers.values()
     }
+    specialist_modules = {
+        "openbb_agents" if surface == "agents" else "openbb_fmp_trading"
+        for surface, names in specialists.items()
+        if names
+    }
     contributing_modules = tuple(
         sorted(
             {
                 *DEFAULT_MODULES,
                 *(module for module in route_modules if module),
                 *(module for module in fetcher_modules if module),
+                *specialist_modules,
             }
         )
     )
@@ -815,7 +982,8 @@ def load_default_sources(
     )
     for import_metadata in runtime.imports:
         if (
-            import_metadata.module in {*route_modules, *fetcher_modules}
+            import_metadata.module
+            in {*route_modules, *fetcher_modules, *specialist_modules}
             and import_metadata.origin
             and not import_metadata.origin.startswith("repo://")
         ):
@@ -833,14 +1001,14 @@ def load_default_sources(
         unavailable_components=tuple(unavailable),
         scope_limitations=(
             "access-class:provisional-method-derived-2154",
-            "dev-mode-and-jobs-routes:forced-disabled",
+            "dev-mode-routes:forced-disabled",
             "fastmcp-admin-tools:not-enumerated",
             "owner-lane:provisional-placeholder-2154",
-            "agents-composed-routes:not-enumerated",
-            "portfolio-launch-composed-routes:not-enumerated",
             "skills-derived-prompts:not-enumerated",
             "provider-fetchers:fmp_cached-only",
         ),
+        specialists=specialists,
+        source_operations=tuple(sorted(set(source_operations))),
     )
 
 

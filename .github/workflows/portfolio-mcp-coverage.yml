@@ -1,0 +1,197 @@
+name: Portfolio MCP Coverage Drift
+
+on:
+  pull_request:
+    branches:
+      - portfolio
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - ".github/workflows/portfolio-mcp-coverage.yml"
+      - "openbb_platform/**"
+      - "scripts/audit_mcp_capabilities.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  compare-portfolio-inventories:
+    name: Compare Portfolio MCP inventories
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - name: Require Portfolio integration base
+        run: |
+          if [[ "$BASE_REF" != "portfolio" ]]; then
+            echo "::error title=Wrong MCP coverage base::Expected portfolio, got $BASE_REF"
+            exit 1
+          fi
+
+      - name: Check out exact base source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          fetch-depth: 0
+
+      - name: Check out exact head source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Create isolated metadata environments
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in base head; do
+            environment="$RUNNER_TEMP/$source-venv"
+            python -m venv "$environment"
+            "$environment/bin/python" -m pip install --upgrade pip
+            "$environment/bin/python" -m pip install \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/core" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/platform_api" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/mcp_server" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/equity" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/portfolio" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/backtest" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/regime" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/financialtoolkit" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/agents" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/fmp" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/fmp_cached" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/yfinance" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/congress_gov" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/government_us" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/sec" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/tools/portfolio_utils"
+            "$environment/bin/python" \
+              "$GITHUB_WORKSPACE/$source/scripts/pi_install.py"
+            "$environment/bin/python" -m pip install \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/fmp_trading[agent]"
+            "$environment/bin/python" -m pip install \
+              pytest pytest-asyncio pytest-mock
+            "$environment/bin/python" -c \
+              "import openbb; openbb.build()"
+          done
+
+      - name: Verify head evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_roots=(
+            "openbb_platform/extensions/mcp_server/tests/service/test_coverage_diff.py"
+            "openbb_platform/extensions/mcp_server/tests/app/test_prompt_dependencies.py"
+          )
+          while IFS= read -r evidence; do
+            test_roots+=("$evidence")
+          done < <(
+            "$RUNNER_TEMP/head-venv/bin/python" -c '
+          import json
+          from pathlib import Path
+          root = Path("head")
+          policy = json.loads(
+              (root / "openbb_platform/extensions/mcp_server/"
+               "openbb_mcp_server/assets/capability_policy.json").read_text()
+          )
+          for family in policy["traceability"]["work_families"].values():
+              for evidence in family["source_evidence"]:
+                  is_test = (
+                      "/tests/" in f"/{evidence}"
+                      or evidence.startswith("tests/")
+                      or evidence.endswith("/tests")
+                  )
+                  if not is_test:
+                      continue
+                  source = root / evidence
+                  files = [source] if source.is_file() else (
+                      sorted(source.rglob("*")) if source.is_dir() else []
+                  )
+                  for path in files:
+                      if not path.is_file():
+                          continue
+                      relative = path.relative_to(root).as_posix()
+                      collectable = (
+                          path.suffix == ".py"
+                          and (
+                              path.name.startswith("test_")
+                              or path.name.endswith("_test.py")
+                          )
+                      )
+                      if collectable and (
+                          "/tests/" in f"/{relative}"
+                          or relative.startswith("tests/")
+                      ):
+                          print(relative)
+          '
+          )
+          mapfile -t unique_tests < <(
+            printf '%s\n' "${test_roots[@]}" | sort -u
+          )
+          pytest_args=()
+          for test_root in "${unique_tests[@]}"; do
+            pytest_args+=("$GITHUB_WORKSPACE/head/$test_root")
+          done
+          "$RUNNER_TEMP/head-venv/bin/python" -m pytest \
+            "${pytest_args[@]}" -q
+
+      - name: Export exact base inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in portfolio-read portfolio-ops; do
+            "$RUNNER_TEMP/base-venv/bin/python" \
+              "$GITHUB_WORKSPACE/base/scripts/audit_mcp_capabilities.py" \
+              --profile "$profile" \
+              --output-dir "$RUNNER_TEMP/base-inventories/$profile" \
+              --metadata-only
+          done
+
+      - name: Export and compare exact head inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in portfolio-read portfolio-ops; do
+            "$RUNNER_TEMP/head-venv/bin/python" \
+              "$GITHUB_WORKSPACE/head/scripts/audit_mcp_capabilities.py" \
+              --profile "$profile" \
+              --output-dir "$RUNNER_TEMP/head-inventories/$profile" \
+              --metadata-only \
+              --comparison-sha "$BASE_SHA" \
+              --base-ref "$BASE_REF" \
+              --require-lineage \
+              --comparison-inventory \
+                "$RUNNER_TEMP/base-inventories/$profile/inventory.json" \
+              --comparison-repository "$GITHUB_WORKSPACE/base" \
+              --tests-verified
+          done
+
+      - name: Publish sanitized base inventory
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: portfolio-mcp-base-inventory
+          path: ${{ runner.temp }}/base-inventories
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish sanitized head inventory and drift report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: portfolio-mcp-head-inventory
+          path: ${{ runner.temp }}/head-inventories
+          if-no-files-found: error
+          retention-days: 14
