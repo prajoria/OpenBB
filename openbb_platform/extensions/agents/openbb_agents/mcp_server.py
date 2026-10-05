@@ -38,6 +38,9 @@ Only the annotation types present in the current tool layer are mapped:
 Unannotated parameters and complex types fall back to ``{}``.
 """
 
+# Imports are intentionally staged around optional MCP/tool modules.
+# pylint: disable=import-outside-toplevel,unused-import,wrong-import-position
+
 from __future__ import annotations
 
 import asyncio

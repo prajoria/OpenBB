@@ -18,6 +18,9 @@ When omitted, the real ``data.get_portfolio_basket_df`` and an fmp_cached
 profile lookup are used.
 """
 
+# Heavy OpenBB/data dependencies are deliberately loaded at tool call time.
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 from collections.abc import Callable
