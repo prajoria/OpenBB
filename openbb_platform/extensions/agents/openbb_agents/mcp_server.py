@@ -1,9 +1,9 @@
 r"""stdio MCP server for OpenBB Agents.
 
 Discovers explicitly marked synchronous functions in the owned ``tools/``
-modules and exposes them as MCP tools over a stdio JSON-RPC transport. This lets Claude Code,
-VS Code Copilot Chat, and any other MCP-capable client call portfolio and
-analysis tools without knowing the Python call path.
+modules and exposes them as MCP tools over a stdio JSON-RPC transport. This
+lets Claude Code, VS Code Copilot Chat, and other MCP clients call the two
+implemented portfolio tools without knowing the Python call path.
 
 Entry point
 -----------

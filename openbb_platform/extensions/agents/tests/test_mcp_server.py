@@ -118,15 +118,22 @@ class TestInvocation:
     ):
         """Provider failures reach the sanitized MCP error boundary."""
         import json
+        from types import SimpleNamespace
 
         import pandas as pd
+        import openbb
         from openbb_agents.mcp_server import _call_tool_safe, collect_tools
-        from openbb_agents.tools import portfolio_tools
 
-        def fail_profile(**_kwargs):
+        def fail_profile(*_args, **_kwargs):
             raise ModuleNotFoundError("C:/private/profile_provider.py")
 
-        monkeypatch.setattr(portfolio_tools, "_default_profile", fail_profile)
+        monkeypatch.setattr(
+            openbb,
+            "obb",
+            SimpleNamespace(
+                equity=SimpleNamespace(profile=fail_profile)
+            ),
+        )
         frame = pd.DataFrame(
             [{"symbol": "SYNTH", "total_current_value": 10.0}]
         )
