@@ -452,31 +452,51 @@ def test_current_repository_inventory_and_prompts_have_no_self_drift(
     assert report.lost_capabilities == ()
     assert report.stale_prompt_references == ()
 
-    quote_records = tuple(
+    policy = ExposurePolicy.load()
+    candidate = None
+    for record in document.capabilities.records:
+        if not record.operation or not record.tool_name:
+            continue
+        try:
+            decision = policy.classify_path(
+                record.operation.method,
+                record.operation.path,
+            )
+        except (KeyError, ValueError):
+            continue
+        if decision.disposition in {
+            "direct",
+            "workspace_indirect",
+            "metadata_only",
+        }:
+            candidate = (record.operation, decision.capability_id)
+            break
+    assert candidate is not None
+    operation, capability_id = candidate
+    retained_records = tuple(
         record
         for record in document.capabilities.records
         if not (
-            record.operation and record.operation.path == "/api/v1/equity/price/quote"
+            record.operation
+            and record.operation.method == operation.method
+            and record.operation.path == operation.path
         )
     )
-    missing_quote = document.model_copy(
+    missing_route = document.model_copy(
         update={
             "capabilities": document.capabilities.model_copy(
-                update={"records": quote_records}
+                update={"records": retained_records}
             )
         }
     )
     missing_report = compare_repository_coverage(
         document,
-        missing_quote,
+        missing_route,
         base_repository=repo_root,
         head_repository=repo_root,
     )
     assert missing_report.blocking
-    assert any(
-        capability.endswith(":GET:/api/v1/equity/price/quote")
-        for capability in missing_report.lost_capabilities
-    )
+    assert capability_id in missing_report.lost_capabilities
 
 
 def test_ops_inventory_source_enumerates_jobs_and_specialists(tmp_path):
