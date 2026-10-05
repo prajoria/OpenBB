@@ -7,13 +7,13 @@ evidence—not from commit subjects.
 
 | Work family | Owner issues | Current state | Review triggers |
 | --- | --- | --- | --- |
-| FMP routing waves | #2162, #2171 | Adapter gap | Provider/model/command or persistence changes |
-| Portfolio custom API | #2172, #2173 | Adapter gap | Route, privacy or profile changes |
-| Intelligence widgets and snapshots | #2174 | Adapter gap | Widget, account-scope or snapshot changes |
-| Jobs and cache operations | #2178, #2180 | Adapter gap | Job kind, cache mutation or authorization changes |
+| FMP routing waves | #2162, #2171 | Implemented routing; persistence backlog is explicit | Provider/model/command or persistence changes |
+| Portfolio custom API | #2172, #2173 | Implemented reviewed adapter | Route, privacy or profile changes |
+| Intelligence widgets and snapshots | #2174 | Implemented reviewed adapter | Widget, account-scope or snapshot changes |
+| Jobs and cache operations | #2178, #2180 | Implemented guarded operator surface | Job kind, cache mutation or authorization changes |
 | Execution controls | #2175, #2239 | Approved exclusion | Execution mode, approval or broker gateway changes |
-| Agents specialist MCP | #2183, #2184 | Adapter gap | Registration, documentation or protocol changes |
-| Daytrade specialist MCP | #386, #2182 | Product/protocol gap | Handler, declaration or transport changes |
+| Agents specialist MCP | #2183, #2184 | Implemented two-tool stdio surface | Registration, documentation or protocol changes |
+| Daytrade specialist MCP | #386, #2182 | Implemented six-tool stdio surface | Handler, declaration or transport changes |
 
 Every family records rationale, repository-relative source evidence and review
 triggers in the policy asset. Every restricted/unimplemented policy rule maps to
