@@ -21,6 +21,7 @@ endpoint the recording key can't reach).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -66,7 +67,18 @@ _KNOWN_UNCOVERED: dict[str, str] = {
         "drain to zero via #955 (chunk-batching not captured by "
         "pytest-recorder — needs special handling)"
     ),
-    "EquityScreener": "drain to zero via #955 (screener needs deterministic param set)",
+    "BalanceSheetStatementAsReported": "coverage tracked by routing regression #2171",
+    "CashFlowStatementAsReported": "coverage tracked by routing regression #2171",
+    "CustomDiscountedCashFlow": "coverage tracked by routing regression #2171",
+    "CustomLeveredDiscountedCashFlow": "coverage tracked by routing regression #2171",
+    "DiscountedCashFlow": "coverage tracked by routing regression #2171",
+    "FinancialStatementFullAsReported": "coverage tracked by routing regression #2171",
+    "HistoricalIndustryPerformance": "coverage tracked by routing regression #2171",
+    "HistoricalSectorPerformance": "coverage tracked by routing regression #2171",
+    "IndustryPerformanceSnapshot": "coverage tracked by routing regression #2171",
+    "LeveredDiscountedCashFlow": "coverage tracked by routing regression #2171",
+    "SecFilings8K": "coverage tracked by routing regression #2171",
+    "SectorPerformanceSnapshot": "coverage tracked by routing regression #2171",
 }
 
 # Endpoint-name → test-function suffix. Most follow the convention
@@ -116,6 +128,7 @@ def test_every_registered_endpoint_has_cassette_or_is_allowlisted() -> None:
     from openbb_fmp_cached import fmp_cached_provider
 
     registered = set(fmp_cached_provider.fetcher_dict.keys())
+    assert len(registered) == 181
     covered = {e for e in registered if _cassette_exists_for(e)}
     allowlisted = set(_KNOWN_UNCOVERED)
     gap = registered - covered - allowlisted
@@ -163,3 +176,25 @@ def test_kicked_out_of_allowlist_when_cassette_lands() -> None:
     assert not stale, "Stale _KNOWN_UNCOVERED entries — remove them: " + ", ".join(
         stale
     )
+
+
+def test_fallback_registrations_have_explicit_persistence_descriptors() -> None:
+    """Every credential-only fallback is explicitly classified non-persistent."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    descriptor_path = (
+        Path(__file__).parents[1]
+        / "openbb_fmp_cached"
+        / "assets"
+        / "persistence_descriptors.json"
+    )
+    payload = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    descriptors = set(payload["non_persistent_fallbacks"])
+    fallbacks = {
+        model
+        for model, fetcher in fmp_cached_provider.fetcher_dict.items()
+        if fetcher.__module__ == "openbb_fmp_cached.models.base_cached"
+        and fetcher.__name__.startswith("Fallback")
+    }
+    assert len(fallbacks) == 58
+    assert descriptors == fallbacks

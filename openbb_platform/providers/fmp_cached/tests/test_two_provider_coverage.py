@@ -21,9 +21,12 @@ Design notes:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
+from openbb_core.app.router import RouterLoader
+from openbb_fmp_cached import fmp_cached_provider
 from openbb_fmp_cached.utils.plan_limited import _PLAN_LIMITED, is_plan_limited
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -76,6 +79,20 @@ def _build_report() -> str:
     in_both = fmp & fmp_cached
     lack_cassette = {e for e in (fmp | fmp_cached) if not _has_cassette(e)}
     plan_limited = set(_PLAN_LIMITED)
+    manifest_path = (
+        Path(__file__).parents[1] / "openbb_fmp_cached" / "assets" / "model_routes.json"
+    )
+    provider_owned = {
+        row["model"]
+        for row in json.loads(manifest_path.read_text(encoding="utf-8"))["routes"]
+    }
+    legacy = {
+        route.openapi_extra["model"]
+        for route in RouterLoader.from_extensions().api_router.routes
+        if route.openapi_extra
+        and route.openapi_extra.get("model") in fmp_cached
+        and not route.path.startswith("/fmp_cached/")
+    }
 
     lines = [
         "# FMP Two-Provider Coverage Report",
@@ -92,6 +109,7 @@ def _build_report() -> str:
         f"- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **{len(only_in_cached)}**",
         f"- Registered in EITHER but lacking a VCR cassette: **{len(lack_cassette)}**",
         f"- Plan-limited (see `plan_limited.py`): **{len(plan_limited)}**",
+        f"- MCP-routed FMP Cached models: **{len(legacy | provider_owned)}/{len(fmp_cached)}**",
         "",
         "## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)",
         "",
@@ -170,6 +188,28 @@ def test_two_provider_coverage_report_is_regenerated():
     # Sanity: the report is non-empty and cites the summary section.
     assert "## Summary" in report
     assert "openbb_fmp_cached" in report
+    assert "MCP-routed FMP Cached models: **181/181**" in report
+
+
+def test_all_fmp_cached_registrations_are_routed():
+    """Legacy and provider-owned paths jointly route the full denominator."""
+    registered = set(fmp_cached_provider.fetcher_dict)
+    manifest_path = (
+        Path(__file__).parents[1] / "openbb_fmp_cached" / "assets" / "model_routes.json"
+    )
+    provider_owned = {
+        row["model"]
+        for row in json.loads(manifest_path.read_text(encoding="utf-8"))["routes"]
+    }
+    legacy = {
+        route.openapi_extra["model"]
+        for route in RouterLoader.from_extensions().api_router.routes
+        if route.openapi_extra
+        and route.openapi_extra.get("model") in registered
+        and not route.path.startswith("/fmp_cached/")
+    }
+    assert len(registered) == 181
+    assert legacy | provider_owned == registered
 
 
 def test_plan_limited_registry_shape():

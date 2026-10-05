@@ -10,8 +10,8 @@
   "counts": {
     "api_rows": 317,
     "fmp_models": 181,
-    "fmp_routed_models": 70,
-    "fmp_unrouted_models": 111,
+    "fmp_routed_models": 181,
+    "fmp_unrouted_models": 0,
     "recent_commits": 948
   }
 }

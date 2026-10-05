@@ -5,13 +5,14 @@
 
 ## Summary
 
-- `openbb_fmp` registered endpoints: **75**
+- `openbb_fmp` registered endpoints: **180**
 - `openbb_fmp_cached` registered endpoints: **181**
-- Registered in both: **75**
+- Registered in both: **180**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **106**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **1**
 - Registered in EITHER but lacking a VCR cassette: **25**
 - Plan-limited (see `plan_limited.py`): **53**
+- MCP-routed FMP Cached models: **181/181**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
 
@@ -19,140 +20,35 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 
 ## Endpoints in `openbb_fmp_cached` only (native fetchers, no `openbb_fmp` peer)
 
-- `AcquisitionOfBeneficialOwnership` ✅ cassette
-- `ActivelyTradingList` ✅ cassette
-- `AllExchangeMarketHours` ✅ cassette
-- `AllIndustryClassification` ✅ cassette
 - `AnalystRecommendations` ✅ cassette
-- `AvailableCountries` ✅ cassette
-- `AvailableExchanges` ✅ cassette
-- `AvailableIndustries` ✅ cassette
-- `AvailableSectors` ✅ cassette
-- `BalanceSheetStatementAsReported` ⚠ no cassette
-- `BatchAftermarketQuote` ✅ cassette
-- `BatchAftermarketTrade` ✅ cassette
-- `BatchQuote` ✅ cassette
-- `BatchQuoteShort` ✅ cassette
-- `CashFlowStatementAsReported` ⚠ no cassette
-- `CikList` ✅ cassette
-- `CommitmentOfTradersAnalysis` ✅ cassette
-- `CommitmentOfTradersList` ✅ cassette
-- `CommitmentOfTradersReport` ✅ cassette
-- `CommoditiesList` ✅ cassette
-- `CompanyNotes` ✅ cassette
-- `CrowdfundingOfferings` ✅ cassette
-- `CrowdfundingOfferingsLatest` ✅ cassette
-- `CrowdfundingOfferingsSearch` ✅ cassette
-- `CryptocurrencyList` ✅ cassette
-- `CustomDiscountedCashFlow` ⚠ no cassette
-- `CustomLeveredDiscountedCashFlow` ⚠ no cassette
-- `DelistedCompanies` ✅ cassette
-- `DiscountedCashFlow` ⚠ no cassette
-- `DowjonesConstituent` ✅ cassette
-- `EconomicIndicators` ✅ cassette
-- `EnterpriseValues` ✅ cassette
-- `EtfList` ✅ cassette
-- `ExecutiveCompensationBenchmark` ✅ cassette
-- `FinancialGrowth` ✅ cassette
-- `FinancialReportsDates` ✅ cassette
-- `FinancialReportsJson` ✅ cassette
-- `FinancialScores` ✅ cassette
-- `FinancialStatementFullAsReported` ⚠ no cassette
-- `FinancialStatementSymbolList` ✅ cassette
-- `FmpArticles` ✅ cassette
-- `ForexList` ✅ cassette
-- `Fundraising` ✅ cassette
-- `FundraisingLatest` ✅ cassette
-- `FundraisingSearch` ✅ cassette
-- `Grades` ✅ cassette
-- `GradesConsensus` ✅ cassette
-- `GradesHistorical` ✅ cassette
-- `HistoricalDowjonesConstituent` ✅ cassette
-- `HistoricalIndustryPe` ✅ cassette
-- `HistoricalIndustryPerformance` ⚠ no cassette
-- `HistoricalNasdaqConstituent` ✅ cassette
-- `HistoricalSectorPe` ✅ cassette
-- `HistoricalSectorPerformance` ⚠ no cassette
-- `HistoricalSp500Constituent` ✅ cassette
-- `HolidaysByExchange` ✅ cassette
-- `HouseLatest` ✅ cassette
-- `IncomeStatementAsReported` ✅ cassette
-- `IndexList` ✅ cassette
-- `IndustryClassificationSearch` ✅ cassette
-- `IndustryPeSnapshot` ✅ cassette
-- `IndustryPerformanceSnapshot` ⚠ no cassette
-- `IposDisclosure` ✅ cassette
-- `IposProspectus` ✅ cassette
-- `KeyMetricsTtm` ✅ cassette
-- `LeveredDiscountedCashFlow` ⚠ no cassette
-- `MarketCap` ✅ cassette
-- `MarketCapBatch` ✅ cassette
-- `MarketRiskPremium` ✅ cassette
-- `MergersAcquisitionsLatest` ✅ cassette
-- `MergersAcquisitionsSearch` ✅ cassette
-- `NasdaqConstituent` ✅ cassette
-- `NewsCrypto` ✅ cassette
-- `NewsCryptoLatest` ✅ cassette
-- `NewsForex` ✅ cassette
-- `NewsForexLatest` ✅ cassette
-- `OwnerEarnings` ✅ cassette
-- `PriceTargetSummary` ✅ cassette
-- `ProfileCik` ✅ cassette
-- `RatingsHistorical` ✅ cassette
-- `RatingsSnapshot` ✅ cassette
-- `RatiosTtm` ✅ cassette
-- `SearchCik` ✅ cassette
-- `SearchCusip` ✅ cassette
-- `SearchExchangeVariants` ✅ cassette
-- `SearchIsin` ✅ cassette
-- `SearchName` ✅ cassette
-- `SearchSymbol` ✅ cassette
-- `SecFilings8K` ⚠ no cassette
-- `SecProfile` ✅ cassette
-- `SectorPeSnapshot` ✅ cassette
-- `SectorPerformanceSnapshot` ⚠ no cassette
-- `SenateLatest` ✅ cassette
-- `SenateNetWorth` ✅ cassette
-- `SenateNetWorthAggregated` ✅ cassette
-- `SenatePositions` ✅ cassette
-- `SenateProfile` ✅ cassette
-- `SharesFloat` ✅ cassette
-- `SharesFloatAll` ✅ cassette
-- `Sp500Constituent` ✅ cassette
-- `StandardIndustrialClassificationList` ✅ cassette
-- `StockList` ✅ cassette
-- `StockPriceChange` ✅ cassette
-- `StockQuote` ✅ cassette
-- `StockQuoteShort` ✅ cassette
-- `SymbolChange` ✅ cassette
 
 ## Missing cassettes (registered but no fixture — gaps for the coverage test)
 
-- `BalanceSheetStatementAsReported` — cached-only
-- `CashFlowStatementAsReported` — cached-only
+- `BalanceSheetStatementAsReported` — both
+- `CashFlowStatementAsReported` — both
 - `CryptoSearch` — plan-limited, both
 - `CurrencySnapshots` — plan-limited, both
-- `CustomDiscountedCashFlow` — cached-only
-- `CustomLeveredDiscountedCashFlow` — cached-only
-- `DiscountedCashFlow` — cached-only
+- `CustomDiscountedCashFlow` — both
+- `CustomLeveredDiscountedCashFlow` — both
+- `DiscountedCashFlow` — both
 - `EarningsCallTranscript` — plan-limited, both
 - `EquityActive` — plan-limited, both
 - `EquityOwnership` — plan-limited, both
 - `EsgScore` — plan-limited, both
 - `EtfEquityExposure` — plan-limited, both
 - `EtfPricePerformance` — plan-limited, both
-- `FinancialStatementFullAsReported` — cached-only
-- `HistoricalIndustryPerformance` — cached-only
-- `HistoricalSectorPerformance` — cached-only
+- `FinancialStatementFullAsReported` — both
+- `HistoricalIndustryPerformance` — both
+- `HistoricalSectorPerformance` — both
 - `IndexConstituents` — plan-limited, both
-- `IndustryPerformanceSnapshot` — cached-only
+- `IndustryPerformanceSnapshot` — both
 - `InstitutionalOwnership` — plan-limited, both
-- `LeveredDiscountedCashFlow` — cached-only
+- `LeveredDiscountedCashFlow` — both
 - `MarketSnapshots` — plan-limited, both
 - `NportDisclosure` — both
 - `PricePerformance` — both
-- `SecFilings8K` — cached-only
-- `SectorPerformanceSnapshot` — cached-only
+- `SecFilings8K` — both
+- `SectorPerformanceSnapshot` — both
 
 ## Plan-limited endpoints (permanent — do NOT try to record)
 

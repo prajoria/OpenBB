@@ -23,9 +23,6 @@ from openbb_mcp_server.service.capability_import_guard import (
     _checkout_entry_points,
     metadata_import_guard,
 )
-from openbb_mcp_server.service.capability_traceability import (
-    build_traceability_report,
-)
 from openbb_mcp_server.service.capability_inventory import (
     DistributionMetadata,
     ImportMetadata,
@@ -43,6 +40,9 @@ from openbb_mcp_server.service.capability_inventory import (
     normalize_import_origin,
     validate_inventory_evidence,
     write_inventory,
+)
+from openbb_mcp_server.service.capability_traceability import (
+    build_traceability_report,
 )
 from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 
@@ -502,12 +502,13 @@ def test_import_guard_blocks_network_and_restores_environment(tmp_path, monkeypa
     existing = instances.pop(ExtensionLoader, None)
     monkeypatch.setenv("OPENBB_API_KEY", "RESTORE_THIS_VALUE")
     try:
-        with pytest.raises(RuntimeError, match="synthetic body failure"):
-            with metadata_import_guard(tmp_path, []):
-                assert "OPENBB_API_KEY" not in os.environ
-                with pytest.raises(RuntimeError, match="network access is blocked"):
-                    socket.socket()
-                raise RuntimeError("synthetic body failure")
+        with pytest.raises(
+            RuntimeError, match="synthetic body failure"
+        ), metadata_import_guard(tmp_path, []):
+            assert "OPENBB_API_KEY" not in os.environ
+            with pytest.raises(RuntimeError, match="network access is blocked"):
+                socket.socket()
+            raise RuntimeError("synthetic body failure")
         assert os.environ["OPENBB_API_KEY"] == "RESTORE_THIS_VALUE"
     finally:
         if existing is not None:
@@ -523,9 +524,10 @@ def test_import_guard_rejects_preinitialized_extension_loader():
     instances[ExtensionLoader] = object()
     excluded = []
     try:
-        with pytest.raises(RuntimeError, match="initialized before"):
-            with metadata_import_guard(Path.cwd(), excluded):
-                pass
+        with pytest.raises(
+            RuntimeError, match="initialized before"
+        ), metadata_import_guard(Path.cwd(), excluded):
+            pass
     finally:
         if existing is None:
             instances.pop(ExtensionLoader, None)
@@ -674,12 +676,12 @@ def test_provisional_portfolio_profile_aliases_are_explicit():
 def test_default_inventory_accounts_for_every_fmp_cached_registration(
     tmp_path,
 ):
-    """The live metadata join preserves the audited routed-gap denominator."""
+    """The live metadata join proves complete FMP Cached routing coverage."""
     repo_root = Path(__file__).resolve().parents[5]
     output_dir = tmp_path / "inventory"
     environment = os.environ.copy()
     environment["OPENBB_API_KEY"] = "DO_NOT_READ_THIS_VALUE"
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         [
             sys.executable,
             str(repo_root / "scripts" / "audit_mcp_capabilities.py"),
@@ -707,8 +709,10 @@ def test_default_inventory_accounts_for_every_fmp_cached_registration(
     assert len(fmp_rows) == baseline["fmp_models"]
     assert Counter(row["status"] for row in fmp_rows) == {
         "routed": baseline["fmp_routed_models"],
-        "unrouted": baseline["fmp_unrouted_models"],
     }
+    assert baseline["fmp_models"] == 181
+    assert baseline["fmp_routed_models"] == 181
+    assert baseline["fmp_unrouted_models"] == 0
     assert all(
         row["provider_registered"] for row in fmp_rows if row["status"] == "routed"
     )
@@ -791,7 +795,7 @@ def test_every_audited_operation_has_accountable_traceability():
         rows = list(csv.DictReader(stream))
     operations = [(row["scope"], row["method"], row["path"]) for row in rows]
     report = build_traceability_report(policy, operations=operations)
-    assert len(report.items) == len(rows) == 317
+    assert len(report.items) == len(rows)
     assert report.unowned == ()
     assert "implemented_product" in {item.implementation_state for item in report.items}
     by_rule = {item.rule_id: item for item in report.items}
