@@ -12,6 +12,8 @@ holds: broker.submit is only reachable via IntradaySession._process_signal,
 which is not exposed as a tool.
 """
 
+# ruff: noqa: D101, D102
+
 from __future__ import annotations
 
 import pytest
@@ -35,8 +37,13 @@ class TestMCPSurfaceExcludesBroker:
     def test_no_broker_in_any_tool_name(self):
         from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
 
-        forbidden_substrings = ("broker", "submit_order", "place_order",
-                                "cancel_order", "close_position")
+        forbidden_substrings = (
+            "broker",
+            "submit_order",
+            "place_order",
+            "cancel_order",
+            "close_position",
+        )
         for name in mcp_tool_names():
             for forbidden in forbidden_substrings:
                 assert forbidden not in name.lower(), (
@@ -46,7 +53,8 @@ class TestMCPSurfaceExcludesBroker:
 
     def test_no_broker_in_any_tool_description(self):
         """A tool named innocently but described as 'submits orders' also
-        counts as a leak."""
+        counts as a leak.
+        """
         from openbb_fmp_trading.agent.mcp_server import mcp_tools
 
         for tool in mcp_tools():
@@ -56,9 +64,9 @@ class TestMCPSurfaceExcludesBroker:
             # 'broker' or 'order' in the description of a READ tool is
             # suspicious — the read tools deal with quotes, movers, news,
             # journal summaries.
-            assert "broker" not in desc, (
-                f"Tool '{tool.name}' description mentions 'broker': {desc!r}"
-            )
+            assert (
+                "broker" not in desc
+            ), f"Tool '{tool.name}' description mentions 'broker': {desc!r}"
 
 
 class TestMCPSurfaceUnionMinusSubmits:
@@ -78,7 +86,8 @@ class TestMCPSurfaceUnionMinusSubmits:
 
     def test_surface_is_non_empty(self):
         """Sanity: if the read-only surface were empty, the MCP server
-        would be pointless."""
+        would be pointless.
+        """
         from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
 
         assert len(mcp_tool_names()) > 0
@@ -86,7 +95,8 @@ class TestMCPSurfaceUnionMinusSubmits:
     def test_surface_names_are_unique(self):
         """De-duplication contract: even when PRE_OPEN + POST_CLOSE
         both include the same read-only tool (e.g., session_status),
-        it appears exactly once on the merged surface."""
+        it appears exactly once on the merged surface.
+        """
         from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
 
         names = mcp_tool_names()
@@ -96,11 +106,13 @@ class TestMCPSurfaceUnionMinusSubmits:
 class TestAllowlistFailClosed:
     """Security-review recommendation: MCP filter is an allowlist, not
     a denylist. A new tool without ``mcp_exposed=True`` stays OFF the
-    surface by default — fail-closed, not fail-open."""
+    surface by default — fail-closed, not fail-open.
+    """
 
     def test_new_tool_without_flag_stays_off_surface(self, monkeypatch):
         """Adding a hypothetical mutation tool to PRE_OPEN_TOOLS without
-        the mcp_exposed flag must NOT leak it onto the MCP surface."""
+        the mcp_exposed flag must NOT leak it onto the MCP surface.
+        """
         from openbb_fmp_trading.agent import tool_registry as tr
         from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
         from openbb_fmp_trading.agent.tool_registry import ToolSchema
@@ -116,7 +128,9 @@ class TestAllowlistFailClosed:
             # NOTE: mcp_exposed defaults to False — no explicit flag set
         )
         monkeypatch.setattr(
-            tr, "PRE_OPEN_TOOLS", list(tr.PRE_OPEN_TOOLS) + [malicious_tool],
+            tr,
+            "PRE_OPEN_TOOLS",
+            list(tr.PRE_OPEN_TOOLS) + [malicious_tool],
         )
 
         names = mcp_tool_names()
@@ -138,7 +152,9 @@ class TestAllowlistFailClosed:
             mcp_exposed=True,
         )
         monkeypatch.setattr(
-            tr, "PRE_OPEN_TOOLS", list(tr.PRE_OPEN_TOOLS) + [opted_in_tool],
+            tr,
+            "PRE_OPEN_TOOLS",
+            list(tr.PRE_OPEN_TOOLS) + [opted_in_tool],
         )
 
         assert "new_read_only_tool" in mcp_tool_names()
@@ -146,7 +162,8 @@ class TestAllowlistFailClosed:
     def test_submit_daily_plan_stays_off_via_allowlist(self):
         """Belt-and-suspenders: submit_* still off because they don't
         opt in — the change from denylist to allowlist should preserve
-        this."""
+        this.
+        """
         from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
 
         assert "submit_daily_plan" not in mcp_tool_names()
@@ -156,15 +173,190 @@ class TestAllowlistFailClosed:
 class TestExpectedReadOnlyToolsPresent:
     """Positive check: the read-only tools we DO want are actually there."""
 
-    @pytest.mark.parametrize("name", [
-        "quote_batch",
-        "market_movers",
-        "company_news",
-        "session_status",
-        "journal_summary",
-        "fills_for_session",
-    ])
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "quote_batch",
+            "market_movers",
+            "company_news",
+            "session_status",
+            "journal_summary",
+            "fills_for_session",
+        ],
+    )
     def test_expected_read_only_tool_on_surface(self, name):
         from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
 
         assert name in mcp_tool_names()
+
+
+class TestConcreteMCPHandlers:
+    """The SDK server registers and invokes every allowlisted handler."""
+
+    @pytest.mark.asyncio
+    async def test_list_and_invoke_all_six_tools(self, monkeypatch):
+        from mcp.types import (
+            CallToolRequest,
+            CallToolRequestParams,
+            ListToolsRequest,
+        )
+        from openbb_fmp_trading.agent.mcp_server import create_server, mcp_tools
+
+        for tool in mcp_tools():
+            monkeypatch.setattr(
+                tool,
+                "dispatch",
+                lambda _name=tool.name, **kwargs: {
+                    "tool": _name,
+                    "arguments": kwargs,
+                },
+            )
+
+        server = create_server()
+        listed = await server.request_handlers[ListToolsRequest](
+            ListToolsRequest(method="tools/list")
+        )
+        assert {tool.name for tool in listed.root.tools} == {
+            "quote_batch",
+            "market_movers",
+            "company_news",
+            "session_status",
+            "journal_summary",
+            "fills_for_session",
+        }
+
+        handler = server.request_handlers[CallToolRequest]
+        for tool in mcp_tools():
+            arguments = {
+                name: (
+                    ["SYNTH"]
+                    if schema.get("type") == "array"
+                    else (
+                        schema["enum"][0]
+                        if schema.get("enum")
+                        else schema.get(
+                            "default",
+                            1 if schema.get("type") == "integer" else "SYNTH",
+                        )
+                    )
+                )
+                for name, schema in tool.input_schema.get("properties", {}).items()
+            }
+            result = await handler(
+                CallToolRequest(
+                    method="tools/call",
+                    params=CallToolRequestParams(
+                        name=tool.name,
+                        arguments=arguments,
+                    ),
+                )
+            )
+            assert result.root.isError is False
+            assert tool.name in result.root.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_handler_errors_are_sanitized(self, monkeypatch):
+        from mcp.types import CallToolRequest, CallToolRequestParams
+        from openbb_fmp_trading.agent.mcp_server import create_server, mcp_tools
+
+        sentinel = "C:/private/journal.json password=SECRET"
+
+        def fail(**_kwargs):
+            raise RuntimeError(sentinel)
+
+        monkeypatch.setattr(mcp_tools()[0], "dispatch", fail)
+        server = create_server()
+        result = await server.request_handlers[CallToolRequest](
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name=mcp_tools()[0].name,
+                    arguments={"symbols": ["SYNTH"]},
+                ),
+            )
+        )
+        text = result.root.content[0].text
+        assert result.root.isError is True
+        assert "tool_failed" in text
+        assert sentinel not in text
+
+    @pytest.mark.asyncio
+    async def test_real_dispatch_callables_execute_without_replacement(
+        self, monkeypatch
+    ):
+        """All six schemas own concrete handlers; only their dependencies are stubbed."""
+        from types import SimpleNamespace
+
+        import openbb
+        from openbb_fmp_trading.agent.mcp_server import _dispatch_tool, mcp_tools
+        from openbb_fmp_trading.reporting import journal_reader
+
+        fake_item = SimpleNamespace(model_dump=lambda mode: {"synthetic": True})
+        fake_result = SimpleNamespace(
+            results=[fake_item, fake_item],
+            model_dump=lambda mode: {"results": [{"synthetic": True}]},
+        )
+        monkeypatch.setattr(
+            openbb,
+            "obb",
+            SimpleNamespace(
+                equity=SimpleNamespace(
+                    quote=lambda **_kwargs: fake_result,
+                    discovery=SimpleNamespace(
+                        gainers=lambda **_kwargs: fake_result,
+                        losers=lambda **_kwargs: fake_result,
+                        active=lambda **_kwargs: fake_result,
+                    ),
+                ),
+                news=SimpleNamespace(company=lambda **_kwargs: fake_result),
+            ),
+        )
+        fill = SimpleNamespace(
+            event_type="fill",
+            payload={"realized_pnl": "1"},
+            model_dump=lambda mode: {"event_type": "fill"},
+        )
+        monkeypatch.setattr(
+            journal_reader,
+            "read_session_events",
+            lambda _session_id: iter([fill]),
+        )
+
+        assert all(tool.dispatch is not None for tool in mcp_tools())
+        calls = {
+            "quote_batch": {"symbols": ["SYNTH"]},
+            "market_movers": {"direction": "gainers", "limit": 1},
+            "company_news": {"symbol": "SYNTH", "limit": 1},
+            "session_status": {},
+            "journal_summary": {"session_id": "s20260101120000"},
+            "fills_for_session": {"session_id": "s20260101120000"},
+        }
+        for name, arguments in calls.items():
+            result = await _dispatch_tool(name, arguments)
+            assert result is not None
+            if name == "market_movers":
+                assert len(result) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "submit_daily_plan",
+            "submit_end_of_day_md",
+            "submit_order",
+            "cancel_order",
+        ],
+    )
+    async def test_direct_mutation_attempts_are_unknown(self, name):
+        from mcp.types import CallToolRequest, CallToolRequestParams
+        from openbb_fmp_trading.agent.mcp_server import create_server
+
+        server = create_server()
+        result = await server.request_handlers[CallToolRequest](
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(name=name, arguments={}),
+            )
+        )
+        assert result.root.isError is True
+        assert "tool_failed" in result.root.content[0].text

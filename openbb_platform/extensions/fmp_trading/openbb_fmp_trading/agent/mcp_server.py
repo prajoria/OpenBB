@@ -27,9 +27,17 @@ touches the ``mcp`` SDK is inside function bodies.
 
 from __future__ import annotations
 
+import inspect
+import json
 import logging
+from decimal import Decimal
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+class _DaytradeToolError(RuntimeError):
+    """Sanitized error whose message is safe for MCP wire transport."""
 
 
 def mcp_tool_names() -> list[str]:
@@ -82,6 +90,82 @@ def mcp_tools() -> list:
     return out
 
 
+def _jsonable(value: Any) -> Any:
+    """Convert tool results to bounded protocol-safe JSON values."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+async def _dispatch_tool(name: str, arguments: dict[str, Any]) -> Any:
+    """Dispatch one allowlisted tool without exposing mutation namespaces."""
+    tools = {tool.name: tool for tool in mcp_tools()}
+    tool = tools.get(name)
+    if tool is None:
+        raise KeyError(f"Unknown MCP tool: {name}")
+    dispatch = tool.dispatch
+    if dispatch is None:
+        from openbb import obb
+
+        namespace = getattr(obb, "fmp_trading", None)
+        dispatch = getattr(namespace, name, None) if namespace is not None else None
+    if dispatch is None:
+        raise RuntimeError(f"Read-only tool handler unavailable: {name}")
+    result = dispatch(**arguments)
+    return await result if inspect.isawaitable(result) else result
+
+
+def create_server():
+    """Build the MCP server with six concrete read-only handlers."""
+    from mcp import types
+    from mcp.server import Server
+
+    server = Server("openbb-daytrade")
+
+    @server.list_tools()
+    async def list_tools():
+        return [
+            types.Tool(
+                name=tool.name,
+                description=tool.description,
+                inputSchema=tool.input_schema,
+            )
+            for tool in mcp_tools()
+        ]
+
+    @server.call_tool()
+    async def call_tool(name: str, arguments: dict[str, Any] | None):
+        try:
+            result = await _dispatch_tool(name, arguments or {})
+        except Exception as exc:
+            logger.exception("Daytrade MCP tool failed: %s", name)
+            payload = json.dumps(
+                {"error": "tool_failed", "tool": name},
+                separators=(",", ":"),
+            )
+            raise _DaytradeToolError(payload) from exc
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(
+                    _jsonable(result),
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                ),
+            )
+        ]
+
+    return server
+
+
 def run_stdio_server() -> int:
     """Blocking stdio MCP server entry point.
 
@@ -106,6 +190,7 @@ def run_stdio_server() -> int:
     # A3 startup check
     try:
         from openbb_fmp_trading.agent.tool_registry import assert_no_drift
+
         assert_no_drift()
     except Exception as exc:  # noqa: BLE001 — startup-time; propagate as exit code
         logger.error("MCP server refusing to start: registry drift: %s", exc)
@@ -113,7 +198,6 @@ def run_stdio_server() -> int:
 
     # Real SDK loop
     try:
-        from mcp.server import Server
         from mcp.server.stdio import stdio_server
     except ImportError:
         logger.error(
@@ -122,20 +206,9 @@ def run_stdio_server() -> int:
         )
         return 3
 
-    server = Server("openbb-daytrade")
+    server = create_server()
     tools = mcp_tools()
     logger.info("MCP server registering %d read-only tools", len(tools))
-
-    # Per-tool registration deferred to a follow-up bead — the current
-    # shipping unit exposes the surface + startup validation. Live client
-    # integration lands with the AC-1-ext canned-recording harness.
-    # This keeps the P3.3 commit reviewable while proving the safety
-    # invariants (AC-agent-4, AC-risk-8) with in-process tests.
-    #
-    # Placeholder loop: registers no tool handlers, so a client that
-    # connects will see an empty tool list. Sufficient to prove the
-    # extra is gated correctly + startup safety works; the handler
-    # wiring is a mechanical follow-up.
 
     import anyio
 
@@ -154,5 +227,6 @@ def run_stdio_server() -> int:
 __all__ = [
     "mcp_tool_names",
     "mcp_tools",
+    "create_server",
     "run_stdio_server",
 ]
