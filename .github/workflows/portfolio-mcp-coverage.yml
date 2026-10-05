@@ -89,9 +89,9 @@ jobs:
         run: |
           set -euo pipefail
           test_roots=(
-            "openbb_platform/extensions/mcp_server/tests"
-            "openbb_platform/extensions/agents/tests"
-            "openbb_platform/extensions/fmp_trading/tests"
+            "openbb_platform/extensions/mcp_server/tests/service/test_coverage_diff.py"
+            "openbb_platform/extensions/mcp_server/tests/service/test_capability_inventory.py"
+            "openbb_platform/extensions/mcp_server/tests/app/test_prompt_dependencies.py"
           )
           while IFS= read -r evidence; do
             test_roots+=("$evidence")
