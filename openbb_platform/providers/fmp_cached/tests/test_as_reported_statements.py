@@ -82,26 +82,26 @@ def test_financial_reports_json_extra_allow():
     obj = FMPCachedFinancialReportsJsonData.model_validate(row)
     assert obj.symbol == "AAPL"
     assert obj.period == "Q1"
-    assert obj.year == "2025"
+    assert obj.year == 2025
     d = obj.model_dump()
     # Sections preserved via extra=allow (dict keys w/ spaces)
     assert "Cover Page" in d
     assert "Balance Sheet" in d
 
 
-def test_financial_reports_json_requires_three_params():
-    """_SymbolYearPeriodQueryParams requires symbol + year + period."""
+def test_financial_reports_json_requires_symbol_and_year():
+    """The query requires symbol/year and defaults period to FY."""
     from openbb_fmp_cached.models.as_reported_statements import (
         _SymbolYearPeriodQueryParams,
     )
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):
-        _SymbolYearPeriodQueryParams(symbol="AAPL")  # missing year+period
+        _SymbolYearPeriodQueryParams(symbol="AAPL")  # missing year
     # Full params succeed
     q = _SymbolYearPeriodQueryParams(symbol="AAPL", year="2025", period="Q1")
     assert q.symbol == "AAPL"
-    assert q.year == "2025"
+    assert q.year == 2025
     assert q.period == "Q1"
 
 

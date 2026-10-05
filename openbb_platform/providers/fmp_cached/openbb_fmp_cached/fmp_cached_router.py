@@ -16,6 +16,7 @@ from openbb_fmp_cached.routers.reference_router import (
     stock_list,
 )
 from openbb_fmp_cached.routers.search_router import router as search_router
+from openbb_fmp_cached.routers.statements_router import router as statements_router
 
 router = Router(
     prefix="",
@@ -26,6 +27,7 @@ router.include_router(quote_router)
 router.include_router(intraday_router)
 router.include_router(analyst_router)
 router.include_router(market_performance_router)
+router.include_router(statements_router)
 router.include_router(reference_history_router)
 router.include_router(search_router)
 

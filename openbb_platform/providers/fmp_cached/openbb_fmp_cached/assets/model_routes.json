@@ -421,6 +421,57 @@
     },
     {
       "aliases": [], "arguments": ["industry", "from", "to"], "canonical_route": "/fmp_cached/historical_industry_pe", "command": "historical_industry_pe", "model": "HistoricalIndustryPe", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/key_metrics_ttm", "command": "key_metrics_ttm", "model": "KeyMetricsTtm", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/ratios_ttm", "command": "ratios_ttm", "model": "RatiosTtm", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/financial_scores", "command": "financial_scores", "model": "FinancialScores", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/owner_earnings", "command": "owner_earnings", "model": "OwnerEarnings", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/enterprise_values", "command": "enterprise_values", "model": "EnterpriseValues", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/financial_growth", "command": "financial_growth", "model": "FinancialGrowth", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/financial_reports_dates", "command": "financial_reports_dates", "model": "FinancialReportsDates", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/discounted_cash_flow", "command": "discounted_cash_flow", "model": "DiscountedCashFlow", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/levered_discounted_cash_flow", "command": "levered_discounted_cash_flow", "model": "LeveredDiscountedCashFlow", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/custom_discounted_cash_flow", "command": "custom_discounted_cash_flow", "model": "CustomDiscountedCashFlow", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/custom_levered_discounted_cash_flow", "command": "custom_levered_discounted_cash_flow", "model": "CustomLeveredDiscountedCashFlow", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["cik"], "canonical_route": "/fmp_cached/profile_cik", "command": "profile_cik", "model": "ProfileCik", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/income_statement_as_reported", "command": "income_statement_as_reported", "model": "IncomeStatementAsReported", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/balance_sheet_statement_as_reported", "command": "balance_sheet_statement_as_reported", "model": "BalanceSheetStatementAsReported", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/cash_flow_statement_as_reported", "command": "cash_flow_statement_as_reported", "model": "CashFlowStatementAsReported", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/financial_statement_full_as_reported", "command": "financial_statement_full_as_reported", "model": "FinancialStatementFullAsReported", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol", "year", "period"], "canonical_route": "/fmp_cached/financial_reports_json", "command": "financial_reports_json", "model": "FinancialReportsJson", "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
