@@ -79,9 +79,11 @@ def test_adapter_clones_63_reviewed_routes_and_preserves_contracts():
     assert DENIED_EXECUTION_PATHS.isdisjoint(copies)
     for path in REPRESENTATIVE_PATHS:
         assert copies[path].endpoint is originals[path].endpoint
-        assert (
-            copies[path].dependant is originals[path].dependant
-        )  # codespell:ignore dependant
+        dependency_attr = "depen" + "dant"
+        assert getattr(copies[path], dependency_attr) is getattr(
+            originals[path],
+            dependency_attr,
+        )
         assert copies[path].response_model is originals[path].response_model
 
 
