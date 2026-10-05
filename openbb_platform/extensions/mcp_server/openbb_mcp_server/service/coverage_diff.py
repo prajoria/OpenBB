@@ -581,6 +581,16 @@ def _is_policy_bootstrap(
     ):
         return True
     if (
+        capability_id.endswith(
+            (
+                ":GET:/api/v1/cache/health",
+                ":GET:/api/v1/cache/coverage",
+            )
+        )
+        and "portfolio-launch-composed-routes:not-enumerated" in limitations
+    ):
+        return True
+    if (
         capability_id.startswith("specialist:")
         and "agents-composed-routes:not-enumerated" in limitations
     ):

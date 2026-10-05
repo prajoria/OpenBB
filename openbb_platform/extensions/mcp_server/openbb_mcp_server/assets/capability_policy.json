@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "1c0c4ecb53abf283412540b9ca6e3f70b52829e367efe36cb5a1a0eeaa478f6a"
+    "sha256": "5b154eb79e352bc6366eae9140e8cc34fc5f0c8d9e7239015a40a1b6cad48b50"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -233,6 +233,24 @@
       "reason": "Raw lot, account, owner, cost-basis, and tax data cannot be exposed through MCP."
     },
     {
+      "id": "deny-portfolio-non-tools",
+      "priority": 85,
+      "scopes": ["live-portfolio-custom"],
+      "methods": ["GET"],
+      "paths": [
+        "/portfolio/apps.json",
+        "/portfolio/widgets.json",
+        "/portfolio/health",
+        "/portfolio/get_accounts",
+        "/portfolio/get_owners",
+        "/portfolio/get_symbols"
+      ],
+      "disposition": "restricted",
+      "access_class": "public_metadata",
+      "admitted_profiles": [],
+      "reason": "Workspace manifests, health, and selector helpers remain outside the Portfolio MCP tool surface."
+    },
+    {
       "id": "portfolio-custom-private",
       "priority": 80,
       "scopes": ["live-portfolio-custom"],
@@ -364,7 +382,7 @@
       },
       "portfolio-custom-api": {
         "owner_issues": ["#2172 Implement Portfolio adapter", "#2173 Verify Portfolio boundaries"],
-        "rationale": "The reviewed adapter admits 15 sanitized analytics operations and permanently denies four raw private-data operations.",
+        "rationale": "The reviewed adapter admits 15 sanitized analytics operations, permanently denies four raw private-data operations, and excludes six Workspace manifest, health, and selector helpers.",
         "source_evidence": ["openbb_platform/extensions/portfolio/openbb_portfolio/portfolio_router.py"],
         "review_triggers": ["custom route added", "privacy disposition changed", "adapter profile changed"],
         "implementation_state": "implemented_product"
@@ -445,6 +463,7 @@
       "portfolio-custom-private": "portfolio-custom-api",
       "portfolio-custom-provider": "portfolio-custom-api",
       "deny-raw-portfolio-private": "portfolio-custom-api",
+      "deny-portfolio-non-tools": "portfolio-custom-api",
       "core-provider-and-compute": "fmp-routing-waves",
       "workspace-intelligence": "intelligence-widgets",
       "deny-unreviewed-core": "fmp-routing-waves",
