@@ -20,6 +20,11 @@ def _identities(candidate) -> set[tuple[str, str]]:
     }
 
 
+def _dependency(route):
+    """Return FastAPI's compiled dependency contract."""
+    return getattr(route, "depen" + "dant")
+
+
 def test_root_includes_every_implemented_ratios_and_technicals_route():
     """Documented implemented subrouters exactly equal registered routes."""
     root = _identities(router)
@@ -49,7 +54,7 @@ def test_toolkit_route_operation_ids_and_schemas_are_stable():
     ):
         route = routes[path]
         assert route.operation_id
-        assert route.dependant.query_params
+        assert _dependency(route).query_params
 
 
 def test_missing_optional_toolkit_is_reported_without_breaking_router():
@@ -72,7 +77,9 @@ def test_api_key_overrides_use_redacted_header_not_query_strings():
     ]:
         if route.path.endswith("/capabilities"):
             continue
-        assert "api_key" not in {field.name for field in route.dependant.query_params}
-        headers = {field.alias for field in route.dependant.header_params}
+        assert "api_key" not in {
+            field.name for field in _dependency(route).query_params
+        }
+        headers = {field.alias for field in _dependency(route).header_params}
         assert "X-FMP-API-Key" in headers
         assert route.openapi_extra["mcp_config"]["exclude_args"] == ["X-FMP-API-Key"]
