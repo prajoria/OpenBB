@@ -124,7 +124,7 @@ def compose_portfolio_intel_app(
             ),
             None,
         )
-        if conflicting_mount:
+        if conflicting_mount is not None:
             raise ValueError(f"Intelligence route collision: MOUNT {conflicting_mount}")
         shadowing_method = next(
             (

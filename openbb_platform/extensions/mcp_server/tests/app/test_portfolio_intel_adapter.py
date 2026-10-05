@@ -138,6 +138,11 @@ def test_adapter_rejects_route_and_effective_name_collisions():
     ):
         _compose(name_collision)
 
+    root_mount = FastAPI()
+    root_mount.mount("/", FastAPI())
+    with pytest.raises(ValueError, match="route collision.*MOUNT"):
+        _compose(root_mount)
+
 
 def test_ops_profile_adds_only_the_reviewed_scan_trigger():
     """The sole direct job-control route is available only to Portfolio ops."""
