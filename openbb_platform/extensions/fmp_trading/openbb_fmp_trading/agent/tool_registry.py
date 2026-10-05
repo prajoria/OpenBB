@@ -24,10 +24,14 @@ mutates state; nothing reaches ``PaperBroker``. AC-risk-8 depends on
 this.
 """
 
+# Concrete MCP handlers remain lazy to preserve the agent-extra import guard.
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from openbb_fmp_trading.agent.errors import RegistryDrift
 
@@ -96,8 +100,13 @@ _SUBMIT_DAILY_PLAN = ToolSchema(
             "agent_backend": {"type": "string"},
         },
         "required": [
-            "as_of", "date", "watchlist", "preset",
-            "session_risk", "thesis", "agent_backend",
+            "as_of",
+            "date",
+            "watchlist",
+            "preset",
+            "session_risk",
+            "thesis",
+            "agent_backend",
         ],
     },
     dispatch=None,  # Captured by backend as the final tool call; never dispatched
@@ -122,8 +131,11 @@ _SUBMIT_END_OF_DAY_MD = ToolSchema(
             "metrics": {"type": "object"},
         },
         "required": [
-            "session_date", "session_id", "agent_backend",
-            "briefing_md", "metrics",
+            "session_date",
+            "session_id",
+            "agent_backend",
+            "briefing_md",
+            "metrics",
         ],
     },
     dispatch=None,
@@ -151,6 +163,8 @@ def _build_read_only_tools() -> list[ToolSchema]:
     new tool WITHOUT the flag means it stays off the MCP surface by
     default (allowlist / fail-closed per security-review recommendation).
     """
+    from openbb_fmp_trading.agent import mcp_tools
+
     # Read-only universe helpers the pre-open agent uses to build a plan.
     # Every one is a read of live or cached FMP data — no writes anywhere.
     return [
@@ -168,6 +182,7 @@ def _build_read_only_tools() -> list[ToolSchema]:
                 },
                 "required": ["symbols"],
             },
+            dispatch=mcp_tools.quote_batch,
             mcp_exposed=True,
         ),
         ToolSchema(
@@ -179,11 +194,20 @@ def _build_read_only_tools() -> list[ToolSchema]:
             input_schema={
                 "type": "object",
                 "properties": {
-                    "direction": {"type": "string", "enum": ["gainers", "losers", "actives"]},
-                    "limit": {"type": "integer", "default": 20},
+                    "direction": {
+                        "type": "string",
+                        "enum": ["gainers", "losers", "actives"],
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 20,
+                    },
                 },
                 "required": ["direction"],
             },
+            dispatch=mcp_tools.market_movers,
             mcp_exposed=True,
         ),
         ToolSchema(
@@ -201,12 +225,14 @@ def _build_read_only_tools() -> list[ToolSchema]:
                 },
                 "required": ["symbol"],
             },
+            dispatch=mcp_tools.company_news,
             mcp_exposed=True,
         ),
         ToolSchema(
             name="session_status",
             description="Current market session state (open, half-day, etc.).",
             input_schema={"type": "object", "properties": {}},
+            dispatch=mcp_tools.session_status,
             mcp_exposed=True,
         ),
     ]
@@ -216,7 +242,10 @@ def _build_post_close_only_tools() -> list[ToolSchema]:
     """Additional tools the post-close agent gets on top of read_only.
 
     Both are also MCP-exposed (external clients often want to inspect
-    a session after the fact — same read-only guarantee applies)."""
+    a session after the fact — same read-only guarantee applies).
+    """
+    from openbb_fmp_trading.agent import mcp_tools
+
     return [
         ToolSchema(
             name="journal_summary",
@@ -229,6 +258,7 @@ def _build_post_close_only_tools() -> list[ToolSchema]:
                 "properties": {"session_id": {"type": "string"}},
                 "required": ["session_id"],
             },
+            dispatch=mcp_tools.journal_summary,
             mcp_exposed=True,
         ),
         ToolSchema(
@@ -239,6 +269,7 @@ def _build_post_close_only_tools() -> list[ToolSchema]:
                 "properties": {"session_id": {"type": "string"}},
                 "required": ["session_id"],
             },
+            dispatch=mcp_tools.fills_for_session,
             mcp_exposed=True,
         ),
     ]
@@ -252,9 +283,7 @@ def _build_post_close_only_tools() -> list[ToolSchema]:
 PRE_OPEN_TOOLS: list[ToolSchema] = _build_read_only_tools() + [_SUBMIT_DAILY_PLAN]
 
 POST_CLOSE_TOOLS: list[ToolSchema] = (
-    _build_read_only_tools()
-    + _build_post_close_only_tools()
-    + [_SUBMIT_END_OF_DAY_MD]
+    _build_read_only_tools() + _build_post_close_only_tools() + [_SUBMIT_END_OF_DAY_MD]
 )
 
 
@@ -283,9 +312,7 @@ def assert_no_drift() -> None:
         if not tool.name:
             raise RegistryDrift(f"Tool with empty name in registry: {tool!r}")
         if not tool.description:
-            raise RegistryDrift(
-                f"Tool '{tool.name}' has empty description in registry"
-            )
+            raise RegistryDrift(f"Tool '{tool.name}' has empty description in registry")
 
 
 __all__ = [

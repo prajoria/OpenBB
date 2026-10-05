@@ -39,6 +39,19 @@ Exposes the read-only union of `PRE_OPEN_TOOLS` and `POST_CLOSE_TOOLS`
 (with `submit_*` sinks filtered per PRD §7.3) to external MCP clients
 like Claude Desktop or VS Code MCP.
 
+The server registers six concrete handlers: `quote_batch`, `market_movers`,
+`company_news`, `session_status`, `journal_summary`, and
+`fills_for_session`. Calls dispatch through the existing
+`obb.fmp_trading.*` namespace. If an installed build does not provide a
+handler, the call fails explicitly; the server never returns synthetic
+success. Handler errors are logged locally and reduced to a generic
+`tool_failed` MCP error so journal paths and credentials do not cross the
+protocol boundary.
+
+No submit, broker, order, cancellation, report-writing, or replay operation is
+registered. Stdout is reserved for MCP protocol frames; diagnostics use stderr
+through the logging system.
+
 **Requires:** the `[agent]` extra. Emits a friendly install-hint if
 missing rather than an ImportError stack trace.
 
