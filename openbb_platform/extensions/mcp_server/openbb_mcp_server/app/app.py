@@ -4,6 +4,7 @@
 
 import asyncio
 import copy
+import importlib.metadata
 import json
 import os
 import re
@@ -62,7 +63,11 @@ from openbb_mcp_server.models.mcp_config import (
     ArgumentDefinitionModel,
     is_valid_mcp_config,
 )
-from openbb_mcp_server.models.prompts import StaticPrompt
+from openbb_mcp_server.models.prompts import (
+    PromptDependencies,
+    StaticPrompt,
+    evaluate_prompt_dependencies,
+)
 from openbb_mcp_server.models.settings import MCPSettings
 from openbb_mcp_server.models.tools import CategoryInfo, SubcategoryInfo, ToolInfo
 from openbb_mcp_server.service.exposure_enforcement import (
@@ -110,6 +115,17 @@ def _get_mcp_config_from_route(fa_route: APIRoute | None) -> dict:
     if isinstance(cfg, dict):
         return cfg
     return {}
+
+
+def _provider_values(schema: dict) -> set[str]:
+    """Extract provider literals from direct and optional-anyOf schemas."""
+    values = {value for value in schema.get("enum", ()) if isinstance(value, str)}
+    for branch in schema.get("anyOf", ()):
+        if isinstance(branch, dict):
+            values.update(
+                value for value in branch.get("enum", ()) if isinstance(value, str)
+            )
+    return values
 
 
 def _read_system_prompt_file(file_path: str) -> str | None:
@@ -183,7 +199,14 @@ def _setup_file_system_prompt(mcp: FastMCP, settings: MCPSettings) -> None:
         return system_prompt_func()
 
 
-def _add_prompts_from_json(mcp: FastMCP, settings: MCPSettings) -> None:
+def _add_prompts_from_json(
+    mcp: FastMCP,
+    settings: MCPSettings,
+    *,
+    available_tools: set[str] | None = None,
+    available_providers: set[str] | None = None,
+    available_resources: set[str] | None = None,
+) -> None:
     """Load prompts from server_prompts_file and register them with mcp."""
     # User-provided path takes priority; fall back to bundled assets/server_prompts.json.
     _server_prompts_file = settings.server_prompts_file
@@ -204,6 +227,9 @@ def _add_prompts_from_json(mcp: FastMCP, settings: MCPSettings) -> None:
         return
 
     prompts_added: list = []
+    tools = available_tools or set()
+    providers = available_providers or set()
+    resources = available_resources or set()
     for prompt_def in prompts_json:
         prompt_name = prompt_def.get("name", "")
 
@@ -266,6 +292,34 @@ def _add_prompts_from_json(mcp: FastMCP, settings: MCPSettings) -> None:
         prompt_tags = prompt_def.get("tags", [])
         tags = set(prompt_tags) if isinstance(prompt_tags, list | set) else set()
         tags.add("server")
+        try:
+            dependencies = PromptDependencies.model_validate(
+                prompt_def.get("dependencies") or {}
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error(
+                "Skipping prompt %s with invalid dependencies: %s",
+                prompt_name,
+                exc,
+            )
+            continue
+        installed_packages = set()
+        for package in dependencies.optional_packages:
+            try:
+                importlib.metadata.version(package)
+            except importlib.metadata.PackageNotFoundError:
+                continue
+            installed_packages.add(package)
+        readiness = evaluate_prompt_dependencies(
+            dependencies,
+            tools=tools,
+            providers=providers,
+            packages=installed_packages,
+            resources=resources,
+        )
+        if not readiness.available:
+            tags.add("unavailable")
+            prompt_description += " [Unavailable: " + "; ".join(readiness.reasons) + "]"
         mcp.add_prompt(
             StaticPrompt(
                 name=prompt_name,
@@ -273,6 +327,8 @@ def _add_prompts_from_json(mcp: FastMCP, settings: MCPSettings) -> None:
                 content=prompt_content,
                 arguments=arguments if arguments else None,
                 argument_defaults=argument_defaults,
+                dependencies=dependencies,
+                readiness=readiness,
                 tags=tags,
             )
         )
@@ -475,6 +531,7 @@ def create_mcp_server(
     _all_api_tools: set[str] = set()
     _allowed_resource_uris: set[str] = set()
     _allowed_resource_templates: set[str] = set()
+    _available_providers: set[str] = set()
     capability_profile = getattr(settings, "capability_profile", None)
     provider_is_effective = auth_provider is not None
     if isinstance(auth_provider, TokenAuthProvider):
@@ -574,6 +631,11 @@ def create_mcp_server(
         # Compress schemas (only for OpenAPITool which has these attributes)
         if isinstance(component, OpenAPITool):
             _all_api_tools.add(component.name)
+            if policy_admitted:
+                provider_schema = component.parameters.get("properties", {}).get(
+                    "provider", {}
+                )
+                _available_providers.update(_provider_values(provider_schema))
             if component.parameters:
                 component.parameters = compress_schema(component.parameters)
             if hasattr(component, "output_schema"):
@@ -682,7 +744,16 @@ def create_mcp_server(
     _setup_file_system_prompt(mcp, settings)
 
     # Load the prompts json file, if added to the settings configuration.
-    _add_prompts_from_json(mcp, settings)
+    _add_prompts_from_json(
+        mcp,
+        settings,
+        available_tools=set(category_index.all_tool_names()),
+        available_providers=_available_providers,
+        available_resources={
+            *_allowed_resource_uris,
+            *_allowed_resource_templates,
+        },
+    )
 
     # Add inline prompts from route configurations
     _add_inline_prompts(mcp, processed_data.prompt_definitions)

@@ -16,7 +16,30 @@
         "default": "yfinance"
       }
     ],
-    "tags": ["equity", "analysis", "fundamental"]
+    "tags": [
+      "equity",
+      "analysis",
+      "fundamental"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_calendar_earnings",
+        "equity_compare_peers",
+        "equity_estimates_analyst_search",
+        "equity_estimates_price_target",
+        "equity_fundamental_balance",
+        "equity_fundamental_income",
+        "equity_fundamental_overview",
+        "equity_news",
+        "equity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [
+        "yfinance"
+      ],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "equity_earnings_preview",
@@ -29,7 +52,25 @@
         "description": "Stock ticker symbol"
       }
     ],
-    "tags": ["equity", "earnings", "estimates"]
+    "tags": [
+      "equity",
+      "earnings",
+      "estimates"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_calendar_earnings",
+        "equity_estimates_analyst_search",
+        "equity_estimates_consensus",
+        "equity_estimates_forward_eps",
+        "equity_estimates_historical",
+        "equity_fundamental_management_compensation"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "equity_technical_scan",
@@ -48,7 +89,21 @@
         "default": "6m"
       }
     ],
-    "tags": ["equity", "technical", "charting"]
+    "tags": [
+      "equity",
+      "technical",
+      "charting"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_price_historical",
+        "equity_price_quote"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "equity_peer_comparison",
@@ -67,7 +122,25 @@
         "default": "fmp"
       }
     ],
-    "tags": ["equity", "comparison", "valuation"]
+    "tags": [
+      "equity",
+      "comparison",
+      "valuation"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_compare_peers",
+        "equity_estimates_analyst_search",
+        "equity_fundamental_overview",
+        "equity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [
+        "fmp"
+      ],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "equity_sector_rotation",
@@ -87,7 +160,22 @@
         "default": "3m"
       }
     ],
-    "tags": ["equity", "sector", "macro"]
+    "tags": [
+      "equity",
+      "sector",
+      "macro"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "economy_indicators",
+        "equity_compare_sectors",
+        "etf_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "yield_curve_analysis",
@@ -101,7 +189,24 @@
         "default": "fred"
       }
     ],
-    "tags": ["fixedincome", "yield_curve", "macro", "recession"]
+    "tags": [
+      "fixedincome",
+      "yield_curve",
+      "macro",
+      "recession"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "economy_fred_series",
+        "fixedincome_government_treasury_rates"
+      ],
+      "any_tool_groups": [],
+      "providers": [
+        "fred"
+      ],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "corporate_bond_spread_analysis",
@@ -115,12 +220,27 @@
         "default": "all"
       }
     ],
-    "tags": ["fixedincome", "credit", "spreads"]
+    "tags": [
+      "fixedincome",
+      "credit",
+      "spreads"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "fixedincome_corporate_spot_rates",
+        "fixedincome_government_treasury_rates",
+        "fixedincome_spreads_corporate"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "macro_dashboard",
     "description": "Build a complete macro economic dashboard covering GDP, inflation, employment, interest rates, and leading indicators.",
-    "content": "Build a comprehensive macro economic dashboard for {country}.\n\nStep 1: Fetch GDP data using `economy_gdp_real` and `economy_gdp_nominal` for the past 10 years.\nStep 2: Get inflation data via `economy_fred_series` (CPI: CPIAUCSL, Core CPI: CPILFESL, PCE: PCEPI).\nStep 3: Fetch unemployment rate via `economy_fred_series` (UNRATE) and non-farm payrolls (PAYEMS).\nStep 4: Get Federal Funds Rate history via `economy_fred_series` (FEDFUNDS) and Fed balance sheet (WALCL).\nStep 5: Fetch retail sales via `economy_fred_series` (RSXFS) and industrial production (INDPRO).\nStep 6: Get ISM Manufacturing and Services PMI data via `economy_economic_calendar`.\nStep 7: Fetch Conference Board Leading Economic Index or similar forward-looking indicator.\nStep 8: Check M2 money supply via `economy_fred_series` (M2SL).\nStep 9: Summarize the macro backdrop: Growth Momentum, Inflation Regime, Labor Market Health, Policy Stance, and 12-Month Outlook.",
+    "content": "Build a comprehensive macro economic dashboard for {country}.\n\nStep 1: Fetch GDP data using `economy_gdp_real` and `economy_gdp_nominal` for the past 10 years.\nStep 2: Get inflation data via `economy_fred_series` (CPI: CPIAUCSL, Core CPI: CPILFESL, PCE: PCEPI).\nStep 3: Fetch unemployment rate via `economy_fred_series` (UNRATE) and non-farm payrolls (PAYEMS).\nStep 4: Get Federal Funds Rate history via `economy_fred_series` (FEDFUNDS) and Fed balance sheet (WALCL).\nStep 5: Fetch retail sales via `economy_fred_series` (RSXFS) and industrial production (INDPRO).\nStep 6: Get ISM Manufacturing and Services PMI data via `economy_calendar`.\nStep 7: Fetch Conference Board Leading Economic Index or similar forward-looking indicator.\nStep 8: Check M2 money supply via `economy_fred_series` (M2SL).\nStep 9: Summarize the macro backdrop: Growth Momentum, Inflation Regime, Labor Market Health, Policy Stance, and 12-Month Outlook.",
     "arguments": [
       {
         "name": "country",
@@ -129,7 +249,23 @@
         "default": "US"
       }
     ],
-    "tags": ["economy", "macro", "dashboard"]
+    "tags": [
+      "economy",
+      "macro",
+      "dashboard"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "economy_calendar",
+        "economy_fred_series",
+        "economy_gdp_nominal",
+        "economy_gdp_real"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "gdp_vs_inflation_analysis",
@@ -149,14 +285,43 @@
         "default": 5
       }
     ],
-    "tags": ["economy", "gdp", "inflation"]
+    "tags": [
+      "economy",
+      "gdp",
+      "inflation"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "economy_country_profile",
+        "economy_fred_series",
+        "economy_gdp_real"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "fed_policy_tracker",
     "description": "Track Federal Reserve policy, rate decisions, and market expectations for future rate changes.",
-    "content": "Track Federal Reserve monetary policy and rate expectations.\n\nStep 1: Get current Federal Funds Rate and recent history via `economy_fred_series` (FEDFUNDS).\nStep 2: Fetch Fed meeting calendar and upcoming decisions via `economy_economic_calendar`.\nStep 3: Get Fed balance sheet data (WALCL) to track QT/QE program.\nStep 4: Retrieve inflation data (CPI, PCE) and employment data (UNRATE) — the Fed's dual mandate metrics.\nStep 5: Fetch market-implied rate expectations from Fed Funds futures if available.\nStep 6: Check the yield curve for policy transmission signals (see yield_curve_analysis).\nStep 7: Summarize: Current Policy Stance, Recent Decisions, Market Expectations, and Key Data to Watch.",
+    "content": "Track Federal Reserve monetary policy and rate expectations.\n\nStep 1: Get current Federal Funds Rate and recent history via `economy_fred_series` (FEDFUNDS).\nStep 2: Fetch Fed meeting calendar and upcoming decisions via `economy_calendar`.\nStep 3: Get Fed balance sheet data (WALCL) to track QT/QE program.\nStep 4: Retrieve inflation data (CPI, PCE) and employment data (UNRATE) — the Fed's dual mandate metrics.\nStep 5: Fetch market-implied rate expectations from Fed Funds futures if available.\nStep 6: Check the yield curve for policy transmission signals (see yield_curve_analysis).\nStep 7: Summarize: Current Policy Stance, Recent Decisions, Market Expectations, and Key Data to Watch.",
     "arguments": [],
-    "tags": ["economy", "fed", "monetary_policy"]
+    "tags": [
+      "economy",
+      "fed",
+      "monetary_policy"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "economy_calendar",
+        "economy_fred_series"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "crypto_market_overview",
@@ -170,7 +335,24 @@
         "default": "coinbase"
       }
     ],
-    "tags": ["crypto", "market", "overview"]
+    "tags": [
+      "crypto",
+      "market",
+      "overview"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "crypto_market_info",
+        "crypto_price_historical",
+        "news_crypto"
+      ],
+      "any_tool_groups": [],
+      "providers": [
+        "coinbase"
+      ],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "crypto_coin_analysis",
@@ -189,7 +371,22 @@
         "default": "1y"
       }
     ],
-    "tags": ["crypto", "analysis", "onchain"]
+    "tags": [
+      "crypto",
+      "analysis",
+      "onchain"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "crypto_price_historical",
+        "crypto_price_quote",
+        "news_crypto"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "crypto_defi_analysis",
@@ -203,7 +400,21 @@
         "default": "AAVE"
       }
     ],
-    "tags": ["crypto", "defi", "yield"]
+    "tags": [
+      "crypto",
+      "defi",
+      "yield"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "crypto_price_historical",
+        "news_crypto"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "market_news_brief",
@@ -217,7 +428,22 @@
         "default": "today"
       }
     ],
-    "tags": ["news", "market", "morning_brief"]
+    "tags": [
+      "news",
+      "market",
+      "morning_brief"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "currency_news",
+        "news_company",
+        "news_world"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "company_news_sentiment",
@@ -236,7 +462,21 @@
         "default": 30
       }
     ],
-    "tags": ["news", "sentiment", "equity"]
+    "tags": [
+      "news",
+      "sentiment",
+      "equity"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_news",
+        "news_world"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "earnings_calendar_review",
@@ -250,7 +490,21 @@
         "default": "this_week"
       }
     ],
-    "tags": ["equity", "earnings", "calendar"]
+    "tags": [
+      "equity",
+      "earnings",
+      "calendar"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_calendar_earnings",
+        "equity_estimates_consensus"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "etf_holdings_analysis",
@@ -269,7 +523,26 @@
         "default": "fmp"
       }
     ],
-    "tags": ["etf", "holdings", "analysis"]
+    "tags": [
+      "etf",
+      "holdings",
+      "analysis"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "etf_countries",
+        "etf_holdings",
+        "etf_info",
+        "etf_price_historical",
+        "etf_sectors"
+      ],
+      "any_tool_groups": [],
+      "providers": [
+        "fmp"
+      ],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "etf_comparison",
@@ -282,7 +555,23 @@
         "description": "Comma-separated list of ETF tickers (e.g., 'SPY,VOO,IVV')"
       }
     ],
-    "tags": ["etf", "comparison", "cost"]
+    "tags": [
+      "etf",
+      "comparison",
+      "cost"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "etf_holdings",
+        "etf_info",
+        "etf_price_historical",
+        "etf_sectors"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "etf_screening",
@@ -301,7 +590,20 @@
         "default": 0.5
       }
     ],
-    "tags": ["etf", "screening", "search"]
+    "tags": [
+      "etf",
+      "screening",
+      "search"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "etf_search"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "options_chain_analysis",
@@ -320,7 +622,21 @@
         "default": "nearest_monthly"
       }
     ],
-    "tags": ["derivatives", "options", "volatility"]
+    "tags": [
+      "derivatives",
+      "options",
+      "volatility"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "derivatives_options_chains",
+        "equity_price_quote"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "fx_rate_analysis",
@@ -333,14 +649,43 @@
         "description": "Currency pair in format BASE/QUOTE (e.g., EUR/USD, GBP/USD, USD/JPY)"
       }
     ],
-    "tags": ["currency", "fx", "rates"]
+    "tags": [
+      "currency",
+      "fx",
+      "rates"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "currency_price_historical",
+        "economy_fred_series",
+        "fixedincome_government_treasury_rates"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "fx_cross_rates",
     "description": "Build a cross-rate matrix for major currencies and identify arbitrage or relative value opportunities.",
     "content": "Build a comprehensive cross-rate matrix for major currencies.\n\nStep 1: Fetch current rates for all major pairs (EUR/USD, GBP/USD, USD/JPY, USD/CHF, AUD/USD, USD/CAD, NZD/USD) via `currency_price_historical` or `currency_snapshots`.\nStep 2: Construct the full cross-rate matrix (EUR/JPY, EUR/GBP, etc.) by calculating implied cross rates.\nStep 3: Compare implied crosses to actual traded rates to identify any discrepancies.\nStep 4: Fetch 1-year performance for each major currency versus USD.\nStep 5: Rank currencies by YTD performance.\nStep 6: Identify the strongest and weakest currencies.\nStep 7: Report: Cross Rate Matrix, YTD Rankings, Notable Divergences, and Key Upcoming FX Events.",
     "arguments": [],
-    "tags": ["currency", "fx", "cross_rates"]
+    "tags": [
+      "currency",
+      "fx",
+      "cross_rates"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "currency_price_historical",
+        "currency_snapshots"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "market_index_performance",
@@ -354,7 +699,21 @@
         "default": "ytd"
       }
     ],
-    "tags": ["index", "equity", "performance"]
+    "tags": [
+      "index",
+      "equity",
+      "performance"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_compare_sectors",
+        "equity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "portfolio_performance_review",
@@ -378,7 +737,20 @@
         "description": "Portfolio start date (YYYY-MM-DD)"
       }
     ],
-    "tags": ["portfolio", "performance", "attribution"]
+    "tags": [
+      "portfolio",
+      "performance",
+      "attribution"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "portfolio_risk_assessment",
@@ -397,7 +769,21 @@
         "default": "equal"
       }
     ],
-    "tags": ["portfolio", "risk", "var", "stress_test"]
+    "tags": [
+      "portfolio",
+      "risk",
+      "var",
+      "stress_test"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "commodity_price_trend",
@@ -416,14 +802,43 @@
         "default": "1y"
       }
     ],
-    "tags": ["commodity", "price", "trend"]
+    "tags": [
+      "commodity",
+      "price",
+      "trend"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "commodity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "commodity_energy_analysis",
     "description": "Comprehensive energy complex analysis covering crude oil, natural gas, refined products, and energy equities.",
     "content": "Analyze the energy commodity complex.\n\nStep 1: Fetch crude oil prices (WTI and Brent) from `commodity_price_historical` and calculate the Brent-WTI spread.\nStep 2: Get natural gas prices and LNG data.\nStep 3: Fetch EIA inventory data (crude oil, gasoline, distillate) via `economy_fred_series` or direct sources.\nStep 4: Check OPEC production levels and spare capacity estimates.\nStep 5: Fetch energy sector equity performance (XLE ETF) via `etf_price_historical`.\nStep 6: Review recent energy news via `news_world` for geopolitical and supply disruption risks.\nStep 7: Analyze the energy term structure (contango/backwardation) from futures prices.\nStep 8: Correlate oil price with USD and global growth expectations.\nStep 9: Report: Energy Complex Overview, Inventory Status, OPEC Situation, Equity Performance, and Price Outlook.",
     "arguments": [],
-    "tags": ["commodity", "energy", "oil"]
+    "tags": [
+      "commodity",
+      "energy",
+      "oil"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "commodity_price_historical",
+        "economy_fred_series",
+        "etf_price_historical",
+        "news_world"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "ipo_analysis",
@@ -436,7 +851,22 @@
         "description": "Company name or expected ticker symbol"
       }
     ],
-    "tags": ["equity", "ipo", "valuation"]
+    "tags": [
+      "equity",
+      "ipo",
+      "valuation"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_calendar_ipo",
+        "equity_compare_peers",
+        "news_company"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "dividend_analysis",
@@ -449,7 +879,22 @@
         "description": "Stock ticker symbol"
       }
     ],
-    "tags": ["equity", "dividend", "income"]
+    "tags": [
+      "equity",
+      "dividend",
+      "income"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_fundamental_balance",
+        "equity_fundamental_dividends",
+        "equity_price_quote"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "short_interest_analysis",
@@ -462,7 +907,20 @@
         "description": "Stock ticker symbol"
       }
     ],
-    "tags": ["equity", "short_interest", "sentiment"]
+    "tags": [
+      "equity",
+      "short_interest",
+      "sentiment"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_short_interest"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "insider_trading_analysis",
@@ -481,7 +939,21 @@
         "default": 6
       }
     ],
-    "tags": ["equity", "insider", "ownership"]
+    "tags": [
+      "equity",
+      "insider",
+      "ownership"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_ownership_insider_trading",
+        "equity_ownership_institutional"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "credit_rating_analysis",
@@ -494,12 +966,28 @@
         "description": "Company stock ticker"
       }
     ],
-    "tags": ["fixedincome", "credit", "equity", "fundamental"]
+    "tags": [
+      "fixedincome",
+      "credit",
+      "equity",
+      "fundamental"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_fundamental_balance",
+        "equity_fundamental_cash",
+        "equity_fundamental_income"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "economic_calendar_review",
     "description": "Review the economic data calendar for the week ahead, identify high-impact releases and market expectations.",
-    "content": "Review the economic calendar for {period}.\n\nStep 1: Fetch the economic calendar using `economy_economic_calendar` for {period}.\nStep 2: Filter for high-importance events (3-star or impact = high).\nStep 3: Organize events by date and time with expected values and previous readings.\nStep 4: Identify the top 3-5 most market-moving events for the week.\nStep 5: For each key event, provide context: trend, current consensus, and potential surprise scenarios.\nStep 6: Note central bank meeting dates and any scheduled Fed/ECB/BOJ/BOE speaker events.\nStep 7: Identify any conflicting data that could create volatility.\nStep 8: Report: Full Calendar Table, Key Events Highlighted, Consensus Expectations, and Market Impact Assessment.",
+    "content": "Review the economic calendar for {period}.\n\nStep 1: Fetch the economic calendar using `economy_calendar` for {period}.\nStep 2: Filter for high-importance events (3-star or impact = high).\nStep 3: Organize events by date and time with expected values and previous readings.\nStep 4: Identify the top 3-5 most market-moving events for the week.\nStep 5: For each key event, provide context: trend, current consensus, and potential surprise scenarios.\nStep 6: Note central bank meeting dates and any scheduled Fed/ECB/BOJ/BOE speaker events.\nStep 7: Identify any conflicting data that could create volatility.\nStep 8: Report: Full Calendar Table, Key Events Highlighted, Consensus Expectations, and Market Impact Assessment.",
     "arguments": [
       {
         "name": "period",
@@ -508,14 +996,45 @@
         "default": "this_week"
       }
     ],
-    "tags": ["economy", "calendar", "macro"]
+    "tags": [
+      "economy",
+      "calendar",
+      "macro"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "economy_calendar"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "global_market_overview",
     "description": "Get a comprehensive global markets overview covering major asset classes, regions, and risk sentiment.",
     "content": "Generate a global markets overview.\n\nStep 1: Fetch major equity index performance (US, Europe, Asia) for past 1M and YTD.\nStep 2: Get sovereign bond yields for US, Germany, UK, Japan, and calculate yield changes.\nStep 3: Fetch major currency pairs performance (EUR/USD, USD/JPY, GBP/USD).\nStep 4: Get commodity prices: Gold, WTI Crude, Copper, and their recent trends.\nStep 5: Fetch the VIX and other volatility measures for risk appetite assessment.\nStep 6: Review global economic calendar for recent major data releases.\nStep 7: Identify the dominant macro theme of the week (rate expectations, growth fears, risk-on/off).\nStep 8: Report: Equity Markets, Fixed Income, FX, Commodities, Risk Sentiment, and Key Themes.",
     "arguments": [],
-    "tags": ["global", "macro", "overview", "multi_asset"]
+    "tags": [
+      "global",
+      "macro",
+      "overview",
+      "multi_asset"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "index_price_historical",
+        "fixedincome_government_treasury_rates",
+        "currency_price_historical",
+        "commodity_price_spot",
+        "economy_calendar"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "reit_analysis",
@@ -528,7 +1047,23 @@
         "description": "REIT ticker symbol (e.g., AMT, PLD, SPG)"
       }
     ],
-    "tags": ["equity", "reit", "real_estate"]
+    "tags": [
+      "equity",
+      "reit",
+      "real_estate"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_fundamental_balance",
+        "equity_fundamental_cash",
+        "equity_fundamental_dividends",
+        "equity_fundamental_income"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "merger_arbitrage_analysis",
@@ -546,7 +1081,22 @@
         "description": "Acquiring company ticker symbol"
       }
     ],
-    "tags": ["equity", "m&a", "arbitrage"]
+    "tags": [
+      "equity",
+      "m&a",
+      "arbitrage"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_news",
+        "equity_price_quote",
+        "news_world"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "factor_exposure_analysis",
@@ -559,19 +1109,46 @@
         "description": "Stock ticker symbol"
       }
     ],
-    "tags": ["equity", "factor", "quant"]
+    "tags": [
+      "equity",
+      "factor",
+      "quant"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_fundamental_overview"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "global_macro_trade_idea",
     "description": "Generate a top-down global macro trade idea from economic analysis to specific instrument selection.",
     "content": "Generate a global macro trade idea based on the current macro environment.\n\nStep 1: Run `macro_dashboard` to assess current economic conditions: growth, inflation, policy.\nStep 2: Run `yield_curve_analysis` to understand rate environment and curve positioning.\nStep 3: Analyze USD strength using major currency pairs from `currency_price_historical`.\nStep 4: Check commodity trends for inflation and growth signals.\nStep 5: Identify the dominant macro regime (reflation, disinflation, risk-on, risk-off).\nStep 6: Formulate 2-3 trade ideas that express the macro view: (a) rates/duration, (b) equity region/sector, (c) currency, (d) commodity.\nStep 7: For each trade idea, identify: instrument, entry level, target, stop, and time horizon.\nStep 8: Assess correlation between the proposed trades — ideally uncorrelated.\nStep 9: Report: Macro Thesis, Regime Classification, Trade Ideas with Levels, Risk Scenarios, and Portfolio Sizing Framework.",
     "arguments": [],
-    "tags": ["macro", "global", "trade_idea", "multi_asset"]
+    "tags": [
+      "macro",
+      "global",
+      "trade_idea",
+      "multi_asset"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "currency_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "portfolio_stock_deep_dive",
     "description": "Run all 7 phases of stock analysis for a single symbol using the portfolio extension (profile → fundamentals → technicals → valuation → risk → relative → decision).",
-    "content": "Perform a comprehensive 7-phase stock analysis on {symbol} using the portfolio extension tools.\n\nPhase 0 — Context: Call `stock_context` with symbol={symbol} to anchor the symbol, identify sector, peers, and sector ETFs.\nPhase 1 — Profile: Call `stock_profile` with symbol={symbol}, benchmark={benchmark} to get company overview, quote, and peer count.\nPhase 2 — Fundamentals: Call `stock_fundamentals` with symbol={symbol} to get 5-year KPIs: revenue growth, margins, ROIC, leverage.\nPhase 3 — Technicals: Call `stock_technicals` with symbol={symbol} to get RSI(14), ADX(14), ATR(14), OBV, MACD signal, and Bollinger %.\nPhase 4 — Valuation: Call `stock_valuation` with symbol={symbol} to get P/E, EV/EBITDA, P/FCF, P/S, and earnings yield.\nPhase 5 — Risk: Call `stock_risk` with symbol={symbol}, benchmark={benchmark} to get Sharpe, Sortino, Beta, Alpha, VaR 95%, CVaR 95%, Max Drawdown, Ulcer Index.\nPhase 6 — Relative: Call `stock_relative` with symbol={symbol}, benchmark={benchmark} to get peer-relative return and risk comparison table.\nPhase 7 — Decision: Call `stock_decision` with symbol={symbol}, benchmark={benchmark} to get the composite decision score across all 6 dimensions.\n\nSynthesize all phase outputs into a structured report: Company Overview, Fundamental Quality, Technical Posture, Valuation Assessment, Risk Profile, Peer Ranking, and Final Decision Score with Recommendation.",
+    "content": "Perform a comprehensive 7-phase stock analysis on {symbol} using the portfolio extension tools.\n\nPhase 0 — Context: Call `portfolio_stock_context` with symbol={symbol} to anchor the symbol, identify sector, peers, and sector ETFs.\nPhase 1 — Profile: Call `portfolio_stock_profile` with symbol={symbol}, benchmark={benchmark} to get company overview, quote, and peer count.\nPhase 2 — Fundamentals: Call `portfolio_stock_fundamentals` with symbol={symbol} to get 5-year KPIs: revenue growth, margins, ROIC, leverage.\nPhase 3 — Technicals: Call `portfolio_stock_technicals` with symbol={symbol} to get RSI(14), ADX(14), ATR(14), OBV, MACD signal, and Bollinger %.\nPhase 4 — Valuation: Call `portfolio_stock_valuation` with symbol={symbol} to get P/E, EV/EBITDA, P/FCF, P/S, and earnings yield.\nPhase 5 — Risk: Call `portfolio_stock_risk` with symbol={symbol}, benchmark={benchmark} to get Sharpe, Sortino, Beta, Alpha, VaR 95%, CVaR 95%, Max Drawdown, Ulcer Index.\nPhase 6 — Relative: Call `portfolio_stock_relative` with symbol={symbol}, benchmark={benchmark} to get peer-relative return and risk comparison table.\nPhase 7 — Decision: Call `portfolio_stock_decision` with symbol={symbol}, benchmark={benchmark} to get the composite decision score across all 6 dimensions.\n\nSynthesize all phase outputs into a structured report: Company Overview, Fundamental Quality, Technical Posture, Valuation Assessment, Risk Profile, Peer Ranking, and Final Decision Score with Recommendation.",
     "arguments": [
       {
         "name": "symbol",
@@ -585,7 +1162,27 @@
         "default": "SPY"
       }
     ],
-    "tags": ["portfolio", "stock_analysis", "decision"]
+    "tags": [
+      "portfolio",
+      "stock_analysis",
+      "decision"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "portfolio_stock_context",
+        "portfolio_stock_profile",
+        "portfolio_stock_fundamentals",
+        "portfolio_stock_technicals",
+        "portfolio_stock_valuation",
+        "portfolio_stock_risk",
+        "portfolio_stock_relative",
+        "portfolio_stock_decision"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [],
+      "resources": []
+    }
   },
   {
     "name": "financialtoolkit_performance_scorecard",
@@ -604,7 +1201,28 @@
         "default": "2024-01-01"
       }
     ],
-    "tags": ["financialtoolkit", "performance", "scorecard", "comparison"]
+    "tags": [
+      "financialtoolkit",
+      "performance",
+      "scorecard",
+      "comparison"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "financialtoolkit_performance_alpha",
+        "financialtoolkit_performance_beta",
+        "financialtoolkit_performance_information_ratio",
+        "financialtoolkit_performance_sharpe_ratio",
+        "financialtoolkit_performance_sortino_ratio",
+        "financialtoolkit_performance_treynor_ratio"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [
+        "openbb-financialtoolkit"
+      ],
+      "resources": []
+    }
   },
   {
     "name": "financialtoolkit_valuation_screen",
@@ -630,7 +1248,25 @@
         "default": ""
       }
     ],
-    "tags": ["financialtoolkit", "valuation", "screening", "discovery"]
+    "tags": [
+      "financialtoolkit",
+      "valuation",
+      "screening",
+      "discovery"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "financialtoolkit_discovery_screen",
+        "financialtoolkit_models_intrinsic_value",
+        "financialtoolkit_ratios_valuation"
+      ],
+      "any_tool_groups": [],
+      "providers": [],
+      "optional_packages": [
+        "openbb-financialtoolkit"
+      ],
+      "resources": []
+    }
   },
   {
     "name": "fmp_cached_portfolio_refresh",
@@ -643,6 +1279,24 @@
         "description": "Stock ticker symbol to check (e.g., CLS, AAPL)"
       }
     ],
-    "tags": ["portfolio", "fmp_cached", "cache", "data_quality"]
+    "tags": [
+      "portfolio",
+      "fmp_cached",
+      "cache",
+      "data_quality"
+    ],
+    "dependencies": {
+      "required_tools": [
+        "equity_fundamental_overview",
+        "equity_price_historical"
+      ],
+      "any_tool_groups": [],
+      "providers": [
+        "fmp_cached",
+        "fmp"
+      ],
+      "optional_packages": [],
+      "resources": []
+    }
   }
 ]
