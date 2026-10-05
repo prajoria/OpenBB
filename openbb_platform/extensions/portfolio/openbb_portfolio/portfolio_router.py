@@ -33,6 +33,10 @@ Routes registered:
     /portfolio/health           health check
 """
 
+# FastAPI injects public handler parameters even when privacy-blocked handlers
+# intentionally do not consume them.
+# pylint: disable=unused-argument
+
 from __future__ import annotations
 
 import asyncio
@@ -595,7 +599,7 @@ async def stock_valuation(
 ):
     """Phase 4 — Valuation ratios (P/E, EV/EBITDA, P/FCF, P/S, Earnings Yield)."""
     limit = max(lookback_years, 1)
-    (income_df, balance_df, cash_df, ratios_df), (_, quote_df, _) = (
+    (income_df, _balance_df, _cash_df, ratios_df), (_, quote_df, _) = (
         await asyncio.gather(
             _get_fundamental_data(symbol, limit),
             _get_profile_data(symbol),

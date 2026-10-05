@@ -26,9 +26,12 @@ All business logic (grouping, aggregation, computed columns) belongs
 in the service layer using DataFrame operations.
 """
 
+# pylint: disable=unused-argument
+
 import logging
 import math
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -316,9 +319,6 @@ def get_latest_prices_df(
 
 def _normalise_fmp_rows(rows: list[dict[str, Any]]) -> list[dict]:
     """Convert Decimal / date values returned by fmp_cached DictCursor."""
-    from datetime import date, datetime
-    from decimal import Decimal
-
     result: list[dict[str, Any]] = []
     for row in rows or []:
         d: dict[str, Any] = {}
