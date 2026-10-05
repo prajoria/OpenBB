@@ -388,8 +388,7 @@
         "source_evidence": [
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/adapters/cache_admin.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/adapters/cache_jobs.py",
-          "openbb_platform/extensions/mcp_server/tests/app/test_cache_observability.py",
-          "openbb_platform/extensions/mcp_server/tests/app/test_cache_job_adapter.py",
+          "openbb_platform/extensions/mcp_server/tests/service/test_cache_surface_evidence.py",
           "docs/operations/mcp-cache-jobs.md"
         ],
         "review_triggers": ["job kind added", "cache mutation added", "authorization changed"],
