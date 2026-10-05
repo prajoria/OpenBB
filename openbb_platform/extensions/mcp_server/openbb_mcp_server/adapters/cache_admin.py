@@ -3,7 +3,7 @@
 import copy
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -65,7 +65,11 @@ class CacheCoverage(BaseModel):
 def _as_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return (
+        value.replace(tzinfo=timezone.utc)
+        if value.tzinfo is None
+        else value.astimezone(timezone.utc)
+    )
 
 
 def build_cache_health(
@@ -75,11 +79,11 @@ def build_cache_health(
     stale_after: timedelta = timedelta(days=2),
 ) -> CacheHealth:
     """Read aggregate metadata without creating, refreshing, or mutating tables."""
-    current_value = now or datetime.now(UTC)
+    current_value = now or datetime.now(timezone.utc)
     current = (
-        current_value.replace(tzinfo=UTC)
+        current_value.replace(tzinfo=timezone.utc)
         if current_value.tzinfo is None
-        else current_value.astimezone(UTC)
+        else current_value.astimezone(timezone.utc)
     )
     try:
         rows = query_fn(_HEALTH_QUERY)
