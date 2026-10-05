@@ -161,6 +161,11 @@ def _family_evidence(
     test_files = 0
     for source_ref in family.source_evidence:
         source = repository / source_ref
+        source_is_test = (
+            "/tests/" in f"/{source_ref}"
+            or source_ref.startswith("tests/")
+            or source_ref.endswith("/tests")
+        )
         if not source.exists():
             complete = False
             continue
@@ -179,7 +184,10 @@ def _family_evidence(
             complete = False
         for path in files:
             relative = path.relative_to(repository).as_posix()
-            is_test = "/tests/" in f"/{relative}" or relative.startswith("tests/")
+            nested_test = "/tests/" in f"/{relative}" or relative.startswith("tests/")
+            if nested_test and not source_is_test:
+                continue
+            is_test = source_is_test
             content_digest = hashlib.sha256(path.read_bytes()).hexdigest()
             if is_test:
                 test_evidence[relative] = content_digest

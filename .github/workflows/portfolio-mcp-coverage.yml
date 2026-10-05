@@ -106,6 +106,13 @@ jobs:
           )
           for family in policy["traceability"]["work_families"].values():
               for evidence in family["source_evidence"]:
+                  is_test = (
+                      "/tests/" in f"/{evidence}"
+                      or evidence.startswith("tests/")
+                      or evidence.endswith("/tests")
+                  )
+                  if not is_test:
+                      continue
                   source = root / evidence
                   files = [source] if source.is_file() else (
                       sorted(source.rglob("*")) if source.is_dir() else []
