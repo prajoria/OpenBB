@@ -95,6 +95,7 @@ def test_analytical_effects_are_profile_classified():
     }
     for row in rows:
         decision = decisions[row["path"]]
+        expected: tuple[str, str, tuple[str, ...]]
         if row["path"] in operator_writes:
             expected = ("direct", "filesystem_write", ("portfolio-ops",))
         elif row["path"] == "/api/v1/portfolio_intel/paper/alerts":
@@ -154,7 +155,7 @@ def test_source_router_surfaces_match_reviewed_denominators():
         for method in route.methods
     }
     assert excluded_regime == {("GET", "/about")}
-    source = []
+    source: list[tuple[str, str, str | None]] = []
     for prefix, router in (
         ("/api/v1/backtest", backtest_router),
         ("/api/v1/techtrade", techtrade_router),
@@ -243,8 +244,10 @@ async def test_sensitive_toolkit_headers_are_absent_from_real_mcp_schemas():
             "financialtoolkit_technicals_rsi",
             "financialtoolkit_technicals_moving_average",
             "financialtoolkit_performance_sharpe_ratio",
+            "financialtoolkit_models_intrinsic_value",
         }
     }
+    tool_schemas = {tool.name: tool.parameters for tool in tools}
     ratio_fields = {
         "start_date",
         "end_date",
@@ -293,7 +296,32 @@ async def test_sensitive_toolkit_headers_are_absent_from_real_mcp_schemas():
             },
             ("symbols",),
         ),
+        "financialtoolkit_models_intrinsic_value": (
+            {
+                "symbols",
+                "growth_rate",
+                "perpetual_growth_rate",
+                "weighted_average_cost_of_capital",
+                "start_date",
+                "end_date",
+                "quarterly",
+                "periods",
+                "cash_flow_type",
+                "rounding",
+            },
+            (
+                "growth_rate",
+                "perpetual_growth_rate",
+                "weighted_average_cost_of_capital",
+                "symbols",
+            ),
+        ),
     }
+    symbols_schema = tool_schemas["financialtoolkit_performance_sharpe_ratio"][
+        "properties"
+    ]["symbols"]
+    assert symbols_schema["type"] == "array"
+    assert symbols_schema["items"]["type"] == "string"
 
 
 def test_malformed_exclude_args_keeps_fail_soft_customization():

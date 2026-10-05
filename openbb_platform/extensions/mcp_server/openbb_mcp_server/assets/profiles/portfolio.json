@@ -1,11 +1,11 @@
 {
-  "_comment": "Personal portfolio profile — financialtoolkit + portfolio + equity, fmp_cached default.",
+  "_comment": "Personal portfolio profile — portfolio + equity, configured for fmp_cached with optional FinancialToolkit tools.",
   "OPENBB_MCP_RUNTIME_PROFILE": "portfolio-read",
   "OPENBB_MCP_CAPABILITY_PROFILE": "portfolio-read",
   "OPENBB_MCP_APP_TARGET": "openbb_platform/extensions/portfolio/launch.py",
   "OPENBB_MCP_INSTALLATION_KIND": "portfolio_venv",
   "OPENBB_MCP_NAME": "OpenBB MCP (Portfolio)",
-  "OPENBB_MCP_DESCRIPTION": "Portfolio analytics and stock analysis with optional FinancialToolkit quantitative tools when openbb-financialtoolkit and financetoolkit are installed. Uses the local fmp_cached provider.",
+  "OPENBB_MCP_DESCRIPTION": "Portfolio analytics and stock analysis configured for the fmp_cached provider. FinancialToolkit quantitative tools are available only when the openbb-financialtoolkit extension and underlying financetoolkit package are installed; provider credentials and upstream entitlements still apply.",
   "OPENBB_MCP_DEFAULT_TOOL_CATEGORIES": ["equity", "financialtoolkit", "portfolio"],
   "OPENBB_MCP_ENABLE_TOOL_DISCOVERY": true,
   "OPENBB_MCP_ENABLE_INTELLIGENCE_ADAPTER": true,

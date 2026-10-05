@@ -2,7 +2,7 @@
   {
     "name": "equity_deep_dive",
     "description": "Comprehensive single-stock analysis covering price history, fundamentals, valuation, analyst estimates, and news sentiment.",
-    "content": "Perform a comprehensive deep-dive analysis on {symbol}.\n\nStep 1: Fetch historical price data using `equity_price_historical` with symbol={symbol} and at least 1 year of data.\nStep 2: Get fundamental data via `equity_fundamental_overview` for key metrics (P/E, EV/EBITDA, revenue, margins).\nStep 3: Retrieve income statement and balance sheet via `equity_fundamental_income` and `equity_fundamental_balance`.\nStep 4: Get analyst price targets and ratings using `equity_estimates_price_target` and `equity_estimates_analyst_search`.\nStep 5: Check recent earnings via `equity_calendar_earnings` and compare to estimates.\nStep 6: Fetch recent company news via `equity_news` for the past 30 days.\nStep 7: Get peer comparison using `equity_compare_peers`.\nStep 8: Synthesize all findings into a structured report with sections: Price Performance, Fundamentals, Valuation vs Peers, Analyst Consensus, Recent News & Catalysts, and Investment Thesis.",
+    "content": "Perform a comprehensive deep-dive analysis on {symbol}.\n\nStep 1: Fetch historical price data using `equity_price_historical` with symbol={symbol} and at least 1 year of data.\nStep 2: Get fundamental data via `equity_fundamental_metrics` with symbol={symbol}, provider={provider}, then `equity_fundamental_ratios` with symbol={symbol}, provider={provider}, for key metrics (P/E, EV/EBITDA, revenue, margins).\nStep 3: Retrieve income statement and balance sheet via `equity_fundamental_income` and `equity_fundamental_balance`.\nStep 4: Get analyst price targets and ratings using `equity_estimates_price_target` and `equity_estimates_analyst_search`.\nStep 5: Check recent earnings via `equity_calendar_earnings` and compare to estimates.\nStep 6: Fetch recent company news via `equity_news` for the past 30 days.\nStep 7: Get peer comparison using `equity_compare_peers`.\nStep 8: Synthesize all findings into a structured report with sections: Price Performance, Fundamentals, Valuation vs Peers, Analyst Consensus, Recent News & Catalysts, and Investment Thesis.",
     "arguments": [
       {
         "name": "symbol",
@@ -12,8 +12,8 @@
       {
         "name": "provider",
         "type": "str",
-        "description": "Data provider to use (e.g., yfinance, fmp, polygon)",
-        "default": "yfinance"
+        "description": "Data provider supporting both key metrics and financial ratios (for example, fmp)",
+        "default": "fmp"
       }
     ],
     "tags": [
@@ -29,13 +29,14 @@
         "equity_estimates_price_target",
         "equity_fundamental_balance",
         "equity_fundamental_income",
-        "equity_fundamental_overview",
+        "equity_fundamental_metrics",
+        "equity_fundamental_ratios",
         "equity_news",
         "equity_price_historical"
       ],
       "any_tool_groups": [],
       "providers": [
-        "yfinance"
+        "fmp"
       ],
       "optional_packages": [],
       "resources": []
@@ -108,7 +109,7 @@
   {
     "name": "equity_peer_comparison",
     "description": "Side-by-side comparison of a stock versus its sector peers across valuation, growth, profitability, and price performance metrics.",
-    "content": "Compare {symbol} against its peer group.\n\nStep 1: Identify peer companies using `equity_compare_peers` for {symbol}.\nStep 2: For each peer (limit to top 5-7), fetch key fundamental metrics via `equity_fundamental_overview`.\nStep 3: Collect valuation metrics: P/E, P/S, P/B, EV/EBITDA for {symbol} and each peer.\nStep 4: Collect growth metrics: Revenue growth YoY, EPS growth YoY.\nStep 5: Collect profitability metrics: Gross margin, Operating margin, ROE, ROA.\nStep 6: Fetch 1-year price performance for {symbol} and peers using `equity_price_historical`.\nStep 7: Get analyst ratings for each company using `equity_estimates_analyst_search`.\nStep 8: Create a comparison table ranking {symbol} vs peers on each metric.\nStep 9: Summarize where {symbol} leads or lags versus peers, and flag any valuation premium or discount.",
+    "content": "Compare {symbol} against its peer group.\n\nStep 1: Identify peer companies using `equity_compare_peers` for {symbol}.\nStep 2: For each peer (limit to top 5-7), fetch key fundamental metrics via `equity_fundamental_metrics` with symbol set to that peer and provider={provider}, then `equity_fundamental_ratios` with symbol set to that peer and provider={provider}.\nStep 3: Collect valuation metrics: P/E, P/S, P/B, EV/EBITDA for {symbol} and each peer.\nStep 4: Collect growth metrics: Revenue growth YoY, EPS growth YoY.\nStep 5: Collect profitability metrics: Gross margin, Operating margin, ROE, ROA.\nStep 6: Fetch 1-year price performance for {symbol} and peers using `equity_price_historical`.\nStep 7: Get analyst ratings for each company using `equity_estimates_analyst_search`.\nStep 8: Create a comparison table ranking {symbol} vs peers on each metric.\nStep 9: Summarize where {symbol} leads or lags versus peers, and flag any valuation premium or discount.",
     "arguments": [
       {
         "name": "symbol",
@@ -131,7 +132,8 @@
       "required_tools": [
         "equity_compare_peers",
         "equity_estimates_analyst_search",
-        "equity_fundamental_overview",
+        "equity_fundamental_metrics",
+        "equity_fundamental_ratios",
         "equity_price_historical"
       ],
       "any_tool_groups": [],
@@ -1024,11 +1026,11 @@
     ],
     "dependencies": {
       "required_tools": [
-        "index_price_historical",
-        "fixedincome_government_treasury_rates",
-        "currency_price_historical",
         "commodity_price_spot",
-        "economy_calendar"
+        "currency_price_historical",
+        "economy_calendar",
+        "fixedincome_government_treasury_rates",
+        "index_price_historical"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -1101,7 +1103,7 @@
   {
     "name": "factor_exposure_analysis",
     "description": "Analyze a stock or portfolio's exposure to common investment factors: value, growth, momentum, quality, and low volatility.",
-    "content": "Analyze factor exposures for {symbol}.\n\nStep 1: Fetch financial data for {symbol} via `equity_fundamental_overview`.\nStep 2: Calculate Value factor score: P/E, P/B, P/S, EV/EBITDA — rank vs universe.\nStep 3: Calculate Growth factor: Revenue growth YoY, EPS growth YoY, forward EPS revisions.\nStep 4: Calculate Quality factor: ROE, ROA, gross margin, debt/equity.\nStep 5: Calculate Momentum factor: 12M-1M price return (skip most recent month to avoid reversal).\nStep 6: Calculate Low Volatility factor: 12-month realized volatility.\nStep 7: Compare each factor score to S&P 500 average and sector peers.\nStep 8: Identify which factor ETFs this stock would qualify for (VLUE, MTUM, QUAL, USMV).\nStep 9: Report: Factor Score Card, Factor vs Benchmark, Best-Fit Factor Category, and Portfolio Construction Implications.",
+    "content": "Analyze factor exposures for {symbol}.\n\nStep 1: Fetch financial data for {symbol} via `equity_fundamental_metrics` and `equity_fundamental_ratios`.\nStep 2: Calculate Value factor score: P/E, P/B, P/S, EV/EBITDA — rank vs universe.\nStep 3: Calculate Growth factor: Revenue growth YoY, EPS growth YoY, forward EPS revisions.\nStep 4: Calculate Quality factor: ROE, ROA, gross margin, debt/equity.\nStep 5: Calculate Momentum factor: 12M-1M price return (skip most recent month to avoid reversal).\nStep 6: Calculate Low Volatility factor: 12-month realized volatility.\nStep 7: Compare each factor score to S&P 500 average and sector peers.\nStep 8: Identify which factor ETFs this stock would qualify for (VLUE, MTUM, QUAL, USMV).\nStep 9: Report: Factor Score Card, Factor vs Benchmark, Best-Fit Factor Category, and Portfolio Construction Implications.",
     "arguments": [
       {
         "name": "symbol",
@@ -1116,7 +1118,8 @@
     ],
     "dependencies": {
       "required_tools": [
-        "equity_fundamental_overview"
+        "equity_fundamental_metrics",
+        "equity_fundamental_ratios"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -1170,13 +1173,13 @@
     "dependencies": {
       "required_tools": [
         "portfolio_stock_context",
-        "portfolio_stock_profile",
+        "portfolio_stock_decision",
         "portfolio_stock_fundamentals",
-        "portfolio_stock_technicals",
-        "portfolio_stock_valuation",
-        "portfolio_stock_risk",
+        "portfolio_stock_profile",
         "portfolio_stock_relative",
-        "portfolio_stock_decision"
+        "portfolio_stock_risk",
+        "portfolio_stock_technicals",
+        "portfolio_stock_valuation"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -1187,12 +1190,12 @@
   {
     "name": "financialtoolkit_performance_scorecard",
     "description": "Calculate a full performance scorecard (Sharpe, Sortino, Alpha, Beta, Treynor, Information Ratio) for a list of symbols and format as a comparison table.",
-    "content": "Calculate a performance scorecard for the following symbols: {symbols}.\n\nStep 1: Call `financialtoolkit_performance_sharpe_ratio` with symbols={symbols}, start_date={start_date} to get Sharpe ratios.\nStep 2: Call `financialtoolkit_performance_sortino_ratio` with symbols={symbols}, start_date={start_date} to get Sortino ratios.\nStep 3: Call `financialtoolkit_performance_alpha` with symbols={symbols}, start_date={start_date} to get alpha vs benchmark.\nStep 4: Call `financialtoolkit_performance_beta` with symbols={symbols}, start_date={start_date} to get systematic risk (beta).\nStep 5: Call `financialtoolkit_performance_treynor_ratio` with symbols={symbols}, start_date={start_date} to get Treynor ratios.\nStep 6: Call `financialtoolkit_performance_information_ratio` with symbols={symbols}, start_date={start_date} to get information ratios.\nStep 7: Combine all metrics into a comparison table with symbols as rows and metrics as columns.\nStep 8: Rank symbols by Sharpe ratio (highest to lowest) and highlight the best and worst performers.\nStep 9: Provide a 2-3 sentence interpretation of the scorecard — which symbol has the best risk-adjusted return, which has the highest systematic risk, which is the most benchmark-uncorrelated.",
+    "content": "Calculate a performance scorecard for the following comma-separated symbols: {symbols}. First split the input on commas, trim whitespace, and create a JSON string array named `symbol_list` (for example, `[\"AAPL\", \"MSFT\"]`).\n\nStep 1: Call `financialtoolkit_performance_sharpe_ratio` with symbols=symbol_list, start_date={start_date} to get Sharpe ratios.\nStep 2: Call `financialtoolkit_performance_sortino_ratio` with symbols=symbol_list, start_date={start_date} to get Sortino ratios.\nStep 3: Call `financialtoolkit_performance_alpha` with symbols=symbol_list, start_date={start_date} to get alpha vs benchmark.\nStep 4: Call `financialtoolkit_performance_beta` with symbols=symbol_list, start_date={start_date} to get systematic risk (beta).\nStep 5: Call `financialtoolkit_performance_treynor_ratio` with symbols=symbol_list, start_date={start_date} to get Treynor ratios.\nStep 6: Call `financialtoolkit_performance_information_ratio` with symbols=symbol_list, start_date={start_date} to get information ratios.\nStep 7: Combine all metrics into a comparison table with symbols as rows and metrics as columns.\nStep 8: Rank symbols by Sharpe ratio (highest to lowest) and highlight the best and worst performers.\nStep 9: Provide a 2-3 sentence interpretation of the scorecard — which symbol has the best risk-adjusted return, which has the highest systematic risk, which is the most benchmark-uncorrelated.",
     "arguments": [
       {
         "name": "symbols",
         "type": "str",
-        "description": "Comma-separated list of ticker symbols (e.g., AAPL,MSFT,GOOG,AMZN)"
+        "description": "Comma-separated ticker symbols to normalize into a JSON string array before tool calls (e.g., AAPL,MSFT,GOOG,AMZN)"
       },
       {
         "name": "start_date",
@@ -1227,7 +1230,7 @@
   {
     "name": "financialtoolkit_valuation_screen",
     "description": "Screen stocks by market cap / P/E / sector using FinanceToolkit discovery, then enrich with valuation ratios and DCF intrinsic value.",
-    "content": "Run a quantitative valuation screen to find undervalued opportunities.\n\nStep 1: Call `financialtoolkit_discovery_screen` with market_cap_higher={market_cap_min}, is_etf=False to get an initial universe of stocks.\nStep 2: Filter to only stocks in sector={sector} if provided (check the sector field in the results).\nStep 3: For the top 10 results by market cap, call `financialtoolkit_ratios_valuation` with those symbols to get P/E, P/B, EV/EBITDA, P/FCF, and earnings yield.\nStep 4: Filter to stocks with P/E below {pe_max} and positive earnings yield.\nStep 5: For the filtered candidates, call `financialtoolkit_models_intrinsic_value` to estimate DCF intrinsic value (use conservative assumptions: growth_rate=0.05, perpetual_growth_rate=0.025, wacc=0.10).\nStep 6: Calculate the margin of safety as (intrinsic_value - current_price) / intrinsic_value.\nStep 7: Rank by margin of safety (highest first) and present a table with: symbol, P/E, P/B, EV/EBITDA, intrinsic value, current price, margin of safety.\nStep 8: Highlight the top 3 candidates as potential value opportunities, noting any risks or caveats.",
+    "content": "Run a quantitative valuation screen to find undervalued opportunities.\n\nStep 1: Call `financialtoolkit_discovery_screen` with market_cap_higher={market_cap_min}, is_etf=False to get an initial universe of stocks.\nStep 2: Filter to only stocks in sector={sector} if provided (check the sector field in the results).\nStep 3: For the top 10 results by market cap, call `financialtoolkit_ratios_valuation` with those symbols to get P/E, P/B, EV/EBITDA, P/FCF, and earnings yield.\nStep 4: Filter to stocks with P/E below {pe_max} and positive earnings yield.\nStep 5: For the filtered candidates, call `financialtoolkit_models_intrinsic_value` to estimate DCF intrinsic value (use conservative assumptions: growth_rate=0.05, perpetual_growth_rate=0.025, weighted_average_cost_of_capital=0.10).\nStep 6: Calculate the margin of safety as (intrinsic_value - current_price) / intrinsic_value.\nStep 7: Rank by margin of safety (highest first) and present a table with: symbol, P/E, P/B, EV/EBITDA, intrinsic value, current price, margin of safety.\nStep 8: Highlight the top 3 candidates as potential value opportunities, noting any risks or caveats.",
     "arguments": [
       {
         "name": "market_cap_min",
@@ -1270,8 +1273,8 @@
   },
   {
     "name": "fmp_cached_portfolio_refresh",
-    "description": "Check cache coverage for a symbol using the fmp_cached provider and compare freshness vs live FMP data.",
-    "content": "Check the fmp_cached data coverage and freshness for {symbol}.\n\nStep 1: Call `equity_price_historical` with symbol={symbol}, provider=fmp_cached to retrieve cached price history. Note the most recent date in the results.\nStep 2: Call `equity_price_historical` with symbol={symbol}, provider=fmp, limit=5 to get the 5 most recent live prices from FMP.\nStep 3: Compare the most recent cached date vs the most recent live date. Report the data lag in calendar days.\nStep 4: Call `equity_fundamental_overview` with symbol={symbol}, provider=fmp_cached to check fundamental data freshness.\nStep 5: Report a cache health summary: (a) price history lag, (b) fundamental data availability, (c) whether a cache refresh is recommended.\nStep 6: If the price data is stale by more than 5 trading days, suggest running the cache update pipeline for {symbol}.",
+    "description": "Inspect aggregate cache coverage and freshness without triggering provider reads or maintenance.",
+    "content": "Inspection only: this prompt never invokes cached provider fetchers, creates tables, refreshes data, or enqueues maintenance.\n\nAssess whether the aggregate fmp_cached service state warrants operator review for the requested symbol {symbol}. Sanitized observability is aggregate and cannot prove per-symbol freshness.\n\nStep 1: Call `cache_health` to inspect aggregate cache availability and freshness without exposing rows, SQL, credentials, or invoking provider fetchers.\nStep 2: Call `cache_coverage` to inspect routed-model and persistence coverage.\nStep 3: Report the aggregate availability, empty/stale state, route coverage, persistence coverage, and limitations. Do not claim that {symbol} is fresh or stale from aggregate evidence.\nStep 4: If aggregate health is stale, empty, unavailable, or permission-denied, report that an authenticated portfolio-ops operator, with maintenance operations explicitly enabled, may separately enqueue an approved allowlisted durable cache job. Do not enqueue or execute maintenance from this prompt.\nStep 5: Explain that per-symbol verification through an fmp_cached provider read is intentionally excluded because a read may initialize or refresh persisted cache data.",
     "arguments": [
       {
         "name": "symbol",
@@ -1287,14 +1290,11 @@
     ],
     "dependencies": {
       "required_tools": [
-        "equity_fundamental_overview",
-        "equity_price_historical"
+        "cache_coverage",
+        "cache_health"
       ],
       "any_tool_groups": [],
-      "providers": [
-        "fmp_cached",
-        "fmp"
-      ],
+      "providers": [],
       "optional_packages": [],
       "resources": []
     }
