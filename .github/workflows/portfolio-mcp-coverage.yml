@@ -69,13 +69,14 @@ jobs:
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/regime" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/financialtoolkit" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/agents" \
-              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/fmp_trading[agent]" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/fmp" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/fmp_cached" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/providers/yfinance" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/tools/portfolio_utils"
             "$environment/bin/python" \
               "$GITHUB_WORKSPACE/$source/scripts/pi_install.py"
+            "$environment/bin/python" -m pip install \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/fmp_trading[agent]"
             "$environment/bin/python" -m pip install \
               pytest pytest-asyncio pytest-mock
           done
