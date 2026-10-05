@@ -10,6 +10,7 @@ import re
 import secrets
 import signal
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -51,6 +52,9 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from openbb_mcp_server.adapters.portfolio import (
     PORTFOLIO_PROFILES,
     compose_portfolio_app,
+)
+from openbb_mcp_server.adapters.portfolio_intel import (
+    compose_portfolio_intel_app,
 )
 from openbb_mcp_server.app.auth import TokenAuthProvider, get_auth_provider
 from openbb_mcp_server.models.category_index import CategoryIndex
@@ -428,6 +432,25 @@ def create_mcp_server(
         if capability_profile in PORTFOLIO_PROFILES
         else fastapi_app
     )
+    if settings.enable_intelligence_adapter:
+        if capability_profile not in PORTFOLIO_PROFILES:
+            raise RuntimeError(
+                "Portfolio Intelligence adapter requires a Portfolio capability profile"
+            )
+        try:
+            from openbb_portfolio_intel.widget_backend.main import (  # pylint: disable=import-outside-toplevel
+                app as intelligence_app,
+            )
+        except (ImportError, RuntimeError) as exc:
+            raise RuntimeError(
+                "Portfolio Intelligence adapter is enabled but unavailable"
+            ) from exc
+        source_app = compose_portfolio_intel_app(
+            source_app,
+            intelligence_app,
+            capability_profile,
+            selected_policy,
+        )
     composed_app = copy.copy(source_app)
     composed_app.router = copy.copy(source_app.router)
     composed_app.router.routes = list(source_app.router.routes)
@@ -562,10 +585,29 @@ def create_mcp_server(
             )
 
     # Extract httpx_client_kwargs from settings/kwargs if available
-    httpx_client_kwargs = httpx_kwargs or settings.get_httpx_kwargs()
+    httpx_client_kwargs = dict(httpx_kwargs or settings.get_httpx_kwargs())
+    if settings.enable_intelligence_adapter:
+        auth_mode = os.getenv("PI_WIDGET_BACKEND_AUTH_MODE", "required")
+        if auth_mode != "loopback-dev":
+            token = os.getenv("PI_WIDGET_BACKEND_TOKEN", "").strip()
+            if not token:
+                raise RuntimeError(
+                    "Intelligence adapter requires PI_WIDGET_BACKEND_TOKEN"
+                )
+            headers = dict(httpx_client_kwargs.get("headers") or {})
+            headers["Authorization"] = f"Bearer {token}"
+            httpx_client_kwargs["headers"] = headers
 
     # Get only FastMCP constructor parameters (excludes uvicorn_config, httpx_client_kwargs)
     fastmcp_kwargs = settings.get_fastmcp_kwargs()
+    if settings.enable_intelligence_adapter:
+
+        @asynccontextmanager
+        async def intelligence_lifespan(_server):
+            async with source_app.router.lifespan_context(source_app):
+                yield
+
+        fastmcp_kwargs["lifespan"] = intelligence_lifespan
 
     # Create MCP server from the processed FastAPI app.
     mcp = FastMCP.from_fastapi(
