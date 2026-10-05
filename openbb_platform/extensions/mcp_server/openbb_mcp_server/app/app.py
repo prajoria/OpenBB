@@ -363,7 +363,7 @@ def _add_skills_default_prompt(mcp: FastMCP) -> None:
     logger.info("Added default system prompt with skill awareness nudge.")
 
 
-# pylint: disable=R0914,R0915
+# pylint: disable=R0912,R0914,R0915
 def create_mcp_server(
     settings: MCPSettings,
     fastapi_app: FastAPI,
