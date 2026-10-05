@@ -83,11 +83,6 @@ def compose_portfolio_intel_app(
     existing_http_routes = [
         route for route in composed.router.routes if isinstance(route, Route)
     ]
-    mounted_prefixes = [
-        route.path.rstrip("/")
-        for route in composed.router.routes
-        if isinstance(route, Mount)
-    ]
     existing_mcp_names = {
         get_mcp_route_identity(
             route.path,
@@ -118,9 +113,17 @@ def compose_portfolio_intel_app(
         name = _tool_name(original.path)
         conflicting_mount = next(
             (
-                prefix
-                for prefix in mounted_prefixes
-                if original.path == prefix or original.path.startswith(f"{prefix}/")
+                route.path
+                for route in composed.router.routes
+                if isinstance(route, Mount)
+                and route.matches(
+                    {
+                        "type": "http",
+                        "path": original.path,
+                        "method": methods[0],
+                    }
+                )[0]
+                is Match.FULL
             ),
             None,
         )

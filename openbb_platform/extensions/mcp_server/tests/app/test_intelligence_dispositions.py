@@ -69,9 +69,9 @@ def test_all_69_operations_have_effect_and_access_dispositions():
         for row in _catalog_rows()
     ]
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 62,
+        "direct": 60,
         "metadata_only": 4,
-        "restricted": 3,
+        "restricted": 5,
     }
     assert Counter(decision.access_class for decision in decisions) == {
         "provider_read": 34,
@@ -120,7 +120,7 @@ def test_adapter_relationships_have_unique_direct_tool_identities():
         f"intelligence_{row['path'].strip('/').replace('/', '_').replace('-', '_')}"
         for row in direct_reads
     }
-    assert len(direct_reads) == len(names) == 61
+    assert len(direct_reads) == len(names) == 59
     assert {row["mcp_tool"] for row in direct_reads} == names
 
 

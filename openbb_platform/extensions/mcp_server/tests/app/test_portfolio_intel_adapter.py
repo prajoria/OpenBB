@@ -40,6 +40,10 @@ DENIED_EXECUTION_PATHS = {
     "/tt/execute/write-batch",
     "/tt/execute/cancel",
 }
+DENIED_SUCCESS_STUB_PATHS = {
+    "/pi/paper/ticket",
+    "/pi/backtest/oneclick",
+}
 
 
 def _routes(app: FastAPI) -> dict[str, APIRoute]:
@@ -64,7 +68,7 @@ def _compose(
     )
 
 
-def test_read_adapter_clones_62_reviewed_routes_and_preserves_contracts():
+def test_read_adapter_clones_60_reviewed_routes_and_preserves_contracts():
     """Approved routes retain original handlers, dependencies, and schemas."""
     source = FastAPI()
     original_source_routes = tuple(source.router.routes)
@@ -77,9 +81,10 @@ def test_read_adapter_clones_62_reviewed_routes_and_preserves_contracts():
     }
 
     assert tuple(source.router.routes) == original_source_routes
-    assert len(copies) == 62
+    assert len(copies) == 60
     assert set(copies) >= REPRESENTATIVE_PATHS
     assert DENIED_EXECUTION_PATHS.isdisjoint(copies)
+    assert DENIED_SUCCESS_STUB_PATHS.isdisjoint(copies)
     for path in REPRESENTATIVE_PATHS:
         assert copies[path].endpoint is originals[path].endpoint
         dependency_attr = "depen" + "dant"
@@ -149,6 +154,7 @@ def test_ops_profile_adds_only_the_reviewed_scan_trigger():
     read_paths = set(_routes(_compose(FastAPI())))
     ops_paths = set(_routes(_compose(FastAPI(), profile="portfolio-ops")))
     assert ops_paths - read_paths == {"/tt/scan/trigger"}
+    assert len(ops_paths) == len(read_paths) + 1
 
 
 def test_adapter_rebuilds_stale_openapi_schema():
