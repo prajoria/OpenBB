@@ -495,3 +495,5 @@ portfolio-venv-core-in-process,GET,/api/v1/financialtoolkit/technicals/adx,activ
 portfolio-venv-core-in-process,GET,/api/v1/financialtoolkit/technicals/obv,activatable,financialtoolkit_technicals_obv,False,
 portfolio-venv-core-in-process,GET,/api/v1/financialtoolkit/technicals/support_resistance,activatable,financialtoolkit_technicals_support_resistance,False,
 portfolio-venv-core-in-process,GET,/api/v1/financialtoolkit/about,activatable,financialtoolkit_about,False,
+portfolio-venv-core-in-process,GET,/api/v1/cache/health,activatable,cache_health,False,
+portfolio-venv-core-in-process,GET,/api/v1/cache/coverage,activatable,cache_coverage,False,

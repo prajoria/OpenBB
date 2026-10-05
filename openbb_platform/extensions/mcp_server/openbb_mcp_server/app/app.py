@@ -432,6 +432,16 @@ def create_mcp_server(
         if capability_profile in PORTFOLIO_PROFILES
         else fastapi_app
     )
+    if capability_profile in PORTFOLIO_PROFILES:
+        try:
+            from openbb_mcp_server.adapters.cache_admin import (  # pylint: disable=import-outside-toplevel
+                compose_cache_observability_app,
+            )
+        except ImportError as exc:
+            raise RuntimeError(
+                "Portfolio cache observability requires openbb-fmp-cached"
+            ) from exc
+        source_app = compose_cache_observability_app(source_app)
     if settings.enable_intelligence_adapter:
         if capability_profile not in PORTFOLIO_PROFILES:
             raise RuntimeError(
