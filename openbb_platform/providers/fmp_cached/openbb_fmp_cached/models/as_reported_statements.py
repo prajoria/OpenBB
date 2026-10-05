@@ -24,7 +24,7 @@ separately (closed as not_planned in this session).
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from openbb_core.provider.abstract.data import Data
 from openbb_core.provider.abstract.fetcher import Fetcher
@@ -41,8 +41,11 @@ class _SymbolYearPeriodQueryParams(QueryParams):
     """Query params for financial-reports-json (symbol + year + period)."""
 
     symbol: str = Field(description="Ticker symbol.")
-    year: str = Field(description="Fiscal year (as string, e.g. '2025').")
-    period: str = Field(description="Period label (e.g. 'Q1', 'Q2', 'FY').")
+    year: int = Field(description="Fiscal year (e.g. 2025).")
+    period: Literal["Q1", "Q2", "Q3", "Q4", "FY"] = Field(
+        default="FY",
+        description="Fiscal period.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +84,7 @@ class FMPCachedFinancialReportsJsonData(Data):
 
     symbol: str = Field(description="Ticker symbol.")
     period: str | None = Field(default=None, description="Period label.")
-    year: str | None = Field(default=None, description="Fiscal year as string.")
+    year: int | None = Field(default=None, description="Fiscal year.")
 
 
 _AS_REPORTED_ALIASES = {
