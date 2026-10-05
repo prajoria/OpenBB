@@ -52,7 +52,10 @@ def _command(model: str, description: str, arguments: set[str]):
     def decorator(func):
         func.__doc__ = description
         if "cik" in arguments:
-            parameters = {"provider": "fmp_cached", "cik": "0000320193"}
+            parameters: dict[str, Any] = {
+                "provider": "fmp_cached",
+                "cik": "0000320193",
+            }
         elif "year" in arguments:
             parameters = {
                 "provider": "fmp_cached",
@@ -267,3 +270,6 @@ async def financial_reports_json(
     extra_params: ExtraParams,
 ) -> OBBject:
     return await _dispatch(**locals())
+
+
+from typing import Any
