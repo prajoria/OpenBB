@@ -472,6 +472,57 @@
     },
     {
       "aliases": [], "arguments": ["symbol", "year", "period"], "canonical_route": "/fmp_cached/financial_reports_json", "command": "financial_reports_json", "model": "FinancialReportsJson", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/acquisition_of_beneficial_ownership", "command": "acquisition_of_beneficial_ownership", "model": "AcquisitionOfBeneficialOwnership", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": [], "canonical_route": "/fmp_cached/all_industry_classification", "command": "all_industry_classification", "model": "AllIndustryClassification", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["cik"], "canonical_route": "/fmp_cached/crowdfunding_offerings", "command": "crowdfunding_offerings", "model": "CrowdfundingOfferings", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/crowdfunding_offerings_latest", "command": "crowdfunding_offerings_latest", "model": "CrowdfundingOfferingsLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["name"], "canonical_route": "/fmp_cached/crowdfunding_offerings_search", "command": "crowdfunding_offerings_search", "model": "CrowdfundingOfferingsSearch", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/delisted_companies", "command": "delisted_companies", "model": "DelistedCompanies", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["cik"], "canonical_route": "/fmp_cached/fundraising", "command": "fundraising", "model": "Fundraising", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/fundraising_latest", "command": "fundraising_latest", "model": "FundraisingLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["name"], "canonical_route": "/fmp_cached/fundraising_search", "command": "fundraising_search", "model": "FundraisingSearch", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol", "cik", "sicCode"], "canonical_route": "/fmp_cached/industry_classification_search", "command": "industry_classification_search", "model": "IndustryClassificationSearch", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/ipos_disclosure", "command": "ipos_disclosure", "model": "IposDisclosure", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/ipos_prospectus", "command": "ipos_prospectus", "model": "IposProspectus", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/mergers_acquisitions_latest", "command": "mergers_acquisitions_latest", "model": "MergersAcquisitionsLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["name"], "canonical_route": "/fmp_cached/mergers_acquisitions_search", "command": "mergers_acquisitions_search", "model": "MergersAcquisitionsSearch", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["from", "to", "page", "limit"], "canonical_route": "/fmp_cached/sec_filings_8k", "command": "sec_filings_8k", "model": "SecFilings8K", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/sec_profile", "command": "sec_profile", "model": "SecProfile", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": [], "canonical_route": "/fmp_cached/standard_industrial_classification_list", "command": "standard_industrial_classification_list", "model": "StandardIndustrialClassificationList", "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
