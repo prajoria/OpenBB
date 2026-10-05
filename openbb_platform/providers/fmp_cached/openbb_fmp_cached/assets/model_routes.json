@@ -523,6 +523,45 @@
     },
     {
       "aliases": [], "arguments": [], "canonical_route": "/fmp_cached/standard_industrial_classification_list", "command": "standard_industrial_classification_list", "model": "StandardIndustrialClassificationList", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/commitment_of_traders_analysis", "command": "commitment_of_traders_analysis", "model": "CommitmentOfTradersAnalysis", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbol"], "canonical_route": "/fmp_cached/commitment_of_traders_report", "command": "commitment_of_traders_report", "model": "CommitmentOfTradersReport", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/fmp_articles", "command": "fmp_articles", "model": "FmpArticles", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/house_latest", "command": "house_latest", "model": "HouseLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbols", "from", "to"], "canonical_route": "/fmp_cached/news_crypto", "command": "news_crypto", "model": "NewsCrypto", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/news_crypto_latest", "command": "news_crypto_latest", "model": "NewsCryptoLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["symbols", "from", "to"], "canonical_route": "/fmp_cached/news_forex", "command": "news_forex", "model": "NewsForex", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/news_forex_latest", "command": "news_forex_latest", "model": "NewsForexLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["page", "limit"], "canonical_route": "/fmp_cached/senate_latest", "command": "senate_latest", "model": "SenateLatest", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["senate_id"], "canonical_route": "/fmp_cached/senate_net_worth", "command": "senate_net_worth", "model": "SenateNetWorth", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["senate_id"], "canonical_route": "/fmp_cached/senate_net_worth_aggregated", "command": "senate_net_worth_aggregated", "model": "SenateNetWorthAggregated", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["name"], "canonical_route": "/fmp_cached/senate_positions", "command": "senate_positions", "model": "SenatePositions", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": ["name"], "canonical_route": "/fmp_cached/senate_profile", "command": "senate_profile", "model": "SenateProfile", "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
