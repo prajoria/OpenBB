@@ -6,7 +6,14 @@ import json
 from collections import Counter
 from pathlib import Path
 
+import pytest
+from fastapi import FastAPI
 from openbb_backtest.backtest_router import router as backtest_router
+from openbb_financialtoolkit.financialtoolkit_router import (
+    router as financialtoolkit_router,
+)
+from openbb_mcp_server.app.app import create_mcp_server
+from openbb_mcp_server.models.settings import MCPSettings
 from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 from openbb_portfolio_intel.portfolio_intel_router import (
     router as portfolio_intel_router,
@@ -197,3 +204,33 @@ def test_runtime_profiles_require_checkout_local_analytical_modules():
         assert profile["optional_module_sources"]["openbb-financialtoolkit"] == {
             "openbb_financialtoolkit": "openbb_platform/extensions/financialtoolkit"
         }
+
+
+@pytest.mark.asyncio
+async def test_sensitive_toolkit_headers_are_absent_from_real_mcp_schemas():
+    """MCP conversion enforces exclude_args rather than trusting metadata alone."""
+    app = FastAPI()
+    app.include_router(
+        financialtoolkit_router.api_router,
+        prefix="/api/v1/financialtoolkit",
+    )
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile=None,
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    mcp = create_mcp_server(settings, app)
+    tools = [
+        tool
+        for tool in await mcp.list_tools()
+        if tool.name.startswith(
+            (
+                "financialtoolkit_ratios_",
+                "financialtoolkit_technicals_",
+            )
+        )
+    ]
+    assert len(tools) == 36
+    for tool in tools:
+        assert "X-FMP-API-Key" not in tool.parameters.get("properties", {})

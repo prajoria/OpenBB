@@ -1,7 +1,8 @@
 """Ratios sub-router for FinancialToolkit extension."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -18,7 +19,13 @@ router = Router(prefix="/ratios", description="FinancialToolkit financial ratios
 # Common type alias used across all ratio commands
 _PERIOD = Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None
 
-_MCP_RATIOS = {"mcp_config": {"tags": ["financialtoolkit", "ratios"], "describe_responses": False}}
+_MCP_RATIOS = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "ratios"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -50,7 +57,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 )
 def collect_all(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -89,7 +96,7 @@ def collect_all(
 )
 def efficiency(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -128,7 +135,7 @@ def efficiency(
 )
 def liquidity(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -167,7 +174,7 @@ def liquidity(
 )
 def profitability(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -206,7 +213,7 @@ def profitability(
 )
 def solvency(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -245,7 +252,7 @@ def solvency(
 )
 def valuation(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -287,7 +294,7 @@ def valuation(
 )
 def asset_turnover(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -299,9 +306,16 @@ def asset_turnover(
 ) -> OBBject[list[Data]]:
     """Calculate asset turnover ratio."""
     records = RatiosService.asset_turnover(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -319,7 +333,7 @@ def asset_turnover(
 )
 def current_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -331,9 +345,16 @@ def current_ratio(
 ) -> OBBject[list[Data]]:
     """Calculate current ratio."""
     records = RatiosService.current_ratio(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -351,7 +372,7 @@ def current_ratio(
 )
 def quick_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -363,9 +384,16 @@ def quick_ratio(
 ) -> OBBject[list[Data]]:
     """Calculate quick ratio."""
     records = RatiosService.quick_ratio(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -383,7 +411,7 @@ def quick_ratio(
 )
 def return_on_equity(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -395,9 +423,16 @@ def return_on_equity(
 ) -> OBBject[list[Data]]:
     """Calculate return on equity (ROE)."""
     records = RatiosService.return_on_equity(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -415,7 +450,7 @@ def return_on_equity(
 )
 def return_on_assets(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -427,9 +462,16 @@ def return_on_assets(
 ) -> OBBject[list[Data]]:
     """Calculate return on assets (ROA)."""
     records = RatiosService.return_on_assets(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -440,14 +482,16 @@ def return_on_assets(
     examples=[
         PythonEx(
             description="Get return on invested capital.",
-            code=["obb.financialtoolkit.ratios.return_on_invested_capital(symbols=['AAPL'])"],
+            code=[
+                "obb.financialtoolkit.ratios.return_on_invested_capital(symbols=['AAPL'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL"]}),
     ],
 )
 def return_on_invested_capital(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -459,9 +503,16 @@ def return_on_invested_capital(
 ) -> OBBject[list[Data]]:
     """Calculate return on invested capital (ROIC)."""
     records = RatiosService.return_on_invested_capital(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -479,7 +530,7 @@ def return_on_invested_capital(
 )
 def price_to_earnings(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -491,9 +542,16 @@ def price_to_earnings(
 ) -> OBBject[list[Data]]:
     """Calculate price-to-earnings (P/E) ratio."""
     records = RatiosService.price_to_earnings(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -511,7 +569,7 @@ def price_to_earnings(
 )
 def price_to_book(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -523,9 +581,16 @@ def price_to_book(
 ) -> OBBject[list[Data]]:
     """Calculate price-to-book (P/B) ratio."""
     records = RatiosService.price_to_book(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -543,7 +608,7 @@ def price_to_book(
 )
 def debt_to_equity(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -555,9 +620,16 @@ def debt_to_equity(
 ) -> OBBject[list[Data]]:
     """Calculate debt-to-equity ratio."""
     records = RatiosService.debt_to_equity(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -575,7 +647,7 @@ def debt_to_equity(
 )
 def gross_margin(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -587,9 +659,16 @@ def gross_margin(
 ) -> OBBject[list[Data]]:
     """Calculate gross margin."""
     records = RatiosService.gross_margin(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -607,7 +686,7 @@ def gross_margin(
 )
 def net_profit_margin(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -619,9 +698,16 @@ def net_profit_margin(
 ) -> OBBject[list[Data]]:
     """Calculate net profit margin."""
     records = RatiosService.net_profit_margin(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
 
@@ -639,7 +725,7 @@ def net_profit_margin(
 )
 def free_cash_flow_yield(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -651,8 +737,15 @@ def free_cash_flow_yield(
 ) -> OBBject[list[Data]]:
     """Calculate free cash flow yield."""
     records = RatiosService.free_cash_flow_yield(
-        symbols=validate_symbols(symbols), api_key=api_key,
-        start_date=start_date, end_date=end_date, quarterly=quarterly,
-        period=period, rounding=rounding, growth=growth, lag=lag, trailing=trailing,
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+        trailing=trailing,
     )
     return OBBject(results=records_to_data(records))
