@@ -6,6 +6,9 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.routing import Match, Mount, Route
 
+from openbb_mcp_server.models.settings import MCPSettings
+from openbb_mcp_server.utils.fastapi import get_mcp_route_identity
+
 PORTFOLIO_PROFILES = frozenset({"portfolio-read", "portfolio-ops"})
 APPROVED_PORTFOLIO_PATHS = frozenset(
     {
@@ -51,7 +54,10 @@ def _operation_id(path: str) -> str:
     return f"portfolio_{path.strip('/').replace('/', '_')}"
 
 
-def compose_portfolio_app(source_app: FastAPI) -> FastAPI:
+def compose_portfolio_app(
+    source_app: FastAPI,
+    settings: MCPSettings | None = None,
+) -> FastAPI:
     """Return an isolated MCP composition of approved Portfolio routes."""
     # Imported only for Portfolio profiles so the standard MCP stays optional.
     try:
@@ -65,6 +71,8 @@ def compose_portfolio_app(source_app: FastAPI) -> FastAPI:
 
     composed = copy.copy(source_app)
     composed.router = copy.copy(source_app.router)
+    composed.router.middleware_stack = composed.router.app
+    composed.middleware_stack = None
     composed.router.routes = [
         route
         for route in source_app.router.routes
@@ -73,6 +81,15 @@ def compose_portfolio_app(source_app: FastAPI) -> FastAPI:
 
     existing_names = {
         route.name for route in composed.router.routes if isinstance(route, Route)
+    }
+    existing_mcp_names = {
+        get_mcp_route_identity(
+            route.path,
+            settings,
+            name_override=(route.openapi_extra or {}).get("mcp_config", {}).get("name"),
+        ).component_name
+        for route in composed.router.routes
+        if isinstance(route, APIRoute)
     }
     existing_http_routes = [
         route for route in composed.router.routes if isinstance(route, Route)
@@ -123,6 +140,8 @@ def compose_portfolio_app(source_app: FastAPI) -> FastAPI:
         name = _operation_id(original.path)
         if name in existing_names:
             raise ValueError(f"Portfolio route name collision: {name}")
+        if name in existing_mcp_names:
+            raise ValueError(f"Portfolio MCP name collision: {name}")
         route = copy.copy(original)
         route.name = name
         route.operation_id = name
@@ -133,6 +152,7 @@ def compose_portfolio_app(source_app: FastAPI) -> FastAPI:
         composed.router.routes.append(route)
         existing_http_routes.append(route)
         existing_names.add(name)
+        existing_mcp_names.add(name)
 
     composed.openapi_schema = None
     return composed

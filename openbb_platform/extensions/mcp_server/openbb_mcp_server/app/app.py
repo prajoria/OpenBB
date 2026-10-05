@@ -400,7 +400,7 @@ def create_mcp_server(
 
     # Filter an isolated route composition; preserve the original REST app.
     source_app = (
-        compose_portfolio_app(fastapi_app)
+        compose_portfolio_app(fastapi_app, settings)
         if capability_profile in PORTFOLIO_PROFILES
         else fastapi_app
     )

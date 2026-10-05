@@ -3,6 +3,7 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from fastapi.testclient import TestClient
 from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
 from openbb_mcp_server.app import app as app_module
 from openbb_mcp_server.models.settings import MCPSettings
@@ -187,6 +188,42 @@ def test_composition_rebuilds_openapi_without_reusing_source_cache():
     assert composed.openapi_schema is not source_schema
 
 
+def test_composition_rebuilds_middleware_around_the_isolated_router():
+    """A previously served source app cannot retain its unfiltered router stack."""
+    app = FastAPI()
+    app.include_router(portfolio_router)
+
+    @app.post("/query")
+    async def copilot_query():
+        return {"excluded": True}
+
+    assert TestClient(app).post("/query").status_code == 200
+
+    composed = compose_portfolio_app(app)
+
+    assert TestClient(composed).post("/query").status_code == 404
+    assert TestClient(composed).get("/portfolio/positions").status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("path", "mcp_config"),
+    [
+        ("/synthetic", {"name": "portfolio_stock_context"}),
+        ("/portfolio/stock/context", {}),
+    ],
+)
+def test_composition_rejects_effective_mcp_name_collisions(path, mcp_config):
+    """Existing effective MCP identities cannot hide a composed Portfolio tool."""
+    app = FastAPI()
+
+    @app.get(path, openapi_extra={"mcp_config": mcp_config})
+    async def conflicting_mcp_name():
+        return {}
+
+    with pytest.raises(ValueError, match="MCP name collision.*portfolio_stock_context"):
+        compose_portfolio_app(app)
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_calls"),
     [
@@ -199,7 +236,7 @@ def test_mcp_server_gates_composition_by_profile(monkeypatch, profile, expected_
     """Only explicit Portfolio profiles cross the custom composition seam."""
     calls = []
 
-    def fake_compose(app):
+    def fake_compose(app, _settings):
         calls.append(app)
         return app
 
