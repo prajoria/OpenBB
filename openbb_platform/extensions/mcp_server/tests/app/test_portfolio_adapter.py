@@ -4,9 +4,13 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
-from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
+from openbb_mcp_server.adapters.portfolio import (
+    APPROVED_PORTFOLIO_PATHS,
+    compose_portfolio_app,
+)
 from openbb_mcp_server.app import app as app_module
 from openbb_mcp_server.models.settings import MCPSettings
+from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 from openbb_portfolio.portfolio_router import router as portfolio_router
 
 APPROVED_PATHS = {
@@ -44,6 +48,19 @@ EXCLUDED_PATHS = {
     "/query",
     "/viewer",
 }
+BLOCKED_PRIVATE_PATHS = {
+    "/portfolio/positions",
+    "/portfolio/allocation",
+    "/portfolio/cost_basis",
+    "/portfolio/tax_summary",
+}
+DIRECT_PRIVATE_PATHS = {
+    "/portfolio/summary",
+    "/portfolio/performance",
+    "/portfolio/snapshots",
+    "/espp/purchases",
+}
+DIRECT_PROVIDER_PATHS = APPROVED_PATHS - BLOCKED_PRIVATE_PATHS - DIRECT_PRIVATE_PATHS
 
 
 def _api_routes(app: FastAPI) -> list[APIRoute]:
@@ -283,3 +300,77 @@ def test_mcp_server_gates_composition_by_profile(monkeypatch, profile, expected_
     app_module.create_mcp_server(settings, app)
 
     assert calls == [app] * expected_calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("profile", ["portfolio-read", "portfolio-ops"])
+async def test_portfolio_profiles_admit_exactly_approved_direct_operations(profile):
+    """Both Portfolio profiles expose 15 direct tools while blocked reads stay hidden."""
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile=profile,
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    mcp = app_module.create_mcp_server(settings, FastAPI())
+    names = {tool.name for tool in await mcp.list_tools()}
+    expected = {
+        f"portfolio_{path.strip('/').replace('/', '_')}"
+        for path in DIRECT_PRIVATE_PATHS | DIRECT_PROVIDER_PATHS
+    }
+    blocked = {
+        f"portfolio_{path.strip('/').replace('/', '_')}"
+        for path in BLOCKED_PRIVATE_PATHS
+    }
+
+    assert expected <= names
+    assert blocked.isdisjoint(names)
+
+
+@pytest.mark.asyncio
+async def test_standard_profile_cannot_discover_portfolio_operations():
+    """General clients cannot activate either private or provider adapter tools."""
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile="platform-standard",
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    mcp = app_module.create_mcp_server(settings, FastAPI())
+    names = {tool.name for tool in await mcp.list_tools()}
+    portfolio_names = {
+        f"portfolio_{path.strip('/').replace('/', '_')}" for path in APPROVED_PATHS
+    }
+    assert portfolio_names.isdisjoint(names)
+
+
+def test_all_19_portfolio_operation_dispositions_are_explicit():
+    """The policy accounts for every composed operation without prefix fallback."""
+    policy = ExposurePolicy.load()
+    assert APPROVED_PATHS == APPROVED_PORTFOLIO_PATHS
+    decisions = {path: policy.classify_path("GET", path) for path in APPROVED_PATHS}
+
+    assert len(decisions) == 19
+    assert {
+        path
+        for path, decision in decisions.items()
+        if decision.disposition == "restricted"
+    } == BLOCKED_PRIVATE_PATHS
+    assert {
+        path
+        for path, decision in decisions.items()
+        if decision.disposition == "direct"
+        and decision.access_class == "private_portfolio_read"
+    } == DIRECT_PRIVATE_PATHS
+    assert {
+        path
+        for path, decision in decisions.items()
+        if decision.disposition == "direct" and decision.access_class == "provider_read"
+    } == DIRECT_PROVIDER_PATHS
+    for path in DIRECT_PRIVATE_PATHS | DIRECT_PROVIDER_PATHS:
+        assert policy.is_operation_admitted("GET", path, "portfolio-read")
+        assert policy.is_operation_admitted("GET", path, "portfolio-ops")
+        assert not policy.is_operation_admitted("GET", path, "platform-standard")
+    for path in BLOCKED_PRIVATE_PATHS:
+        assert not policy.is_operation_admitted("GET", path, "portfolio-read")
+        assert not policy.is_operation_admitted("GET", path, "portfolio-ops")

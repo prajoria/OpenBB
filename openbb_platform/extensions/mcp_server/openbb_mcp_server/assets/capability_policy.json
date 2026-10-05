@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "7a3f48bf46ab61158acc312896c812610bf60e41a5e40efe64d0e43ec107075e"
+    "sha256": "9201ab72195ac780ab2a232f91b10e4ec88cefec1b3a78305c0ab71f82336b41"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -189,6 +189,22 @@
       ]
     },
     {
+      "id": "deny-raw-portfolio-private",
+      "priority": 90,
+      "scopes": ["live-portfolio-custom"],
+      "methods": ["GET"],
+      "paths": [
+        "/portfolio/positions",
+        "/portfolio/allocation",
+        "/portfolio/cost_basis",
+        "/portfolio/tax_summary"
+      ],
+      "disposition": "restricted",
+      "access_class": "private_portfolio_read",
+      "admitted_profiles": [],
+      "reason": "Raw lot, account, owner, cost-basis, and tax data cannot be exposed through MCP."
+    },
+    {
       "id": "portfolio-custom-private",
       "priority": 80,
       "scopes": ["live-portfolio-custom"],
@@ -196,10 +212,9 @@
         "/portfolio/",
         "/espp/"
       ],
-      "disposition": "restricted",
+      "disposition": "direct",
       "access_class": "private_portfolio_read",
-      "admitted_profiles": [],
-      "reason": "Requires the reviewed opt-in Portfolio custom-app adapter from T21."
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
     },
     {
       "id": "portfolio-custom-provider",
@@ -210,10 +225,9 @@
         "/market/",
         "/stock/"
       ],
-      "disposition": "restricted",
+      "disposition": "direct",
       "access_class": "provider_read",
-      "admitted_profiles": [],
-      "reason": "Requires the reviewed opt-in Portfolio custom-app adapter from T21."
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
     },
     {
       "id": "core-provider-and-compute",
@@ -319,11 +333,11 @@
         "implementation_state": "adapter_gap"
       },
       "portfolio-custom-api": {
-        "owner_issues": ["#2172 Review Portfolio API", "#2173 Implement Portfolio adapter"],
-        "rationale": "Portfolio, ESPP and stock-analysis routes require an explicit private-data adapter.",
+        "owner_issues": ["#2172 Implement Portfolio adapter", "#2173 Verify Portfolio boundaries"],
+        "rationale": "The reviewed adapter admits 15 sanitized analytics operations and permanently denies four raw private-data operations.",
         "source_evidence": ["openbb_platform/extensions/portfolio/openbb_portfolio/portfolio_router.py"],
         "review_triggers": ["custom route added", "privacy disposition changed", "adapter profile changed"],
-        "implementation_state": "adapter_gap"
+        "implementation_state": "implemented_product"
       },
       "intelligence-widgets": {
         "owner_issues": ["#2174 Review Intelligence and Trading Desk adapter"],
@@ -380,6 +394,7 @@
       "private-intelligence-reads": "intelligence-widgets",
       "portfolio-custom-private": "portfolio-custom-api",
       "portfolio-custom-provider": "portfolio-custom-api",
+      "deny-raw-portfolio-private": "portfolio-custom-api",
       "core-provider-and-compute": "fmp-routing-waves",
       "workspace-intelligence": "intelligence-widgets",
       "deny-unreviewed-core": "fmp-routing-waves",

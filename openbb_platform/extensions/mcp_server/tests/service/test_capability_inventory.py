@@ -797,7 +797,10 @@ def test_every_audited_operation_has_accountable_traceability():
     assert report.unowned == ()
     assert "implemented_product" in {item.implementation_state for item in report.items}
     by_rule = {item.rule_id: item for item in report.items}
-    assert by_rule["portfolio-custom-private"].implementation_state == "adapter_gap"
+    assert (
+        by_rule["portfolio-custom-private"].implementation_state
+        == "implemented_product"
+    )
     assert (
         by_rule["deny-execution-actions"].implementation_state == "approved_exclusion"
     )
