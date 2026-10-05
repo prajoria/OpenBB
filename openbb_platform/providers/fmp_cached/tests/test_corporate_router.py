@@ -60,6 +60,12 @@ def test_exact_seventeen_corporate_models_have_routes():
     evidence = {row["model"]: row for row in _manifest() if row["model"] in MODELS}
     assert set(evidence) == set(MODELS)
     paths = {route.path for route in router.api_router.routes}
+    executable_models = {
+        route.openapi_extra["model"]
+        for route in router.api_router.routes
+        if route.openapi_extra and route.openapi_extra.get("model")
+    }
+    assert executable_models == set(MODELS)
     for model, (command, arguments) in MODELS.items():
         assert evidence[model]["command"] == command
         assert set(evidence[model]["arguments"]) == set(arguments)
@@ -117,6 +123,19 @@ def test_no_route_accepts_a_user_supplied_url():
     for row in _manifest():
         if row["model"] in MODELS:
             assert "url" not in row["arguments"]
+    app = FastAPI()
+    app.include_router(router.api_router)
+    for operation in app.openapi()["paths"].values():
+        schema = operation["get"]
+        parameters = {item["name"] for item in schema.get("parameters", [])}
+        body = (
+            schema.get("requestBody", {})
+            .get("content", {})
+            .get("application/json", {})
+            .get("schema", {})
+        )
+        assert "url" not in parameters
+        assert "url" not in json.dumps(body).lower()
 
 
 def test_cached_routes_reject_unimplemented_union_filters():
@@ -135,6 +154,29 @@ def test_cached_routes_reject_unimplemented_union_filters():
     )
     assert latest.status_code == 422
     assert latest.json()["detail"] == "Unknown query arguments: page"
+
+    response_obj = corporate_router.OBBject(results=[])
+    with (
+        patch.object(corporate_router, "Query", return_value=object()),
+        patch.object(
+            corporate_router.OBBject,
+            "from_query",
+            new=AsyncMock(return_value=response_obj),
+        ),
+    ):
+        accepted = TestClient(app).request(
+            "GET",
+            "/sec_filings_8k",
+            params={
+                "provider": "fmp",
+                "from": "2025-01-01",
+                "to": "2025-01-31",
+                "page": 1,
+                "limit": 100,
+            },
+            json={},
+        )
+    assert accepted.status_code == 200
 
 
 def test_missing_corporate_records_remain_empty():
