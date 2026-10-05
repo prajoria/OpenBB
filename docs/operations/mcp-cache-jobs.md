@@ -1,7 +1,9 @@
 # MCP cache-job operator runbook
 
-This runbook covers the operator boundary introduced in T29-T30 and remains
-the safety baseline for later MCP work through T38.
+This runbook covers the operator boundary introduced in T29-T30. Use the
+[Portfolio MCP operator runbook](./portfolio-mcp.md) for profile setup,
+authentication, controlled restart, exact-PID rollback, and general
+troubleshooting.
 
 ## Preconditions
 
@@ -43,6 +45,11 @@ as bounded warnings on the durable job result.
 - No API keys, database names, credentials, or dry-run overrides in persisted
   job parameters.
 
-Any expansion through T38 requires a new exact policy/catalog entry, typed
+Any expansion after this baseline requires a new exact policy/catalog entry, typed
 parameters, original service authentication, durable-run evidence, and
 separate review of mutation and cancellation semantics.
+
+If `cache_health` reports `unavailable` or `permission_denied`, repair
+least-privilege database connectivity before enqueueing work. Do not use raw
+SQL, reveal connection details, or reinterpret an unavailable database as an
+empty cache.

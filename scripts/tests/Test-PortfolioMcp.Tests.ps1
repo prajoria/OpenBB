@@ -62,6 +62,42 @@ Describe "Portfolio MCP session lifecycle" {
         $script:sessionDeleted | Should Be $true
     }
 
+    It "activates the cache category before Portfolio discovery" {
+        $script:activatedCategories = @()
+        Mock Get-StructuredResult {
+            @(
+                [pscustomobject]@{ name = "equity"; total_tools = 1 },
+                [pscustomobject]@{ name = "portfolio_intel"; total_tools = 1 },
+                [pscustomobject]@{ name = "techtrade"; total_tools = 1 },
+                [pscustomobject]@{ name = "backtest"; total_tools = 1 },
+                [pscustomobject]@{ name = "regime"; total_tools = 1 },
+                [pscustomobject]@{ name = "cache"; total_tools = 2 }
+            )
+        }
+        Mock Invoke-McpRequest {
+            if ($Message.params.name -eq "activate_category") {
+                $script:activatedCategories +=
+                    $Message.params.arguments.category
+            }
+            [pscustomobject]@{ result = [pscustomobject]@{} }
+        }
+        Mock Get-McpPages {
+            if ($ResultProperty -eq "tools") {
+                if ($script:activatedCategories -notcontains "cache") {
+                    throw "tools/list ran before cache activation"
+                }
+                return @()
+            }
+            return @()
+        }
+
+        Test-PortfolioMcp -RuntimeProfile "portfolio-read" `
+            -RequestUri "http://127.0.0.1:8001/mcp" `
+            -AuthHeader "Basic synthetic" -RequestTimeout 5 | Out-Null
+
+        ($script:activatedCategories -contains "cache") | Should Be $true
+    }
+
     It "redacts and closes the session after a failed probe" {
         Mock Assert-McpCapabilityContract {
             throw "token secret-value"
@@ -110,12 +146,28 @@ Describe "Portfolio MCP session lifecycle" {
     }
 }
 Describe "Portfolio MCP readiness contract" {
+    BeforeEach {
+        $script:PreviousMaintenanceSetting =
+            $env:OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS
+        Remove-Item Env:OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS `
+            -ErrorAction SilentlyContinue
+    }
+    AfterEach {
+        if ($null -eq $script:PreviousMaintenanceSetting) {
+            Remove-Item Env:OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS `
+                -ErrorAction SilentlyContinue
+        } else {
+            $env:OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS =
+                $script:PreviousMaintenanceSetting
+        }
+    }
     $contractCategories = @(
         [pscustomobject]@{ name = "equity" },
         [pscustomobject]@{ name = "portfolio_intel"; total_tools = 5 },
         [pscustomobject]@{ name = "techtrade"; total_tools = 8 },
         [pscustomobject]@{ name = "backtest"; total_tools = 9 },
-        [pscustomobject]@{ name = "regime"; total_tools = 1 }
+        [pscustomobject]@{ name = "regime"; total_tools = 1 },
+        [pscustomobject]@{ name = "cache"; total_tools = 2 }
     )
     $contractPrompts = @(
         [pscustomobject]@{ name = "system_prompt" },
@@ -128,7 +180,9 @@ Describe "Portfolio MCP readiness contract" {
         (New-Tool -Name "portfolio_intel_about"),
         (New-Tool -Name "techtrade_about"),
         (New-Tool -Name "backtest_about"),
-        (New-Tool -Name "regime_detect")
+        (New-Tool -Name "regime_detect"),
+        (New-Tool -Name "cache_health"),
+        (New-Tool -Name "cache_coverage")
     )
 
     It "accepts the standard provider and prompt contract" {
@@ -154,6 +208,48 @@ Describe "Portfolio MCP readiness contract" {
         )
         Assert-McpCapabilityContract -RuntimeProfile "portfolio-ops" `
             -Categories $contractCategories -Tools $opsTools -Prompts $contractPrompts
+    }
+
+    It "requires the guarded cache catalog when maintenance is enabled" {
+        $env:OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS = "true"
+        $opsTools = @($contractTools) + @(
+            (New-Tool -Name "equity_cached" -Providers @("fmp")),
+            (New-Tool -Name "backtest_bundle_ingest"),
+            (New-Tool -Name "techtrade_export"),
+            (New-Tool -Name "techtrade_tune"),
+            (New-Tool -Name "cache_jobs_definitions"),
+            (New-Tool -Name "cache_jobs_health"),
+            (New-Tool -Name "cache_jobs_run"),
+            (New-Tool -Name "cache_jobs_trigger_position_history"),
+            (New-Tool -Name "cache_jobs_trigger_etf_holdings")
+        )
+        Assert-McpCapabilityContract -RuntimeProfile "portfolio-ops" `
+            -Categories $contractCategories -Tools $opsTools `
+            -Prompts $contractPrompts
+
+        $missingRunStatus = @(
+            $opsTools | Where-Object name -ne "cache_jobs_run"
+        )
+        {
+            Assert-McpCapabilityContract -RuntimeProfile "portfolio-ops" `
+                -Categories $contractCategories -Tools $missingRunStatus `
+                -Prompts $contractPrompts
+        } | Should Throw "Missing required adapter 'cache_jobs_run'."
+    }
+
+    It "rejects cache maintenance tools without explicit opt-in" {
+        $unexpected = @($contractTools) + @(
+            (New-Tool -Name "equity_cached" -Providers @("fmp")),
+            (New-Tool -Name "backtest_bundle_ingest"),
+            (New-Tool -Name "techtrade_export"),
+            (New-Tool -Name "techtrade_tune"),
+            (New-Tool -Name "cache_jobs_run")
+        )
+        {
+            Assert-McpCapabilityContract -RuntimeProfile "portfolio-ops" `
+                -Categories $contractCategories -Tools $unexpected `
+                -Prompts $contractPrompts
+        } | Should Throw "Denied capability 'cache_jobs_run' is exposed."
     }
 
     It "rejects operator capabilities from the read profile" {
@@ -195,7 +291,9 @@ Describe "Portfolio MCP readiness contract" {
             (New-Tool -Name "portfolio_intel_about"),
             (New-Tool -Name "techtrade_about"),
             (New-Tool -Name "backtest_about"),
-            (New-Tool -Name "regime_detect")
+            (New-Tool -Name "regime_detect"),
+            (New-Tool -Name "cache_health"),
+            (New-Tool -Name "cache_coverage")
         )
         {
             Assert-McpCapabilityContract -RuntimeProfile "portfolio-read" `

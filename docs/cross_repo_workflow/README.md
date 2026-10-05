@@ -18,9 +18,17 @@ example, not live-availability evidence.
 
 ## Documents
 
+- [MCP capability coverage](./mcp-coverage-report.md) summarizes reviewed
+  denominators, owners, verification scopes, and exclusions without presenting
+  static configuration as live health.
 - [Capability decisions and accountability](./mcp-capability-decisions.md)
   records policy ownership, exclusions, drift handling, and FMP Cached
   persistence decisions.
+- [Portfolio MCP operator runbook](../operations/portfolio-mcp.md) covers clean
+  profile setup, provenance, bridge activation, metadata-only readiness,
+  maintenance, controlled restart, rollback, and troubleshooting.
+- [Cache-job operator runbook](../operations/mcp-cache-jobs.md) defines the
+  allowlisted maintenance and durable recovery boundary.
 - [MCP client examples](../../.mcp.json.example) provides credential-free
   connection templates for each owning surface and both Workspace deployment
   modes.

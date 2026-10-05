@@ -74,6 +74,7 @@ git submodule update --init third_party/workspace
 .\scripts\start-dual-mcp.ps1 -Profile portfolio-ops
 .\scripts\start-dual-mcp.ps1 -Action Status
 .\scripts\start-dual-mcp.ps1 -Action Stop
+Get-Help .\scripts\start-dual-mcp.ps1 -Detailed
 ```
 
 `platform-standard` remains the default compatibility profile. Portfolio
@@ -84,9 +85,12 @@ checkout. `OPENBB_PORTFOLIO_PYTHON` provides the same interpreter override for
 automation.
 The selected profile controls the application target, capability policy,
 installation, and dependency checks as one manifest-backed unit.
+Portfolio HTTP profiles require effective server authentication.
 `portfolio-ops` additionally refuses to start unless
 `OPENBB_MCP_SERVER_AUTH` is a JSON `[username,password]` array whose password
 is at least 32 characters; the launcher uses the same credential for readiness.
+Its five cache-maintenance tools remain unavailable unless
+`OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS=true`.
 
 The launcher uses `uv` for Workspace and the standard isolated Platform
 profile, serves Platform MCP at `http://127.0.0.1:8001/mcp`, and starts the
@@ -102,6 +106,10 @@ profile when desired. Runtime state and logs are written under
 executable identity guard every stop/cleanup operation, so stale state and
 unrelated listeners are never terminated. For older layouts, the launcher also
 discovers a sibling `workspace` checkout, or you can provide `-WorkspaceRoot`.
+See the
+[Portfolio MCP operator runbook](./docs/operations/portfolio-mcp.md) for clean
+setup, metadata-only verification, browser-bridge activation, maintenance,
+controlled restart, rollback, troubleshooting, and Portfolio PR direction.
 
 ### Integrating Open Data Platform to the OpenBB Workspace
 
