@@ -4,6 +4,7 @@
 # pylint: disable=unused-argument
 
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import Depends, HTTPException, Request
 from openbb_core.app.model.command_context import CommandContext
@@ -270,6 +271,3 @@ async def financial_reports_json(
     extra_params: ExtraParams,
 ) -> OBBject:
     return await _dispatch(**locals())
-
-
-from typing import Any
