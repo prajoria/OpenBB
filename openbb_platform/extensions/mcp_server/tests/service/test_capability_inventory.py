@@ -728,7 +728,6 @@ def test_default_inventory_accounts_for_every_fmp_cached_registration(
     )
     assert {
         "profile-category:financialtoolkit:no_matching_routes",
-        "profile-category:portfolio:no_matching_routes",
     } <= set(document["unavailable_components"])
     assert set(document["denominators"]["missing_core_entry_points"]) >= {
         "financialtoolkit",
@@ -740,11 +739,9 @@ def test_default_inventory_accounts_for_every_fmp_cached_registration(
     )
     assert tuple(document["scope_limitations"]) == (
         "access-class:provisional-method-derived-2154",
-        "agents-composed-routes:not-enumerated",
-        "dev-mode-and-jobs-routes:forced-disabled",
+        "dev-mode-routes:forced-disabled",
         "fastmcp-admin-tools:not-enumerated",
         "owner-lane:provisional-placeholder-2154",
-        "portfolio-launch-composed-routes:not-enumerated",
         "provider-fetchers:fmp_cached-only",
         "skills-derived-prompts:not-enumerated",
     )

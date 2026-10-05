@@ -44,12 +44,16 @@ _bootstrap_source_paths()
 # Source bootstrap must run before importing the checkout-local package.
 # pylint: disable=wrong-import-position
 from openbb_mcp_server.service.capability_inventory import (  # noqa: E402
+    InventoryDocument,
     build_inventory,
     validate_inventory_evidence,
     write_inventory,
 )
 from openbb_mcp_server.service.capability_provenance import (  # noqa: E402
     collect_lineage_metadata,
+)
+from openbb_mcp_server.service.coverage_diff import (  # noqa: E402
+    compare_repository_coverage,
 )
 
 
@@ -87,7 +91,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="fail unless lineage comparison state is available",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--comparison-inventory",
+        type=Path,
+        help="base inventory.json to compare with the generated head inventory",
+    )
+    parser.add_argument(
+        "--comparison-repository",
+        type=Path,
+        help="base checkout owning the comparison inventory and policy assets",
+    )
+    parser.add_argument(
+        "--tests-verified",
+        action="store_true",
+        help="confirm the head MCP test suite passed before approving evidence",
+    )
+    args = parser.parse_args(argv)
+    if bool(args.comparison_inventory) != bool(args.comparison_repository):
+        parser.error(
+            "--comparison-inventory and --comparison-repository must be used together"
+        )
+    return args
 
 
 def validate_output_dir(output_dir: Path, repo_root: Path = REPO_ROOT) -> None:
@@ -120,6 +144,13 @@ def validate_output_dir(output_dir: Path, repo_root: Path = REPO_ROOT) -> None:
         )
 
 
+def _write_coverage_diff(path: Path, payload: str) -> None:
+    """Atomically write one UTF-8/LF sanitized drift artifact."""
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(payload.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
+    temporary.replace(path)
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     """Build and write one metadata-only inventory."""
     args = parse_args(argv)
@@ -142,7 +173,25 @@ def run(argv: Sequence[str] | None = None) -> int:
         raise RuntimeError(f"required lineage evidence is unavailable: {lineage.state}")
     document = document.model_copy(update={"lineage": lineage})
     validate_inventory_evidence(document)
-    paths = write_inventory(document, args.output_dir)
+    paths = list(write_inventory(document, args.output_dir))
+    coverage_diff = None
+    if args.comparison_inventory:
+        base_document = InventoryDocument.model_validate_json(
+            args.comparison_inventory.read_text(encoding="utf-8")
+        )
+        coverage_diff = compare_repository_coverage(
+            base_document,
+            document,
+            base_repository=args.comparison_repository.resolve(),
+            head_repository=REPO_ROOT,
+            head_tests_verified=args.tests_verified,
+        )
+        diff_path = args.output_dir / "coverage-diff.json"
+        _write_coverage_diff(
+            diff_path,
+            coverage_diff.model_dump_json(indent=2),
+        )
+        paths.append(diff_path)
     summary = {
         "metadata_only": True,
         "profile": document.profile.selected_name,
@@ -154,9 +203,12 @@ def run(argv: Sequence[str] | None = None) -> int:
         "unavailable_components": list(document.unavailable_components),
         "scope_limitations": list(document.scope_limitations),
         "outputs": [path.name for path in paths],
+        "coverage_diff": (
+            coverage_diff.model_dump(mode="json") if coverage_diff is not None else None
+        ),
     }
     print(json.dumps(summary, sort_keys=True))  # noqa: T201
-    return 0
+    return int(coverage_diff is not None and coverage_diff.blocking)
 
 
 def main() -> int:
