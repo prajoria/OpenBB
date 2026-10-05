@@ -71,7 +71,7 @@ async def test_every_fmp_cached_tool_is_admitted_by_reviewed_profiles(profile):
     mcp = create_mcp_server(
         settings,
         app,
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
     names = {tool.name for tool in await mcp.list_tools()}
     expected = {f"fmp_cached_{row['command']}" for row in _manifest()}
@@ -99,7 +99,7 @@ async def test_unreviewed_fmp_cached_tool_remains_denied():
     mcp = create_mcp_server(
         settings,
         app,
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
     names = {tool.name for tool in await mcp.list_tools()}
     assert "fmp_cached_future_route" not in names
@@ -119,7 +119,7 @@ async def test_every_provider_owned_tool_is_callable_through_mcp():
     mcp = create_mcp_server(
         settings,
         app,
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
     routes = {route.path.removeprefix("/"): route for route in router.api_router.routes}
     for row in _manifest():

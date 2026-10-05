@@ -300,7 +300,7 @@ def test_mcp_server_gates_composition_by_profile(monkeypatch, profile, expected_
     app_module.create_mcp_server(
         settings,
         app,
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
 
     assert calls == [app] * expected_calls
@@ -319,7 +319,7 @@ async def test_portfolio_profiles_admit_exactly_approved_direct_operations(profi
     mcp = app_module.create_mcp_server(
         settings,
         FastAPI(),
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
     names = {tool.name for tool in await mcp.list_tools()}
     expected = {

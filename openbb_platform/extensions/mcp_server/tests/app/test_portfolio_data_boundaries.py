@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from fastmcp.server.auth import AuthProvider
 from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
 from openbb_mcp_server.app.app import (
     _validate_portfolio_transport_security,
@@ -120,7 +121,7 @@ async def test_sanitized_portfolio_summary_invokes_through_mcp():
     mcp = create_mcp_server(
         settings,
         FastAPI(),
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
     with patch.object(
         portfolio_router,
@@ -180,10 +181,43 @@ def test_programmatic_portfolio_server_requires_effective_auth_by_default():
         create_mcp_server(settings, FastAPI())
 
 
-def test_programmatic_portfolio_server_accepts_custom_auth_provider():
-    """Supported AuthProvider instances are retained as effective authentication."""
+def test_programmatic_portfolio_server_accepts_token_auth_provider():
+    """The repository TokenAuthProvider is retained as effective authentication."""
     settings = MCPSettings(capability_profile="portfolio-read")
     auth_settings = MCPSettings(server_auth=("synthetic-user", "x" * 32))
     provider = get_auth_provider(auth_settings)
     mcp = create_mcp_server(settings, FastAPI(), auth=provider)
     assert mcp.auth is provider
+
+
+def test_programmatic_portfolio_server_treats_custom_provider_as_opaque():
+    """Custom AuthProvider implementation details are not misinterpreted."""
+
+    class CustomProvider(AuthProvider):
+        server_auth = object()
+
+        async def verify_token(self, token: str):
+            return None
+
+    settings = MCPSettings(capability_profile="portfolio-read")
+    provider = CustomProvider()
+    mcp = create_mcp_server(settings, FastAPI(), auth=provider)
+    assert mcp.auth is provider
+
+
+def test_programmatic_portfolio_server_uses_explicit_credentials():
+    """Credential tuples protect the server even when settings contain no auth."""
+    settings = MCPSettings(capability_profile="portfolio-read")
+    credentials = ("explicit-user", "y" * 32)
+    mcp = create_mcp_server(settings, FastAPI(), auth=credentials)
+    assert mcp.auth.server_auth == credentials
+
+
+def test_programmatic_portfolio_server_rejects_ineffective_known_provider():
+    """Known TokenAuthProvider instances cannot hide blank credentials."""
+    settings = MCPSettings(capability_profile="portfolio-read")
+    provider = get_auth_provider(
+        MCPSettings(server_auth=("   ", "\t")),
+    )
+    with pytest.raises(RuntimeError, match="requires effective authentication"):
+        create_mcp_server(settings, FastAPI(), auth=provider)

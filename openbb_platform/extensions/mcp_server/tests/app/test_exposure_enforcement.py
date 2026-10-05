@@ -152,7 +152,7 @@ async def test_install_skill_requires_filesystem_write_profile():
     ops = create_mcp_server(
         policy_settings(capability_profile="portfolio-ops"),
         FastAPI(),
-        allow_unauthenticated_local=True,
+        auth=("synthetic-user", "x" * 32),
     )
     ops_names = {tool.name for tool in await ops.list_tools()}
     assert "install_skill" not in ops_names

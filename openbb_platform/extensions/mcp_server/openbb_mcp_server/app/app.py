@@ -7,6 +7,7 @@ import copy
 import json
 import os
 import re
+import secrets
 import signal
 import sys
 from pathlib import Path
@@ -51,6 +52,7 @@ from openbb_mcp_server.adapters.portfolio import (
     PORTFOLIO_PROFILES,
     compose_portfolio_app,
 )
+from openbb_mcp_server.app.auth import TokenAuthProvider, get_auth_provider
 from openbb_mcp_server.models.category_index import CategoryIndex
 from openbb_mcp_server.models.mcp_config import (
     ArgumentDefinitionModel,
@@ -363,8 +365,6 @@ def create_mcp_server(
     fastapi_app: FastAPI,
     httpx_kwargs: dict | None = None,
     auth: Any | None = None,
-    *,
-    allow_unauthenticated_local: bool = False,
 ) -> FastMCP:
     """Create and configure the FastMCP server from a FastAPI app instance.
 
@@ -393,10 +393,10 @@ def create_mcp_server(
         and len(auth) == 2
         and all(isinstance(value, str) and value.strip() for value in auth)
     ):
-        # pylint: disable=import-outside-toplevel
-        from .auth import get_auth_provider
-
-        auth_provider = get_auth_provider(settings)
+        auth_settings = settings.model_copy(
+            update={"server_auth": tuple(auth)},
+        )
+        auth_provider = get_auth_provider(auth_settings)
 
     category_index = CategoryIndex()
     _enabled_tools: set[str] = set()
@@ -404,15 +404,21 @@ def create_mcp_server(
     _allowed_resource_uris: set[str] = set()
     _allowed_resource_templates: set[str] = set()
     capability_profile = getattr(settings, "capability_profile", None)
-    if (
-        capability_profile in PORTFOLIO_PROFILES
-        and auth_provider is None
-        and not allow_unauthenticated_local
-    ):
+    provider_is_effective = auth_provider is not None
+    if isinstance(auth_provider, TokenAuthProvider):
+        provider_credentials = auth_provider.server_auth
+        provider_is_effective = bool(
+            provider_credentials
+            and len(provider_credentials) == 2
+            and all(
+                isinstance(value, str) and value.strip()
+                for value in provider_credentials
+            )
+        )
+    if capability_profile in PORTFOLIO_PROFILES and not provider_is_effective:
         raise RuntimeError(
             "Programmatic Portfolio MCP creation requires effective authentication; "
-            "pass an AuthProvider or validated server credentials. "
-            "Local stdio callers may opt in explicitly."
+            "pass an AuthProvider or validated server credentials."
         )
     selected_policy = ExposurePolicy.load() if capability_profile else None
 
@@ -1061,12 +1067,21 @@ def main():
         httpx_kwargs = settings.get_httpx_kwargs()
 
         # Create MCP server with comprehensive configuration
+        effective_auth: Any = settings.server_auth
+        if (
+            settings.capability_profile in PORTFOLIO_PROFILES
+            and args.transport == "stdio"
+            and (
+                not effective_auth or not all(value.strip() for value in effective_auth)
+            )
+        ):
+            effective_auth = ("stdio-local", secrets.token_urlsafe(32))
+
         mcp_server = create_mcp_server(
             settings,
             target_app,
             httpx_kwargs,
-            auth=settings.server_auth,
-            allow_unauthenticated_local=args.transport == "stdio",
+            auth=effective_auth,
         )
 
         if args.transport == "stdio":
