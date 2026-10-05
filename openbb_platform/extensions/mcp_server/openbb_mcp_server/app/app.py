@@ -385,6 +385,16 @@ def _compose_profile_adapters(
                 "Portfolio cache observability requires openbb-fmp-cached"
             ) from exc
         source_app = compose_cache_observability_app(source_app)
+    if profile == "portfolio-ops" and settings.enable_maintenance_operations:
+        try:
+            from openbb_mcp_server.adapters.cache_jobs import (  # pylint: disable=import-outside-toplevel
+                compose_cache_jobs_app,
+            )
+        except ImportError as exc:
+            raise RuntimeError(
+                "Portfolio cache jobs require openbb-portfolio-utils"
+            ) from exc
+        source_app = compose_cache_jobs_app(source_app)
     if not settings.enable_intelligence_adapter:
         return source_app
     if profile not in PORTFOLIO_PROFILES or selected_policy is None:

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "faed6ef978be44b73c25e083d634c8878243b682e3c6e48b6f12d54a66700f2c"
+    "sha256": "1c0c4ecb53abf283412540b9ca6e3f70b52829e367efe36cb5a1a0eeaa478f6a"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -103,6 +103,21 @@
       ],
       "disposition": "direct",
       "access_class": "filesystem_write",
+      "admitted_profiles": ["portfolio-ops"]
+    },
+    {
+      "id": "operator-cache-jobs",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/cache/jobs/definitions",
+        "/api/v1/cache/jobs/health",
+        "/api/v1/cache/jobs/runs/{run_id}",
+        "/api/v1/cache/jobs/portfolio.position_history/trigger",
+        "/api/v1/cache/jobs/portfolio.etf_holdings/trigger"
+      ],
+      "disposition": "direct",
+      "access_class": "job_control",
       "admitted_profiles": ["portfolio-ops"]
     },
     {
@@ -409,6 +424,7 @@
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
       "operator-filesystem-writes": "jobs-and-cache-operations",
       "operator-job-control": "jobs-and-cache-operations",
+      "operator-cache-jobs": "jobs-and-cache-operations",
       "public-manifests": "intelligence-widgets",
       "coverage-metadata": "fmp-routing-waves",
       "public-health-and-about": "intelligence-widgets",

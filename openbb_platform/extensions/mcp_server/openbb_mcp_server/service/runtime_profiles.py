@@ -264,8 +264,6 @@ def resolve_runtime_profile(
     )
     if maintenance_requested and not profile.maintenance_enabled:
         conflict_items.append("maintenance_not_enabled_by_profile")
-    if profile.operator_access and profile.maintenance_enabled:
-        conflict_items.append("operator_profile_must_not_implicitly_enable_maintenance")
 
     missing_distributions = tuple(
         name

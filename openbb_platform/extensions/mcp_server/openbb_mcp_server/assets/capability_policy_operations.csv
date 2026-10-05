@@ -497,3 +497,8 @@ portfolio-venv-core-in-process,GET,/api/v1/financialtoolkit/technicals/support_r
 portfolio-venv-core-in-process,GET,/api/v1/financialtoolkit/about,activatable,financialtoolkit_about,False,
 portfolio-venv-core-in-process,GET,/api/v1/cache/health,activatable,cache_health,False,
 portfolio-venv-core-in-process,GET,/api/v1/cache/coverage,activatable,cache_coverage,False,
+portfolio-venv-core-in-process,GET,/api/v1/cache/jobs/definitions,activatable,cache_jobs_definitions,False,
+portfolio-venv-core-in-process,GET,/api/v1/cache/jobs/health,activatable,cache_jobs_health,False,
+portfolio-venv-core-in-process,GET,/api/v1/cache/jobs/runs/{run_id},activatable,cache_jobs_run,False,
+portfolio-venv-core-in-process,POST,/api/v1/cache/jobs/portfolio.position_history/trigger,activatable,cache_jobs_trigger_position_history,False,
+portfolio-venv-core-in-process,POST,/api/v1/cache/jobs/portfolio.etf_holdings/trigger,activatable,cache_jobs_trigger_etf_holdings,False,
