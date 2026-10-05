@@ -1,5 +1,8 @@
 """Discovery sub-router for FinancialToolkit extension."""
 
+# Public analytical commands intentionally expose the toolkit's parameter set.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+
 from typing import Annotated, Literal
 
 from fastapi import Header
