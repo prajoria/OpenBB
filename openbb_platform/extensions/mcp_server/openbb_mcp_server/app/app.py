@@ -1,6 +1,6 @@
 """OpenBB MCP Server."""
 
-# pylint: disable=C0302, R0912, W0212
+# pylint: disable=C0302, W0212
 
 import asyncio
 import copy
@@ -363,7 +363,65 @@ def _add_skills_default_prompt(mcp: FastMCP) -> None:
     logger.info("Added default system prompt with skill awareness nudge.")
 
 
-# pylint: disable=R0912,R0914,R0915
+def _compose_profile_adapters(
+    fastapi_app: FastAPI,
+    settings: MCPSettings,
+    selected_policy: ExposurePolicy | None,
+) -> FastAPI:
+    """Compose optional profile adapters without mutating the source app."""
+    profile = settings.capability_profile
+    source_app = (
+        compose_portfolio_app(fastapi_app, settings)
+        if profile in PORTFOLIO_PROFILES
+        else fastapi_app
+    )
+    if profile in PORTFOLIO_PROFILES:
+        try:
+            from openbb_mcp_server.adapters.cache_admin import (  # pylint: disable=import-outside-toplevel
+                compose_cache_observability_app,
+            )
+        except ImportError as exc:
+            raise RuntimeError(
+                "Portfolio cache observability requires openbb-fmp-cached"
+            ) from exc
+        source_app = compose_cache_observability_app(source_app)
+    if not settings.enable_intelligence_adapter:
+        return source_app
+    if profile not in PORTFOLIO_PROFILES or selected_policy is None:
+        raise RuntimeError(
+            "Portfolio Intelligence adapter requires a Portfolio capability profile"
+        )
+    try:
+        from openbb_portfolio_intel.widget_backend.main import (  # pylint: disable=import-outside-toplevel
+            app as intelligence_app,
+        )
+    except (ImportError, RuntimeError) as exc:
+        raise RuntimeError(
+            "Portfolio Intelligence adapter is enabled but unavailable"
+        ) from exc
+    auth_mode = (
+        os.getenv(
+            "PI_WIDGET_BACKEND_AUTH_MODE",
+            "required",
+        )
+        .strip()
+        .lower()
+    )
+    upstream_token = None
+    if auth_mode != "loopback-dev":
+        upstream_token = os.getenv("PI_WIDGET_BACKEND_TOKEN", "").strip()
+        if not upstream_token:
+            raise RuntimeError("Intelligence adapter requires PI_WIDGET_BACKEND_TOKEN")
+    return compose_portfolio_intel_app(
+        source_app,
+        intelligence_app,
+        settings,
+        selected_policy,
+        upstream_token,
+    )
+
+
+# pylint: disable=R0914,R0915
 def create_mcp_server(
     settings: MCPSettings,
     fastapi_app: FastAPI,
@@ -426,57 +484,11 @@ def create_mcp_server(
         )
     selected_policy = ExposurePolicy.load() if capability_profile else None
 
-    # Filter an isolated route composition; preserve the original REST app.
-    source_app = (
-        compose_portfolio_app(fastapi_app, settings)
-        if capability_profile in PORTFOLIO_PROFILES
-        else fastapi_app
+    source_app = _compose_profile_adapters(
+        fastapi_app,
+        settings,
+        selected_policy,
     )
-    if capability_profile in PORTFOLIO_PROFILES:
-        try:
-            from openbb_mcp_server.adapters.cache_admin import (  # pylint: disable=import-outside-toplevel
-                compose_cache_observability_app,
-            )
-        except ImportError as exc:
-            raise RuntimeError(
-                "Portfolio cache observability requires openbb-fmp-cached"
-            ) from exc
-        source_app = compose_cache_observability_app(source_app)
-    if settings.enable_intelligence_adapter:
-        if capability_profile not in PORTFOLIO_PROFILES:
-            raise RuntimeError(
-                "Portfolio Intelligence adapter requires a Portfolio capability profile"
-            )
-        try:
-            from openbb_portfolio_intel.widget_backend.main import (  # pylint: disable=import-outside-toplevel
-                app as intelligence_app,
-            )
-        except (ImportError, RuntimeError) as exc:
-            raise RuntimeError(
-                "Portfolio Intelligence adapter is enabled but unavailable"
-            ) from exc
-        auth_mode = (
-            os.getenv(
-                "PI_WIDGET_BACKEND_AUTH_MODE",
-                "required",
-            )
-            .strip()
-            .lower()
-        )
-        upstream_token = None
-        if auth_mode != "loopback-dev":
-            upstream_token = os.getenv("PI_WIDGET_BACKEND_TOKEN", "").strip()
-            if not upstream_token:
-                raise RuntimeError(
-                    "Intelligence adapter requires PI_WIDGET_BACKEND_TOKEN"
-                )
-        source_app = compose_portfolio_intel_app(
-            source_app,
-            intelligence_app,
-            settings,
-            selected_policy,
-            upstream_token,
-        )
     composed_app = copy.copy(source_app)
     composed_app.router = copy.copy(source_app.router)
     composed_app.router.routes = list(source_app.router.routes)
