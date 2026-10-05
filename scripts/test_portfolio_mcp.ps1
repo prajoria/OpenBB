@@ -131,6 +131,13 @@ function Get-StructuredResult {
 function Get-McpRequirements {
     param([string]$RuntimeProfile)
 
+    $cacheJobTools = @(
+        "cache_jobs_definitions",
+        "cache_jobs_health",
+        "cache_jobs_run",
+        "cache_jobs_trigger_position_history",
+        "cache_jobs_trigger_etf_holdings"
+    )
     $requirements = @{
         "platform-standard" = @{
             categories = @("equity")
@@ -149,32 +156,8 @@ function Get-McpRequirements {
                 "portfolio_intel",
                 "techtrade",
                 "backtest",
-                "regime"
-            )
-            prompts = @(
-                "portfolio_performance_review",
-                "fmp_cached_portfolio_refresh"
-            )
-            adapters = @(
-                "portfolio_intel_about",
-                "techtrade_about",
-                "backtest_about",
-                "regime_detect"
-            )
-            provider = "fmp"
-            denied = @(
-                "backtest_bundle_ingest",
-                "techtrade_export",
-                "techtrade_tune"
-            )
-        }
-        "portfolio-ops" = @{
-            categories = @(
-                "equity",
-                "portfolio_intel",
-                "techtrade",
-                "backtest",
-                "regime"
+                "regime",
+                "cache"
             )
             prompts = @(
                 "portfolio_performance_review",
@@ -185,8 +168,38 @@ function Get-McpRequirements {
                 "techtrade_about",
                 "backtest_about",
                 "regime_detect",
+                "cache_health",
+                "cache_coverage"
+            )
+            provider = "fmp"
+            denied = @(
                 "backtest_bundle_ingest",
-                "techtrade_export"
+                "techtrade_export",
+                "techtrade_tune"
+            ) + $cacheJobTools
+        }
+        "portfolio-ops" = @{
+            categories = @(
+                "equity",
+                "portfolio_intel",
+                "techtrade",
+                "backtest",
+                "regime",
+                "cache"
+            )
+            prompts = @(
+                "portfolio_performance_review",
+                "fmp_cached_portfolio_refresh"
+            )
+            adapters = @(
+                "portfolio_intel_about",
+                "techtrade_about",
+                "backtest_about",
+                "regime_detect",
+                "cache_health",
+                "cache_coverage",
+                "backtest_bundle_ingest",
+                "techtrade_export",
                 "techtrade_tune"
             )
             provider = "fmp"
@@ -196,6 +209,14 @@ function Get-McpRequirements {
     $required = $requirements[$RuntimeProfile]
     if ($null -eq $required) {
         throw "Unknown readiness profile."
+    }
+    $maintenanceEnabled = (
+        $env:OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS -eq "true"
+    )
+    if ($RuntimeProfile -eq "portfolio-ops" -and $maintenanceEnabled) {
+        $required.adapters += $cacheJobTools
+    } else {
+        $required.denied += $cacheJobTools
     }
     return $required
 }

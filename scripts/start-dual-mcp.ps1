@@ -1,5 +1,3 @@
-#!/usr/bin/env pwsh
-#Requires -Version 7.0
 <#
 .SYNOPSIS
     Manage the OpenBB Platform and Workspace MCP servers as separate processes.
@@ -7,13 +5,47 @@
 .DESCRIPTION
     Starts the OpenBB Platform MCP on port 8001 and the Workspace browser-control
     MCP on port 8787. Runtime state and logs are stored outside the repository.
-    This launcher requires Windows.
+    This launcher requires Windows. Status and Stop act only on recorded process
+    identities (PID, start time, and executable); a reused PID is never stopped.
+
+.PARAMETER Action
+    Start, inspect, or stop the recorded dual MCP stack.
+
+.PARAMETER Profile
+    Select platform-standard, portfolio-read, or portfolio-ops runtime and
+    capability policy as one manifest-backed unit.
+
+.PARAMETER WorkspaceRoot
+    Workspace checkout containing backend-api\backend\workspace_mcp. Defaults
+    to third_party\workspace, then a sibling workspace checkout.
+
+.PARAMETER PortfolioPython
+    Python executable owned by the Portfolio checkout for portfolio profiles.
+
+.PARAMETER PortfolioRoot
+    Portfolio checkout that owns PortfolioPython and the runtime manifest.
+
+.PARAMETER PlatformPort
+    Loopback port for the Platform MCP streamable HTTP endpoint.
+
+.PARAMETER WorkspacePort
+    Loopback port for the optional standalone Workspace MCP sidecar.
+
+.PARAMETER StartupTimeoutSeconds
+    Maximum time for each owned listener and readiness check.
 
 .EXAMPLE
     .\scripts\start-dual-mcp.ps1
     .\scripts\start-dual-mcp.ps1 -Profile portfolio-read
     .\scripts\start-dual-mcp.ps1 -Action Status
     .\scripts\start-dual-mcp.ps1 -Action Stop
+
+.EXAMPLE
+    .\scripts\start-dual-mcp.ps1 -Action Stop
+    .\scripts\start-dual-mcp.ps1 -Profile portfolio-read
+
+    Perform a controlled source-change restart. Stop verifies exact recorded
+    process identities before terminating them.
 #>
 
 [CmdletBinding()]
@@ -40,6 +72,7 @@ param(
     [int]$StartupTimeoutSeconds = 120
 )
 
+#Requires -Version 7.0
 $ErrorActionPreference = "Stop"
 
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
