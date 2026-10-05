@@ -802,6 +802,9 @@ def test_every_audited_operation_has_accountable_traceability():
         == "implemented_product"
     )
     assert (
+        by_rule["workspace-intelligence"].implementation_state == "implemented_product"
+    )
+    assert (
         by_rule["deny-execution-actions"].implementation_state == "approved_exclusion"
     )
     assert all(

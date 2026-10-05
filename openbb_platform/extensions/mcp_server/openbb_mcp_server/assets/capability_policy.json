@@ -341,10 +341,16 @@
       },
       "intelligence-widgets": {
         "owner_issues": ["#2174 Review Intelligence and Trading Desk adapter"],
-        "rationale": "Live widgets and snapshots are implemented products whose MCP adapter remains reviewed separately.",
-        "source_evidence": ["openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/widgets_endpoints.py"],
+        "rationale": "All 69 Intelligence operations have reviewed metadata, Workspace-mediated, operator-only, or denied mutation dispositions without duplicating widget representations as direct tools.",
+        "source_evidence": [
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/main.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/_app.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/widgets_endpoints.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/widgets.json",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/apps.json"
+        ],
         "review_triggers": ["widget route added", "account scope changed", "snapshot contract changed"],
-        "implementation_state": "adapter_gap"
+        "implementation_state": "implemented_product"
       },
       "jobs-and-cache-operations": {
         "owner_issues": ["#2178 Cache observability", "#2180 Job-backed maintenance"],
