@@ -1,5 +1,7 @@
 """Deterministic metadata-only MCP capability inventory."""
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import csv
@@ -54,12 +56,7 @@ from ..utils.fastapi import (
 
 ProfileName = Literal["platform-standard", "portfolio-read", "portfolio-ops"]
 ProviderStatus = Literal["routed", "unrouted"]
-CollisionKind = Literal[
-    "operation",
-    "component_name",
-    "tool_name",
-    "prompt_name",
-]
+CollisionKind = Literal["operation", "component_name", "tool_name", "prompt_name"]
 
 _PROFILE_ALIASES: dict[ProfileName, str] = {
     "platform-standard": "full.json",
@@ -709,9 +706,7 @@ def validate_inventory_evidence(document: InventoryDocument) -> None:
         )
     ]
     if foreign_sources:
-        raise RuntimeError(
-            "Inventory contains entry points or sources outside the checkout"
-        )
+        raise RuntimeError("Inventory contains foreign entry points or sources")
     if not any(
         record.disposition == "direct" for record in document.capabilities.records
     ):
@@ -747,6 +742,7 @@ def load_default_sources(
 
         provider_interface = ProviderInterface()
         command_map = CommandMap()
+        command_models = dict(command_map.commands_model)
         model_providers = {}
         for model, choices in provider_interface.model_providers.items():
             annotation = getattr(choices, "__annotations__", {}).get("provider")
@@ -759,8 +755,20 @@ def load_default_sources(
             unavailable.append("provider:fmp_cached:package_missing")
         else:
             from openbb_fmp_cached import fmp_cached_provider
+            from openbb_fmp_cached.fmp_cached_router import router as fmp_cached_router
 
             provider_fetchers["fmp_cached"] = fmp_cached_provider.fetcher_dict
+            prefix = f"{settings.api_prefix}/fmp_cached"
+            if not any(route.path.startswith(prefix) for route in app.router.routes):
+                app.include_router(fmp_cached_router.api_router, prefix=prefix)
+            for route in app.router.routes:
+                if (
+                    isinstance(route, APIRoute)
+                    and route.openapi_extra
+                    and route.openapi_extra.get("model")
+                ):
+                    command = route.path.removeprefix(settings.api_prefix)
+                    command_models[command] = route.openapi_extra["model"]
 
     prompts_file = (
         Path(__file__).resolve().parents[1] / "assets" / "server_prompts.json"
@@ -816,7 +824,7 @@ def load_default_sources(
         app=app,
         settings=settings,
         profile=profile,
-        command_models=command_map.commands_model,
+        command_models=command_models,
         model_providers=model_providers,
         provider_credentials=provider_credentials,
         provider_fetchers=provider_fetchers,

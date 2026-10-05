@@ -78,6 +78,44 @@ async def etf_list(
     return await _dispatch(**locals())
 
 
+@_command("CikList", "FMP CIK List", "List SEC CIK references.")
+async def cik_list(
+    cc: CommandContext,
+    provider_choices: ProviderChoices,
+    standard_params: StandardParams,
+    extra_params: ExtraParams,
+) -> OBBject:
+    return await _dispatch(**locals())
+
+
+@_command(
+    "FinancialStatementSymbolList",
+    "FMP Financial Statement Symbols",
+    "List symbols with financial statements.",
+)
+async def financial_statement_symbol_list(
+    cc: CommandContext,
+    provider_choices: ProviderChoices,
+    standard_params: StandardParams,
+    extra_params: ExtraParams,
+) -> OBBject:
+    return await _dispatch(**locals())
+
+
+@_command(
+    "CommitmentOfTradersList",
+    "FMP COT Symbols",
+    "List Commitment of Traders symbols.",
+)
+async def commitment_of_traders_list(
+    cc: CommandContext,
+    provider_choices: ProviderChoices,
+    standard_params: StandardParams,
+    extra_params: ExtraParams,
+) -> OBBject:
+    return await _dispatch(**locals())
+
+
 @_command(
     "ActivelyTradingList",
     "FMP Actively Trading List",

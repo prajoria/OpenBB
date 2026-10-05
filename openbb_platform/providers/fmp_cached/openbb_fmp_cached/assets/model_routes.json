@@ -562,6 +562,15 @@
     },
     {
       "aliases": [], "arguments": ["name"], "canonical_route": "/fmp_cached/senate_profile", "command": "senate_profile", "model": "SenateProfile", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": [], "canonical_route": "/fmp_cached/cik_list", "command": "cik_list", "model": "CikList", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": [], "canonical_route": "/fmp_cached/financial_statement_symbol_list", "command": "financial_statement_symbol_list", "model": "FinancialStatementSymbolList", "providers": ["fmp", "fmp_cached"]
+    },
+    {
+      "aliases": [], "arguments": [], "canonical_route": "/fmp_cached/commitment_of_traders_list", "command": "commitment_of_traders_list", "model": "CommitmentOfTradersList", "providers": ["fmp", "fmp_cached"]
     }
   ]
 }
