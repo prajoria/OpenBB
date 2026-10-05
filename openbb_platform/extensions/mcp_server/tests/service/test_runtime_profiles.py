@@ -42,7 +42,9 @@ def test_all_three_profiles_have_explicit_install_app_and_policy():
     assert ops.policy_profile == "portfolio-ops"
     assert ops.operator_access is True
     assert read.operator_access is False
-    assert ops.maintenance_enabled is False
+    assert ops.maintenance_enabled is True
+    assert "openbb-portfolio-utils" in ops.required_distributions
+    assert "portfolio_utils" in ops.required_modules
 
 
 def test_profile_json_points_to_runtime_manifest():

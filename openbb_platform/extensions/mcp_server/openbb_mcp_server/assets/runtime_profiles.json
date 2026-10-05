@@ -127,7 +127,8 @@
         "openbb-portfolio-intel",
         "openbb-techtrade",
         "openbb-backtest",
-        "openbb-regime"
+        "openbb-regime",
+        "openbb-portfolio-utils"
       ],
       "required_modules": [
         "openbb",
@@ -139,7 +140,8 @@
         "openbb_portfolio_intel",
         "openbb_techtrade",
         "openbb_backtest",
-        "openbb_regime"
+        "openbb_regime",
+        "portfolio_utils"
       ],
       "required_versions": {},
       "distribution_sources": {
@@ -152,6 +154,7 @@
         "openbb-techtrade": "openbb_platform/extensions/techtrade",
         "openbb-backtest": "openbb_platform/extensions/backtest",
         "openbb-regime": "openbb_platform/extensions/regime",
+        "openbb-portfolio-utils": "openbb_platform/tools/portfolio_utils",
         "openbb-financialtoolkit": "openbb_platform/extensions/financialtoolkit"
       },
       "module_sources": {
@@ -164,7 +167,8 @@
         "openbb_portfolio_intel": "openbb_platform/extensions/portfolio_intel",
         "openbb_techtrade": "openbb_platform/extensions/techtrade",
         "openbb_backtest": "openbb_platform/extensions/backtest",
-        "openbb_regime": "openbb_platform/extensions/regime"
+        "openbb_regime": "openbb_platform/extensions/regime",
+        "portfolio_utils": "openbb_platform/tools/portfolio_utils"
       },
       "optional_module_sources": {
         "openbb-financialtoolkit": {
@@ -175,7 +179,7 @@
         "openbb-financialtoolkit"
       ],
       "operator_access": true,
-      "maintenance_enabled": false
+      "maintenance_enabled": true
     }
   }
 }
