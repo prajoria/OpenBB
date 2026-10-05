@@ -176,7 +176,7 @@ def test_portfolio_and_refresh_prompts_declare_effective_dependencies():
     refresh = PromptDependencies.model_validate(
         document["fmp_cached_portfolio_refresh"]["dependencies"]
     )
-    assert refresh.providers == ("fmp_cached", "fmp")
+    assert refresh.providers == ()
     global_market = PromptDependencies.model_validate(
         document["global_market_overview"]["dependencies"]
     )
@@ -187,3 +187,127 @@ def test_portfolio_and_refresh_prompts_declare_effective_dependencies():
         "commodity_price_spot",
         "economy_calendar",
     }
+
+
+def test_catalog_uses_supported_fundamental_tools():
+    """Corrected prompts reference exact emitted fundamental tool names."""
+    path = MCPSettings.get_default_assets_dir() / "server_prompts.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    prompts = {prompt["name"]: prompt for prompt in document}
+    corrected_prompts = {
+        "equity_deep_dive",
+        "equity_peer_comparison",
+        "factor_exposure_analysis",
+    }
+
+    for prompt in document:
+        assert "equity_fundamental_overview" not in prompt["content"]
+        assert (
+            "equity_fundamental_overview"
+            not in prompt["dependencies"]["required_tools"]
+        )
+
+    for name in corrected_prompts:
+        required_tools = prompts[name]["dependencies"]["required_tools"]
+        assert {"equity_fundamental_metrics", "equity_fundamental_ratios"} <= set(
+            required_tools
+        )
+        provider_argument = next(
+            argument
+            for argument in prompts[name]["arguments"]
+            if argument["name"] == "provider"
+        )
+        assert provider_argument["default"] == "fmp"
+        assert prompts[name]["dependencies"]["providers"] == ["fmp"]
+        content = prompts[name]["content"]
+        for tool in required_tools:
+            invocation = content.split(f"`{tool}`", maxsplit=1)[1]
+            invocation = invocation.split("`", maxsplit=1)[0]
+            assert "provider={provider}" in invocation
+
+
+def test_cache_refresh_prompt_is_inspection_only():
+    """Cache inspection cannot imply that prompt rendering runs maintenance."""
+    path = MCPSettings.get_default_assets_dir() / "server_prompts.json"
+    document = {
+        prompt["name"]: prompt
+        for prompt in json.loads(path.read_text(encoding="utf-8"))
+    }
+    prompt = document["fmp_cached_portfolio_refresh"]
+    content = prompt["content"].lower()
+
+    assert set(prompt["dependencies"]["required_tools"]) == {
+        "cache_health",
+        "cache_coverage",
+    }
+    assert prompt["dependencies"]["providers"] == []
+    for required_boundary in (
+        "inspection only",
+        "never invokes cached provider fetchers",
+        "cannot prove per-symbol freshness",
+        "do not claim that {symbol} is fresh or stale",
+        "read may initialize or refresh persisted cache data",
+        "authenticated portfolio-ops operator",
+        "maintenance operations explicitly enabled",
+        "separately enqueue",
+        "do not enqueue or execute maintenance",
+    ):
+        assert required_boundary in content
+    for forbidden_call in (
+        "limit=5",
+        "equity_price_historical",
+        "equity_fundamental_metrics",
+    ):
+        assert forbidden_call not in content
+
+
+def test_financialtoolkit_prompts_require_optional_package():
+    """Toolkit-specific prompts fail readiness when the package is absent."""
+    path = MCPSettings.get_default_assets_dir() / "server_prompts.json"
+    document = {
+        prompt["name"]: prompt
+        for prompt in json.loads(path.read_text(encoding="utf-8"))
+    }
+
+    for name in (
+        "financialtoolkit_performance_scorecard",
+        "financialtoolkit_valuation_screen",
+    ):
+        dependencies = document[name]["dependencies"]
+        assert dependencies["optional_packages"] == ["openbb-financialtoolkit"]
+        assert dependencies["required_tools"]
+        assert all(
+            tool.startswith("financialtoolkit_")
+            for tool in dependencies["required_tools"]
+        )
+
+    performance_content = document["financialtoolkit_performance_scorecard"]["content"]
+    assert "JSON string array named `symbol_list`" in performance_content
+    assert "symbols=symbol_list" in performance_content
+    assert "symbols={symbols}" not in performance_content
+
+    valuation_content = document["financialtoolkit_valuation_screen"]["content"]
+    assert "weighted_average_cost_of_capital=0.10" in valuation_content
+    assert "wacc=" not in valuation_content.lower()
+
+
+def test_instruction_assets_avoid_unsupported_provider_claims():
+    """User-facing MCP instructions avoid invalid names and provider promises."""
+    assets_dir = MCPSettings.get_default_assets_dir()
+    instruction_text = "\n".join(
+        (
+            (assets_dir / "server_prompts.json").read_text(encoding="utf-8"),
+            (assets_dir / "system_prompt.txt").read_text(encoding="utf-8"),
+            (assets_dir / "profiles" / "portfolio.json").read_text(encoding="utf-8"),
+        )
+    ).lower()
+
+    for unsupported_claim in (
+        "equity_fundamental_overview",
+        "limit=5",
+        "local-only",
+        "local only",
+        "no quota limits",
+        "unlimited quota",
+    ):
+        assert unsupported_claim not in instruction_text

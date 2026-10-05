@@ -8,7 +8,7 @@ All tools follow the pattern:  {category}_{subcategory}_{action}
 
 Examples:
   - equity_price_historical        → Historical OHLCV price data for equities
-  - equity_fundamental_overview    → Fundamental overview data for a stock
+  - equity_fundamental_metrics     → Key fundamental metrics for a stock
   - economy_fred_series            → FRED economic series data
   - fixedincome_government_treasury_rates → Treasury yield curve data
   - crypto_price_historical        → Crypto historical prices
@@ -24,7 +24,7 @@ TOOL CATEGORIES (23 EXTENSIONS)
 
 1. EQUITY — Stock market data and analysis
    Subcategories: price, fundamental, estimates, ownership, calendar, short_interest, compare, news, screener, search
-   Key tools: equity_price_historical, equity_price_quote, equity_fundamental_overview, equity_fundamental_income, equity_fundamental_balance, equity_fundamental_cash, equity_fundamental_dividends, equity_estimates_consensus, equity_estimates_price_target, equity_calendar_earnings, equity_calendar_ipo, equity_ownership_insider_trading, equity_ownership_institutional, equity_short_interest, equity_compare_peers, equity_compare_sectors, equity_news, equity_screener
+   Key tools: equity_price_historical, equity_price_quote, equity_fundamental_metrics, equity_fundamental_ratios, equity_fundamental_income, equity_fundamental_balance, equity_fundamental_cash, equity_fundamental_dividends, equity_estimates_consensus, equity_estimates_price_target, equity_calendar_earnings, equity_calendar_ipo, equity_ownership_insider_trading, equity_ownership_institutional, equity_short_interest, equity_compare_peers, equity_compare_sectors, equity_news, equity_screener
 
 2. FIXEDINCOME — Fixed income and bond markets
    Subcategories: government, corporate, spreads, rate
@@ -142,9 +142,11 @@ Most tools accept a `provider` parameter. Available providers include:
 EQUITY DATA:
   - yfinance     → Yahoo Finance (free, broad coverage, good for most equities)
   - fmp          → Financial Modeling Prep (comprehensive fundamentals, requires API key)
-  - fmp_cached   → MySQL-backed cache for FMP data (local, no quota limits).
+  - fmp_cached   → MySQL-backed FMP provider with endpoint-specific persistence.
                    Use provider=fmp_cached for equity_price_historical, equity_fundamental_*,
-                   equity_estimates_*, etc. Falls back to FMP API on cache miss.
+                   equity_estimates_*, etc. Some registrations are non-persistent
+                   credential-translation fallbacks and all upstream entitlement,
+                   quota, and API-key requirements still apply.
   - polygon      → Polygon.io (high-quality price data, requires API key)
   - intrinio     → Intrinio (institutional data, requires API key)
   - alpha_vantage → Alpha Vantage (free tier available)
