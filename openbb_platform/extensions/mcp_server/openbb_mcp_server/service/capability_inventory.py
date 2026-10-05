@@ -10,7 +10,7 @@ import json
 import re
 from collections import Counter, defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, get_args
 
@@ -54,12 +54,7 @@ from ..utils.fastapi import (
 
 ProfileName = Literal["platform-standard", "portfolio-read", "portfolio-ops"]
 ProviderStatus = Literal["routed", "unrouted"]
-CollisionKind = Literal[
-    "operation",
-    "component_name",
-    "tool_name",
-    "prompt_name",
-]
+CollisionKind = Literal["operation", "component_name", "tool_name", "prompt_name"]
 
 _PROFILE_ALIASES: dict[ProfileName, str] = {
     "platform-standard": "full.json",
@@ -157,9 +152,6 @@ class InventorySources:
     provider_fetchers: Mapping[str, Mapping[str, type]]
     static_prompts: tuple[dict[str, Any], ...]
     runtime: RuntimeMetadata
-    provider_model_routes: Mapping[str, Mapping[str, tuple[str, ...]]] = field(
-        default_factory=dict
-    )
     unavailable_components: tuple[str, ...] = ()
     scope_limitations: tuple[str, ...] = ()
 
@@ -535,14 +527,7 @@ def _provider_model_rows(
         for model, fetcher in sorted(fetchers.items()):
             module = str(getattr(fetcher, "__module__", "unknown"))
             class_name = str(getattr(fetcher, "__name__", "unknown"))
-            commands = tuple(
-                sorted(
-                    {
-                        *commands_by_model.get(model, ()),
-                        *sources.provider_model_routes.get(provider, {}).get(model, ()),
-                    }
-                )
-            )
+            commands = tuple(sorted(commands_by_model.get(model, ())))
             tool_names = tuple(
                 sorted(
                     {
@@ -719,9 +704,7 @@ def validate_inventory_evidence(document: InventoryDocument) -> None:
         )
     ]
     if foreign_sources:
-        raise RuntimeError(
-            "Inventory contains entry points or sources outside the checkout"
-        )
+        raise RuntimeError("Inventory contains foreign entry points or sources")
     if not any(
         record.disposition == "direct" for record in document.capabilities.records
     ):
@@ -747,7 +730,6 @@ def load_default_sources(
     profile = load_profile_metadata(profile_name)
 
     provider_fetchers: dict[str, Mapping[str, type]] = {}
-    provider_model_routes: dict[str, dict[str, tuple[str, ...]]] = {}
     unavailable: list[str] = []
     with metadata_import_guard(root, unavailable):
         # Keep optional/heavy registries outside synthetic metadata-only imports.
@@ -758,6 +740,7 @@ def load_default_sources(
 
         provider_interface = ProviderInterface()
         command_map = CommandMap()
+        command_models = dict(command_map.commands_model)
         model_providers = {}
         for model, choices in provider_interface.model_providers.items():
             annotation = getattr(choices, "__annotations__", {}).get("provider")
@@ -773,11 +756,11 @@ def load_default_sources(
             from openbb_fmp_cached.fmp_cached_router import router as fmp_cached_router
 
             provider_fetchers["fmp_cached"] = fmp_cached_provider.fetcher_dict
-            provider_model_routes["fmp_cached"] = {
-                route.openapi_extra["model"]: (f"/fmp_cached{route.path}",)
-                for route in fmp_cached_router.api_router.routes
-                if route.openapi_extra and route.openapi_extra.get("model")
-            }
+            for route in fmp_cached_router.api_router.routes:
+                if route.openapi_extra and route.openapi_extra.get("model"):
+                    command_models[f"/fmp_cached{route.path}"] = route.openapi_extra[
+                        "model"
+                    ]
 
     prompts_file = (
         Path(__file__).resolve().parents[1] / "assets" / "server_prompts.json"
@@ -833,11 +816,10 @@ def load_default_sources(
         app=app,
         settings=settings,
         profile=profile,
-        command_models=command_map.commands_model,
+        command_models=command_models,
         model_providers=model_providers,
         provider_credentials=provider_credentials,
         provider_fetchers=provider_fetchers,
-        provider_model_routes=provider_model_routes,
         static_prompts=static_prompts,
         runtime=runtime,
         unavailable_components=tuple(unavailable),

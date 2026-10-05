@@ -627,7 +627,7 @@ def test_truncated_or_foreign_inventory_cannot_be_parity_evidence(
             )
         }
     )
-    with pytest.raises(RuntimeError, match="outside the checkout"):
+    with pytest.raises(RuntimeError, match="foreign entry points"):
         validate_inventory_evidence(foreign)
     non_route_extension = document.model_copy(
         update={
