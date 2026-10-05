@@ -498,13 +498,6 @@ def create_mcp_server(
         # Map back to FastAPI route to read openapi_extra
         fa_route = route_lookup.get((route.path, route.method.upper()))
         mcp_cfg = _get_mcp_config_from_route(fa_route)
-        if isinstance(component, OpenAPITool) and mcp_cfg.get("exclude_args"):
-            properties = component.parameters.get("properties", {})
-            required = component.parameters.get("required", [])
-            for argument in mcp_cfg["exclude_args"]:
-                properties.pop(argument, None)
-                if argument in required:
-                    required.remove(argument)
 
         if (exc := is_valid_mcp_config(mcp_cfg)) and isinstance(exc, Exception):
             logger.error(
@@ -515,6 +508,13 @@ def create_mcp_server(
                 exc,
             )
             mcp_cfg = {}
+        if isinstance(component, OpenAPITool) and mcp_cfg.get("exclude_args"):
+            properties = component.parameters.get("properties", {})
+            required = component.parameters.get("required", [])
+            for argument in mcp_cfg["exclude_args"]:
+                properties.pop(argument, None)
+                if argument in required:
+                    required.remove(argument)
 
         identity = get_mcp_route_identity(
             route.path,

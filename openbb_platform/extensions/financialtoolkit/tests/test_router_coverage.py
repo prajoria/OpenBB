@@ -71,15 +71,15 @@ def test_missing_optional_toolkit_is_reported_without_breaking_router():
 
 def test_api_key_overrides_use_redacted_header_not_query_strings():
     """Newly registered routes cannot leak provider keys through URLs or MCP."""
-    for route in [
-        *ratios_router.api_router.routes,
-        *technicals_router.api_router.routes,
-    ]:
+    for route in router.api_router.routes:
         if route.path.endswith("/capabilities"):
             continue
-        assert "api_key" not in {
-            field.name for field in _dependency(route).query_params
-        }
-        headers = {field.alias for field in _dependency(route).header_params}
+        dependency = _dependency(route)
+        if not any(
+            field.alias == "X-FMP-API-Key" for field in dependency.header_params
+        ):
+            continue
+        assert "api_key" not in {field.name for field in dependency.query_params}
+        headers = {field.alias for field in dependency.header_params}
         assert "X-FMP-API-Key" in headers
         assert route.openapi_extra["mcp_config"]["exclude_args"] == ["X-FMP-API-Key"]

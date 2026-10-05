@@ -1,5 +1,8 @@
 """Options sub-router for FinancialToolkit extension."""
 
+from typing import Annotated
+
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -13,7 +16,13 @@ from openbb_financialtoolkit.options.options_service import OptionsService
 
 router = Router(prefix="/options", description="FinancialToolkit options tools.")
 
-_MCP_OPT = {"mcp_config": {"tags": ["financialtoolkit", "options"], "describe_responses": False}}
+_MCP_OPT = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "options"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -45,7 +54,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 )
 def greeks(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,

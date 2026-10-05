@@ -1,7 +1,8 @@
 """Performance sub-router for FinancialToolkit extension."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -13,9 +14,17 @@ from openbb_financialtoolkit.common.validators import validate_symbols
 from openbb_financialtoolkit.performance.performance_models import DomainCapability
 from openbb_financialtoolkit.performance.performance_service import PerformanceService
 
-router = Router(prefix="/performance", description="FinancialToolkit performance tools.")
+router = Router(
+    prefix="/performance", description="FinancialToolkit performance tools."
+)
 
-_MCP_PERF = {"mcp_config": {"tags": ["financialtoolkit", "performance"], "describe_responses": False}}
+_MCP_PERF = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "performance"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -40,14 +49,16 @@ def capabilities() -> OBBject[list[DomainCapability]]:
     examples=[
         PythonEx(
             description="Calculate Sharpe ratio using FinanceToolkit wrapper.",
-            code=["obb.financialtoolkit.performance.sharpe_ratio(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.sharpe_ratio(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def sharpe_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -79,14 +90,16 @@ def sharpe_ratio(
     examples=[
         PythonEx(
             description="Calculate Sortino ratio using FinanceToolkit wrapper.",
-            code=["obb.financialtoolkit.performance.sortino_ratio(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.sortino_ratio(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def sortino_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -116,14 +129,16 @@ def sortino_ratio(
     examples=[
         PythonEx(
             description="Calculate Information ratio using FinanceToolkit wrapper.",
-            code=["obb.financialtoolkit.performance.information_ratio(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.information_ratio(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def information_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -160,7 +175,7 @@ def information_ratio(
 )
 def alpha(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -197,7 +212,7 @@ def alpha(
 )
 def beta(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -234,7 +249,7 @@ def beta(
 )
 def capm(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -264,14 +279,16 @@ def capm(
     examples=[
         PythonEx(
             description="Calculate Jensen's Alpha.",
-            code=["obb.financialtoolkit.performance.jensens_alpha(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.jensens_alpha(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def jensens_alpha(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -301,14 +318,16 @@ def jensens_alpha(
     examples=[
         PythonEx(
             description="Calculate Treynor ratio.",
-            code=["obb.financialtoolkit.performance.treynor_ratio(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.treynor_ratio(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def treynor_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -345,7 +364,7 @@ def treynor_ratio(
 )
 def m2_ratio(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -375,14 +394,16 @@ def m2_ratio(
     examples=[
         PythonEx(
             description="Calculate tracking error.",
-            code=["obb.financialtoolkit.performance.tracking_error(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.tracking_error(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def tracking_error(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -412,14 +433,16 @@ def tracking_error(
     examples=[
         PythonEx(
             description="Calculate compound growth rate (CAGR).",
-            code=["obb.financialtoolkit.performance.compound_growth_rate(symbols=['AAPL'])"],
+            code=[
+                "obb.financialtoolkit.performance.compound_growth_rate(symbols=['AAPL'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL"]}),
     ],
 )
 def compound_growth_rate(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -449,14 +472,16 @@ def compound_growth_rate(
     examples=[
         PythonEx(
             description="Calculate Fama-French three-factor model.",
-            code=["obb.financialtoolkit.performance.fama_french(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.fama_french(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def fama_french(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,
@@ -486,14 +511,16 @@ def fama_french(
     examples=[
         PythonEx(
             description="Calculate factor correlations.",
-            code=["obb.financialtoolkit.performance.factor_correlations(symbols=['AAPL','MSFT'])"],
+            code=[
+                "obb.financialtoolkit.performance.factor_correlations(symbols=['AAPL','MSFT'])"
+            ],
         ),
         APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
     ],
 )
 def factor_correlations(
     symbols: list[str],
-    api_key: str = "",
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     start_date: str | None = None,
     end_date: str | None = None,
     quarterly: bool = False,

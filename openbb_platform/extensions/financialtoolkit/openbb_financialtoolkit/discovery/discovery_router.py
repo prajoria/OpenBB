@@ -1,7 +1,8 @@
 """Discovery sub-router for FinancialToolkit extension."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
+from fastapi import Header
 from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
@@ -13,7 +14,13 @@ from openbb_financialtoolkit.discovery.discovery_service import DiscoveryService
 
 router = Router(prefix="/discovery", description="FinancialToolkit discovery tools.")
 
-_MCP_DISC = {"mcp_config": {"tags": ["financialtoolkit", "discovery"], "describe_responses": False}}
+_MCP_DISC = {
+    "mcp_config": {
+        "tags": ["financialtoolkit", "discovery"],
+        "describe_responses": False,
+        "exclude_args": ["X-FMP-API-Key"],
+    }
+}
 
 
 @router.command(
@@ -39,14 +46,15 @@ def capabilities() -> OBBject[list[DomainCapability]]:
         PythonEx(
             description="Run FinanceToolkit stock screener wrapper.",
             code=[
-                "obb.financialtoolkit.discovery.screen(api_key='YOUR_FMP_KEY', market_cap_higher=1000000000, is_etf=False)"
+                "obb.financialtoolkit.discovery.screen("
+                "market_cap_higher=1000000000, is_etf=False)"
             ],
         ),
-        APIEx(parameters={"api_key": "YOUR_FMP_KEY", "market_cap_higher": 1000000000}),
+        APIEx(parameters={"market_cap_higher": 1000000000}),
     ],
 )
 def screen(
-    api_key: str,
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     market_cap_higher: int | None = None,
     market_cap_lower: int | None = None,
     price_higher: int | None = None,
@@ -84,15 +92,16 @@ def screen(
         PythonEx(
             description="Search instruments using FinanceToolkit discovery wrapper.",
             code=[
-                "obb.financialtoolkit.discovery.search(api_key='YOUR_FMP_KEY', query='META', search_method='name')"
+                "obb.financialtoolkit.discovery.search("
+                "query='META', search_method='name')"
             ],
         ),
-        APIEx(parameters={"api_key": "YOUR_FMP_KEY", "query": "META", "search_method": "name"}),
+        APIEx(parameters={"query": "META", "search_method": "name"}),
     ],
 )
 def search(
-    api_key: str,
     query: str,
+    api_key: Annotated[str, Header(alias="X-FMP-API-Key")] = "",
     search_method: Literal["symbol", "name", "cik", "cusip", "isin"] = "name",
 ) -> OBBject[list[Data]]:
     """Search instruments by symbol/name/cik/cusip/isin."""
