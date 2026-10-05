@@ -55,7 +55,9 @@ def compose_portfolio_app(source_app: FastAPI) -> FastAPI:
     """Return an isolated MCP composition of approved Portfolio routes."""
     # Imported only for Portfolio profiles so the standard MCP stays optional.
     try:
-        from openbb_portfolio.portfolio_router import router as portfolio_router
+        from openbb_portfolio.portfolio_router import (  # pylint: disable=import-outside-toplevel
+            router as portfolio_router,
+        )
     except ModuleNotFoundError as exc:
         raise RuntimeError(
             "Portfolio MCP profiles require the openbb_portfolio extension"
