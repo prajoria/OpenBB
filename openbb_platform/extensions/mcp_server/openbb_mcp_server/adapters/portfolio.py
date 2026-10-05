@@ -105,10 +105,20 @@ def compose_portfolio_app(
         for route in composed.router.routes
         if isinstance(route, Mount)
     ]
-    approved_routes = [
+    source_portfolio_routes = {
+        route.path: route
+        for route in source_app.router.routes
+        if isinstance(route, APIRoute)
+        and _is_portfolio_extension_route(route)
+        and route.path in APPROVED_PORTFOLIO_PATHS
+    }
+    bare_routes = [
         route
         for route in portfolio_router.routes
         if isinstance(route, APIRoute) and route.path in APPROVED_PORTFOLIO_PATHS
+    ]
+    approved_routes = [
+        source_portfolio_routes.get(route.path, route) for route in bare_routes
     ]
     if {route.path for route in approved_routes} != APPROVED_PORTFOLIO_PATHS:
         raise RuntimeError("approved Portfolio route set is incomplete")

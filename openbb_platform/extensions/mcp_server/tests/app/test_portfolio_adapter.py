@@ -1,7 +1,7 @@
 """Tests for the profile-gated Portfolio route composition seam."""
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
@@ -111,6 +111,30 @@ def test_composition_preserves_fastapi_route_contracts_and_namespaces_tools():
         assert route.openapi_extra is not original.openapi_extra
         assert route.openapi_extra["mcp_config"]["name"] == route.operation_id
         assert "name" not in original.openapi_extra["mcp_config"]
+
+
+def test_composition_preserves_app_inclusion_dependencies():
+    """Source-app authentication dependencies survive route filtering."""
+    calls = []
+
+    async def authenticate():
+        calls.append("authenticated")
+
+    app = FastAPI()
+    app.include_router(portfolio_router, dependencies=[Depends(authenticate)])
+    source = next(
+        route for route in _api_routes(app) if route.path == "/portfolio/positions"
+    )
+
+    composed = compose_portfolio_app(app)
+    copied = next(
+        route for route in _api_routes(composed) if route.path == "/portfolio/positions"
+    )
+
+    assert copied.dependant is source.dependant  # codespell:ignore dependant
+    response = TestClient(composed).get("/portfolio/positions")
+    assert response.status_code == 403
+    assert calls == ["authenticated"]
 
 
 def test_composition_rejects_path_method_collisions():
