@@ -64,6 +64,7 @@ jobs:
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/core" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/platform_api" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/mcp_server" \
+              -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/equity" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/portfolio" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/backtest" \
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/regime" \
