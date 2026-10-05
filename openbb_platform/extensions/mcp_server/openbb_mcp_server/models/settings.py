@@ -92,6 +92,11 @@ the exact same operations available to REST clients.""",
         description="Explicit operator opt-in; profiles never enable maintenance implicitly.",
         alias="OPENBB_MCP_ENABLE_MAINTENANCE_OPERATIONS",
     )
+    enable_intelligence_adapter: bool = Field(
+        default=False,
+        alias="OPENBB_MCP_ENABLE_INTELLIGENCE_ADAPTER",
+        description="Compose the reviewed Portfolio Intelligence widget backend.",
+    )
     installation_kind: Literal["isolated_uv", "portfolio_venv"] | None = Field(
         default=None,
         alias="OPENBB_MCP_INSTALLATION_KIND",

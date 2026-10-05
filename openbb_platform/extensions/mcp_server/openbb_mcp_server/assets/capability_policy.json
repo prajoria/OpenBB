@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "9201ab72195ac780ab2a232f91b10e4ec88cefec1b3a78305c0ab71f82336b41"
+    "sha256": "5cfa0f00fcd1742d30a554b1131d1ce0f302dbfa51c36784116388b58ec576df"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -44,6 +44,19 @@
     ]
   },
   "rules": [
+    {
+      "id": "deny-success-shaped-intelligence-stubs",
+      "priority": 100,
+      "scopes": ["live-intelligence-custom"],
+      "paths": [
+        "/pi/paper/ticket",
+        "/pi/backtest/oneclick"
+      ],
+      "disposition": "restricted",
+      "access_class": "private_portfolio_read",
+      "admitted_profiles": [],
+      "reason": "Handlers report committed or queued work without a durable paper-ledger or backtest operation."
+    },
     {
       "id": "deny-execution-actions",
       "priority": 100,
@@ -181,7 +194,7 @@
         "/tt/position",
         "/tt/execute/paper-status"
       ],
-      "disposition": "workspace_indirect",
+      "disposition": "direct",
       "access_class": "private_portfolio_read",
       "admitted_profiles": [
         "portfolio-read",
@@ -278,7 +291,7 @@
         "/tt/engine/status",
         "/tt/execute/bridge"
       ],
-      "disposition": "workspace_indirect",
+      "disposition": "direct",
       "access_class": "provider_read",
       "admitted_profiles": [
         "platform-standard",
@@ -341,7 +354,7 @@
       },
       "intelligence-widgets": {
         "owner_issues": ["#2174 Review Intelligence and Trading Desk adapter"],
-        "rationale": "All 69 Intelligence operations have reviewed metadata, Workspace-mediated, operator-only, or denied mutation dispositions without duplicating widget representations as direct tools.",
+        "rationale": "All 69 Intelligence operations have reviewed metadata, direct adapter, operator-only, or denied mutation dispositions with stable Intelligence tool identities.",
         "source_evidence": [
           "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/main.py",
           "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/_app.py",
@@ -390,6 +403,7 @@
     },
     "rule_owners": {
       "deny-execution-actions": "execution-controls",
+      "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
       "operator-filesystem-writes": "jobs-and-cache-operations",
       "operator-job-control": "jobs-and-cache-operations",

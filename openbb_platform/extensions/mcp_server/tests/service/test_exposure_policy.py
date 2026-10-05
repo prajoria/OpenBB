@@ -64,10 +64,9 @@ def test_all_317_audited_operations_classify_exactly_once(policy):
         decision.rule_id.startswith("deny-unreviewed") for decision in decisions
     )
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 230,
-        "workspace_indirect": 61,
+        "direct": 289,
         "metadata_only": 10,
-        "restricted": 16,
+        "restricted": 18,
     }
 
 
