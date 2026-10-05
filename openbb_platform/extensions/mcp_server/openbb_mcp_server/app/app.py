@@ -988,6 +988,26 @@ async def stdio_main(mcp_server):
     await loop.run_in_executor(None, mcp_server.run, "stdio")
 
 
+def _validate_portfolio_transport_security(
+    settings: MCPSettings,
+    transport: str,
+) -> None:
+    """Require client authentication when private profiles use a network transport."""
+    if (
+        settings.capability_profile in PORTFOLIO_PROFILES
+        and transport != "stdio"
+        and (
+            not settings.server_auth
+            or len(settings.server_auth) != 2
+            or not all(settings.server_auth)
+        )
+    ):
+        raise RuntimeError(
+            "Portfolio MCP network transport requires server authentication; "
+            "set OPENBB_MCP_SERVER_AUTH or use stdio."
+        )
+
+
 def main():
     """Start the OpenBB MCP server with enhanced FastAPI app import capabilities."""
     args = parse_args()
@@ -1012,6 +1032,7 @@ def main():
 
     # Load settings with proper priority order (CLI > env > config file > defaults)
     settings = mcp_service.load_with_overrides(**cli_overrides)
+    _validate_portfolio_transport_security(settings, args.transport)
 
     try:
         # Use imported app if provided, otherwise default OpenBB app

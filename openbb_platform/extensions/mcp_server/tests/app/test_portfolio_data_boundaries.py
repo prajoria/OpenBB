@@ -9,7 +9,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
-from openbb_mcp_server.app.app import create_mcp_server
+from openbb_mcp_server.app.app import (
+    _validate_portfolio_transport_security,
+    create_mcp_server,
+)
 from openbb_mcp_server.models.settings import MCPSettings
 from openbb_portfolio import portfolio_router
 
@@ -130,3 +133,30 @@ def test_espp_widget_does_not_request_private_deposit_account():
     path = Path(__file__).parents[3] / "portfolio" / "assets" / "widgets.json"
     document = json.loads(path.read_text(encoding="utf-8"))
     assert "purchase_deposit_to" not in json.dumps(document)
+
+
+@pytest.mark.parametrize("profile", ["portfolio-read", "portfolio-ops"])
+@pytest.mark.parametrize(
+    "server_auth",
+    [None, ("", "x" * 32), ("synthetic-user", "")],
+)
+def test_portfolio_network_transports_require_authentication(
+    profile,
+    server_auth,
+):
+    """Private profiles cannot bind an unauthenticated HTTP MCP service."""
+    settings = MCPSettings(capability_profile=profile, server_auth=server_auth)
+    with pytest.raises(RuntimeError, match="requires server authentication"):
+        _validate_portfolio_transport_security(settings, "streamable-http")
+
+
+@pytest.mark.parametrize("profile", ["portfolio-read", "portfolio-ops"])
+def test_portfolio_stdio_and_authenticated_network_transports_are_allowed(profile):
+    """Local stdio remains usable while network access requires credentials."""
+    local = MCPSettings(capability_profile=profile, server_auth=None)
+    authenticated = MCPSettings(
+        capability_profile=profile,
+        server_auth=("synthetic-user", "x" * 32),
+    )
+    _validate_portfolio_transport_security(local, "stdio")
+    _validate_portfolio_transport_security(authenticated, "streamable-http")
