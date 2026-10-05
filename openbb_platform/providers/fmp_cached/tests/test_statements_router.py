@@ -3,12 +3,17 @@
 # ruff: noqa: D103
 
 import json
+from dataclasses import make_dataclass
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from openbb_fmp.models.statements_extras import FMPFinancialScoresFetcher
 from openbb_fmp_cached import fmp_cached_provider
+from openbb_fmp_cached.routers import statements_router
 from openbb_fmp_cached.routers.statements_router import router
 from pydantic import ValidationError
 
@@ -149,6 +154,72 @@ def test_statement_routes_reject_unknown_arguments():
     )
     assert response.status_code == 422
     assert response.json()["detail"] == "Unknown query arguments: unbounded"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", MODELS)
+async def test_all_statement_commands_dispatch_synthetic_results(model):
+    """Every promoted handler reaches Query/OBBject dispatch."""
+    command = MODELS[model][0]
+    function = getattr(statements_router, command)
+    provider_choices = make_dataclass(
+        "ProviderChoices",
+        [("provider", str)],
+    )(provider="fmp_cached")
+    standard_params = make_dataclass("StandardParams", [])()
+    extra_params = make_dataclass("ExtraParams", [])()
+    response = statements_router.OBBject(results=[{"model": model}])
+    with (
+        patch.object(statements_router, "Query", return_value=object()) as query,
+        patch.object(
+            statements_router.OBBject,
+            "from_query",
+            new=AsyncMock(return_value=response),
+        ) as from_query,
+    ):
+        result = await function(
+            None,
+            provider_choices,
+            standard_params,
+            extra_params,
+        )
+    assert result.results == [{"model": model}]
+    query.assert_called_once()
+    from_query.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cached_entitlement_error_never_falls_back_to_fmp():
+    """A cached-provider 402 remains an explicit provider failure."""
+    fetcher = fmp_cached_provider.fetcher_dict["FinancialScores"]
+    query = fetcher.transform_query({"symbol": "AAPL"})
+    request = httpx.Request(
+        "GET",
+        "https://financialmodelingprep.com/stable/financial-scores",
+    )
+    response = httpx.Response(402, request=request)
+    error = httpx.HTTPStatusError(
+        "Payment Required",
+        request=request,
+        response=response,
+    )
+    with (
+        patch.object(
+            fetcher,
+            "_fetch",
+            new=AsyncMock(side_effect=error),
+        ),
+        patch.object(
+            FMPFinancialScoresFetcher,
+            "aextract_data",
+            new=AsyncMock(),
+        ) as fallback,pytest.raises(httpx.HTTPStatusError)
+    ):
+        await fetcher.aextract_data(
+            query,
+            {"fmp_cached_api_key": "redacted"},
+        )
+    fallback.assert_not_awaited()
 
 
 def test_existing_fundamental_models_are_not_replaced():
