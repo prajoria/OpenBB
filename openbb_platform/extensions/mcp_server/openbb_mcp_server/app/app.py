@@ -46,6 +46,10 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from openbb_mcp_server.adapters.portfolio import (
+    PORTFOLIO_PROFILES,
+    compose_portfolio_app,
+)
 from openbb_mcp_server.models.category_index import CategoryIndex
 from openbb_mcp_server.models.mcp_config import (
     ArgumentDefinitionModel,
@@ -395,9 +399,14 @@ def create_mcp_server(
     selected_policy = ExposurePolicy.load() if capability_profile else None
 
     # Filter an isolated route composition; preserve the original REST app.
-    composed_app = copy.copy(fastapi_app)
-    composed_app.router = copy.copy(fastapi_app.router)
-    composed_app.router.routes = list(fastapi_app.router.routes)
+    source_app = (
+        compose_portfolio_app(fastapi_app)
+        if capability_profile in PORTFOLIO_PROFILES
+        else fastapi_app
+    )
+    composed_app = copy.copy(source_app)
+    composed_app.router = copy.copy(source_app.router)
+    composed_app.router.routes = list(source_app.router.routes)
     processed_data = process_fastapi_routes_for_mcp(composed_app, settings)
 
     route_lookup = processed_data.route_lookup
