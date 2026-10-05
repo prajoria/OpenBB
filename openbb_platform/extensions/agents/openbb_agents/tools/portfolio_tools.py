@@ -38,19 +38,16 @@ def _default_fetch():
 
 def _default_profile(symbol: str) -> dict:
     """Return {symbol, sector} for ``symbol`` via the fmp_cached provider."""
-    try:
-        from openbb import obb  # lazy — heavy import
+    from openbb import obb  # lazy — heavy import
 
-        res = obb.equity.profile(symbol=symbol, provider="fmp_cached")
-        rows = res.results if hasattr(res, "results") else res
-        if rows:
-            row = rows[0]
-            sector = getattr(row, "sector", None)
-            if sector is None and isinstance(row, dict):
-                sector = row.get("sector")
-            return {"symbol": symbol, "sector": sector or "Unknown"}
-    except Exception:  # noqa: BLE001 — degrade gracefully to Unknown
-        pass
+    res = obb.equity.profile(symbol=symbol, provider="fmp_cached")
+    rows = res.results if hasattr(res, "results") else res
+    if rows:
+        row = rows[0]
+        sector = getattr(row, "sector", None)
+        if sector is None and isinstance(row, dict):
+            sector = row.get("sector")
+        return {"symbol": symbol, "sector": sector or "Unknown"}
     return {"symbol": symbol, "sector": "Unknown"}
 
 

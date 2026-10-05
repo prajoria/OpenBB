@@ -5,6 +5,8 @@ no DB). They verify that public tool functions are auto-discovered, that JSON
 schemas are derived from type hints, and that a discovered tool can be invoked.
 """
 
+# ruff: noqa: D101, D102, E731
+
 import sys
 from pathlib import Path
 
@@ -21,6 +23,21 @@ class TestToolDiscovery:
         # Portfolio tools layer is implemented; these must be registered.
         assert "get_positions" in names
         assert "get_sector_exposure" in names
+        assert names == {"get_positions", "get_sector_exposure"}
+
+    def test_absent_products_are_not_tool_aliases(self):
+        """Separately scoped products cannot appear as enabled aliases."""
+        from openbb_agents.mcp_server import collect_tools
+
+        names = {item["name"] for item in collect_tools()}
+        assert names.isdisjoint(
+            {
+                "stock_analysis",
+                "brokerage_import",
+                "cache_stewardship",
+                "espp_planning",
+            }
+        )
 
     def test_private_functions_excluded(self):
         from openbb_agents.mcp_server import collect_tools
@@ -74,6 +91,57 @@ class TestInvocation:
         result = tools["get_positions"]["fn"](_fetch=fake)
         assert isinstance(result, list)
         assert result[0]["symbol"] == "MSFT"
+
+    def test_missing_real_tool_dependency_returns_sanitized_error(self, monkeypatch):
+        """A missing data-layer dependency is explicit without leaking imports."""
+        import json
+
+        from openbb_agents.mcp_server import _call_tool_safe, collect_tools
+        from openbb_agents.tools import portfolio_tools
+
+        monkeypatch.setattr(
+            portfolio_tools,
+            "_default_fetch",
+            lambda: (_ for _ in ()).throw(ModuleNotFoundError("C:/private/data.py")),
+        )
+        descriptor = {item["name"]: item for item in collect_tools()}["get_positions"]
+        result_texts, is_error = _call_tool_safe(descriptor, arguments={})
+        assert is_error is True
+        assert json.loads(result_texts[0]) == {
+            "error": "tool_failed",
+            "tool": "get_positions",
+        }
+        assert "private" not in result_texts[0]
+
+    def test_missing_profile_dependency_is_not_unknown_sector_success(
+        self, monkeypatch
+    ):
+        """Provider failures reach the sanitized MCP error boundary."""
+        import json
+
+        import pandas as pd
+        from openbb_agents.mcp_server import _call_tool_safe, collect_tools
+        from openbb_agents.tools import portfolio_tools
+
+        def fail_profile(**_kwargs):
+            raise ModuleNotFoundError("C:/private/profile_provider.py")
+
+        monkeypatch.setattr(portfolio_tools, "_default_profile", fail_profile)
+        frame = pd.DataFrame(
+            [{"symbol": "SYNTH", "total_current_value": 10.0}]
+        )
+        descriptor = {
+            item["name"]: item for item in collect_tools()
+        }["get_sector_exposure"]
+        result_texts, is_error = _call_tool_safe(
+            descriptor,
+            arguments={"_fetch": lambda: frame},
+        )
+        assert is_error is True
+        assert json.loads(result_texts[0]) == {
+            "error": "tool_failed",
+            "tool": "get_sector_exposure",
+        }
 
 
 class TestExceptionSanitization:
