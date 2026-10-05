@@ -7,6 +7,7 @@ import copy
 import json
 import os
 import re
+import secrets
 import signal
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from fastapi.routing import APIRoute
 from fastmcp import FastMCP
 from fastmcp.prompts import PromptArgument
 from fastmcp.prompts.function_prompt import FunctionPrompt
+from fastmcp.server.auth import AuthProvider
 from fastmcp.server.context import Context
 from fastmcp.server.providers.openapi import (
     OpenAPIResource,
@@ -50,6 +52,7 @@ from openbb_mcp_server.adapters.portfolio import (
     PORTFOLIO_PROFILES,
     compose_portfolio_app,
 )
+from openbb_mcp_server.app.auth import TokenAuthProvider, get_auth_provider
 from openbb_mcp_server.models.category_index import CategoryIndex
 from openbb_mcp_server.models.mcp_config import (
     ArgumentDefinitionModel,
@@ -383,12 +386,17 @@ def create_mcp_server(
     FastMCP
         The configured FastMCP server instance.
     """
-    auth_provider = None
-    if auth and isinstance(auth, list | tuple) and len(auth) == 2 and all(auth):
-        # pylint: disable=import-outside-toplevel
-        from .auth import get_auth_provider
-
-        auth_provider = get_auth_provider(settings)
+    auth_provider = auth if isinstance(auth, AuthProvider) else None
+    if (
+        auth_provider is None
+        and isinstance(auth, list | tuple)
+        and len(auth) == 2
+        and all(isinstance(value, str) and value.strip() for value in auth)
+    ):
+        auth_settings = settings.model_copy(
+            update={"server_auth": tuple(auth)},
+        )
+        auth_provider = get_auth_provider(auth_settings)
 
     category_index = CategoryIndex()
     _enabled_tools: set[str] = set()
@@ -396,6 +404,22 @@ def create_mcp_server(
     _allowed_resource_uris: set[str] = set()
     _allowed_resource_templates: set[str] = set()
     capability_profile = getattr(settings, "capability_profile", None)
+    provider_is_effective = auth_provider is not None
+    if isinstance(auth_provider, TokenAuthProvider):
+        provider_credentials = auth_provider.server_auth
+        provider_is_effective = bool(
+            provider_credentials
+            and len(provider_credentials) == 2
+            and all(
+                isinstance(value, str) and value.strip()
+                for value in provider_credentials
+            )
+        )
+    if capability_profile in PORTFOLIO_PROFILES and not provider_is_effective:
+        raise RuntimeError(
+            "Programmatic Portfolio MCP creation requires effective authentication; "
+            "pass an AuthProvider or validated server credentials."
+        )
     selected_policy = ExposurePolicy.load() if capability_profile else None
 
     # Filter an isolated route composition; preserve the original REST app.
@@ -988,6 +1012,26 @@ async def stdio_main(mcp_server):
     await loop.run_in_executor(None, mcp_server.run, "stdio")
 
 
+def _validate_portfolio_transport_security(
+    settings: MCPSettings,
+    transport: str,
+) -> None:
+    """Require client authentication when private profiles use a network transport."""
+    if (
+        settings.capability_profile in PORTFOLIO_PROFILES
+        and transport != "stdio"
+        and (
+            not settings.server_auth
+            or len(settings.server_auth) != 2
+            or not all(value.strip() for value in settings.server_auth)
+        )
+    ):
+        raise RuntimeError(
+            "Portfolio MCP network transport requires server authentication; "
+            "set OPENBB_MCP_SERVER_AUTH or use stdio."
+        )
+
+
 def main():
     """Start the OpenBB MCP server with enhanced FastAPI app import capabilities."""
     args = parse_args()
@@ -1012,6 +1056,7 @@ def main():
 
     # Load settings with proper priority order (CLI > env > config file > defaults)
     settings = mcp_service.load_with_overrides(**cli_overrides)
+    _validate_portfolio_transport_security(settings, args.transport)
 
     try:
         # Use imported app if provided, otherwise default OpenBB app
@@ -1022,8 +1067,21 @@ def main():
         httpx_kwargs = settings.get_httpx_kwargs()
 
         # Create MCP server with comprehensive configuration
+        effective_auth: Any = settings.server_auth
+        if (
+            settings.capability_profile in PORTFOLIO_PROFILES
+            and args.transport == "stdio"
+            and (
+                not effective_auth or not all(value.strip() for value in effective_auth)
+            )
+        ):
+            effective_auth = ("stdio-local", secrets.token_urlsafe(32))
+
         mcp_server = create_mcp_server(
-            settings, target_app, httpx_kwargs, auth=settings.server_auth
+            settings,
+            target_app,
+            httpx_kwargs,
+            auth=effective_auth,
         )
 
         if args.transport == "stdio":

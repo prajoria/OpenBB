@@ -26,15 +26,20 @@ All business logic (grouping, aggregation, computed columns) belongs
 in the service layer using DataFrame operations.
 """
 
+# pylint: disable=unused-argument
+
 import logging
 import math
 from datetime import date, datetime, timedelta
-from typing import Optional
+from decimal import Decimal
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from openbb_portfolio.db import query  # only change from original: package-qualified import
+from openbb_portfolio.db import (
+    query,
+)  # only change from original: package-qualified import
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +47,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 #  DataFrame utilities
 # --------------------------------------------------------------------------- #
+
 
 def _to_df(rows: list[dict]) -> pd.DataFrame:
     """Convert query result rows to a pandas DataFrame."""
@@ -58,15 +64,15 @@ def df_to_records(df: pd.DataFrame) -> list[dict]:
         return []
     df = df.copy()
     df = df.where(df.notna(), None)
-    records = []
+    records: list[dict[str, Any]] = []
     for row in df.to_dict(orient="records"):
-        clean = {}
+        clean: dict[str, Any] = {}
         for k, v in row.items():
             if isinstance(v, np.integer):
                 clean[k] = int(v)
             elif isinstance(v, np.floating):
-                v = float(v)
-                clean[k] = None if math.isnan(v) else v
+                number = float(v)
+                clean[k] = None if math.isnan(number) else number
             elif isinstance(v, float) and math.isnan(v):
                 clean[k] = None
             elif isinstance(v, np.bool_):
@@ -81,9 +87,9 @@ def df_to_records(df: pd.DataFrame) -> list[dict]:
 
 def filter_df(
     df: pd.DataFrame,
-    account: Optional[str] = None,
-    owner: Optional[str] = None,
-    symbol: Optional[str] = None,
+    account: str | None = None,
+    owner: str | None = None,
+    symbol: str | None = None,
 ) -> pd.DataFrame:
     """Apply common filters to a positions DataFrame."""
     if df.empty:
@@ -101,7 +107,8 @@ def filter_df(
 #  Raw data fetchers (no aggregation — just SELECT + JOIN)
 # --------------------------------------------------------------------------- #
 
-def get_positions_df(snapshot_date: Optional[str] = None) -> pd.DataFrame:
+
+def get_positions_df(snapshot_date: str | None = None) -> pd.DataFrame:
     """
     Fetch all portfolio positions joined with owner info.
 
@@ -142,7 +149,7 @@ def get_all_snapshots_df() -> pd.DataFrame:
     return _to_df(query(sql))
 
 
-def get_portfolio_basket_df(snapshot_date: Optional[str] = None) -> pd.DataFrame:
+def get_portfolio_basket_df(snapshot_date: str | None = None) -> pd.DataFrame:
     """Fetch symbol-level sanitized portfolio basket rows."""
     sql = """
         SELECT
@@ -162,7 +169,9 @@ def get_portfolio_basket_df(snapshot_date: Optional[str] = None) -> pd.DataFrame
         sql += " WHERE DATE(snapshot_date) = %s"
         params.append(snapshot_date)
     else:
-        sql += " WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM portfolio_basket)"
+        sql += (
+            " WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM portfolio_basket)"
+        )
 
     sql += " ORDER BY portfolio_weight_pct DESC, symbol"
     return _to_df(query(sql, tuple(params)))
@@ -189,7 +198,7 @@ def get_espp_df() -> pd.DataFrame:
         SELECT purchase_date, offering_period_start, offering_period_end,
                fmv_offering_start, fmv_purchase_date, purchase_price,
                purchase_quantity, purchase_value, discount_pct, bargain_element,
-               qualified_disposition_date, purchase_deposit_to, symbol
+               qualified_disposition_date, symbol
         FROM ESPP_Plan
         ORDER BY purchase_date DESC
     """
@@ -198,8 +207,8 @@ def get_espp_df() -> pd.DataFrame:
 
 def get_equity_historical_df(
     symbol: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> pd.DataFrame:
     """Fetch historical equity prices from the local cache database only."""
     sql = """
@@ -234,7 +243,7 @@ def get_equity_historical_df(
 
 
 def get_latest_prices_df(
-    symbols: Optional[list[str]] = None,
+    symbols: list[str] | None = None,
     *,
     as_of_date=None,
     verbose: bool = False,
@@ -264,9 +273,7 @@ def get_latest_prices_df(
         Columns: ``symbol``, ``close``, ``price_date``.
     """
     if not symbols:
-        sym_rows = query(
-            "SELECT DISTINCT symbol FROM portfolio_basket ORDER BY symbol"
-        )
+        sym_rows = query("SELECT DISTINCT symbol FROM portfolio_basket ORDER BY symbol")
         symbols = [r["symbol"] for r in sym_rows]
         if not symbols:
             return pd.DataFrame(columns=["symbol", "close", "price_date"])
@@ -280,7 +287,9 @@ def get_latest_prices_df(
     elif isinstance(as_of_date, str):
         cutoff = date.fromisoformat(as_of_date)
     else:
-        raise ValueError("as_of_date must be None, date, datetime, or YYYY-MM-DD string")
+        raise ValueError(
+            "as_of_date must be None, date, datetime, or YYYY-MM-DD string"
+        )
 
     placeholders = ", ".join(["%s"] * len(symbols))
     sql = f"""
@@ -296,7 +305,7 @@ def get_latest_prices_df(
           ON eh.symbol = latest.symbol
          AND eh.date = latest.max_date
         ORDER BY eh.symbol
-    """
+    """  # noqa: S608
 
     params = tuple(symbols) + (cutoff,)
     try:
@@ -308,14 +317,11 @@ def get_latest_prices_df(
     return _to_df(rows)
 
 
-def _normalise_fmp_rows(rows: list) -> list[dict]:
+def _normalise_fmp_rows(rows: list[dict[str, Any]]) -> list[dict]:
     """Convert Decimal / date values returned by fmp_cached DictCursor."""
-    from datetime import date, datetime
-    from decimal import Decimal
-
-    result = []
-    for row in (rows or []):
-        d = {}
+    result: list[dict[str, Any]] = []
+    for row in rows or []:
+        d: dict[str, Any] = {}
         for col, val in row.items():
             if isinstance(val, Decimal):
                 d[col] = float(val)
@@ -339,6 +345,7 @@ def check_db() -> bool:
 # --------------------------------------------------------------------------- #
 #  Option-list helpers (for widget dropdowns)
 # --------------------------------------------------------------------------- #
+
 
 def get_distinct_symbols() -> list[dict]:
     """Distinct ticker symbols for widget dropdowns."""

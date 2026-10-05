@@ -1587,11 +1587,6 @@
             "headerName": "Qualified Disp. Date",
             "cellDataType": "date",
             "formatterFn": "none"
-          },
-          {
-            "field": "purchase_deposit_to",
-            "headerName": "Deposited To",
-            "cellDataType": "text"
           }
         ]
       }

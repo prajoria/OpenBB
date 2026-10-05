@@ -7,8 +7,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from openbb_mcp_server.models.capability import (
     CapabilityRecord,
     OperationKey,
@@ -16,6 +14,7 @@ from openbb_mcp_server.models.capability import (
 )
 from openbb_mcp_server.service.capability_inventory import ProviderModelMetadata
 from openbb_mcp_server.service.exposure_policy import ExposurePolicy
+from pydantic import ValidationError
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "capability_audit"
 
@@ -65,10 +64,10 @@ def test_all_317_audited_operations_classify_exactly_once(policy):
         decision.rule_id.startswith("deny-unreviewed") for decision in decisions
     )
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 215,
+        "direct": 230,
         "workspace_indirect": 61,
         "metadata_only": 10,
-        "restricted": 31,
+        "restricted": 16,
     }
 
 
@@ -152,8 +151,8 @@ def test_private_reads_require_portfolio_profile(policy):
     assert policy.evaluate_exposure(record, "portfolio-ops")
 
 
-def test_custom_portfolio_routes_remain_restricted_until_adapter(policy):
-    """Composed custom routes retain privilege class and reviewed restriction."""
+def test_raw_portfolio_routes_remain_permanently_restricted(policy):
+    """Raw private operations remain denied after adapter admission."""
     decision = policy.classify_operation(
         "live-portfolio-custom", "GET", "/portfolio/positions"
     )
