@@ -1,5 +1,8 @@
 """Concrete read-only handlers for the Daytrade MCP surface."""
 
+# OpenBB and journal dependencies stay lazy so core extension import is cheap.
+# pylint: disable=import-outside-toplevel
+
 from typing import Any
 
 

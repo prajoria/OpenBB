@@ -24,6 +24,9 @@ mutates state; nothing reaches ``PaperBroker``. AC-risk-8 depends on
 this.
 """
 
+# Concrete MCP handlers remain lazy to preserve the agent-extra import guard.
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 from collections.abc import Callable

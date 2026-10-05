@@ -25,6 +25,9 @@ Extra-gated: this module MUST NOT be imported at core load. See
 touches the ``mcp`` SDK is inside function bodies.
 """
 
+# Optional SDK and OpenBB imports are deliberately lazy for extra gating.
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 import inspect
