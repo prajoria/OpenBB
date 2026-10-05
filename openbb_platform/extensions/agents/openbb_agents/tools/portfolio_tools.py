@@ -21,7 +21,7 @@ profile lookup are used.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from openbb_agents._mcp_tool import mcp_tool
 
@@ -40,7 +40,10 @@ def _default_profile(symbol: str) -> dict:
     """Return {symbol, sector} for ``symbol`` via the fmp_cached provider."""
     from openbb import obb  # lazy — heavy import
 
-    res = obb.equity.profile(symbol=symbol, provider="fmp_cached")
+    equity = getattr(obb, "equity", None)
+    if equity is None:
+        raise RuntimeError("OpenBB equity extension is unavailable")
+    res = equity.profile(symbol=symbol, provider="fmp_cached")
     rows = res.results if hasattr(res, "results") else res
     if rows:
         row = rows[0]
@@ -120,5 +123,5 @@ def get_sector_exposure(
         }
         for sector, market_value in by_sector.items()
     ]
-    rows.sort(key=lambda r: r["weight_pct"], reverse=True)
+    rows.sort(key=lambda row: cast(float, row["weight_pct"]), reverse=True)
     return rows
