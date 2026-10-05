@@ -5,6 +5,8 @@ needed. The single integration test (marked) hits the real portfolio basket via
 fmp_cached / MySQL.
 """
 
+# ruff: noqa: D101, D102, PLW0108
+
 import sys
 from pathlib import Path
 
@@ -20,15 +22,33 @@ def _fake_basket():
 
     return pd.DataFrame(
         [
-            {"symbol": "MSFT", "total_quantity": 10, "total_cost_basis": 2000.0,
-             "total_current_value": 4000.0, "pct_return": 100.0,
-             "portfolio_weight_pct": 40.0},
-            {"symbol": "AAPL", "total_quantity": 20, "total_cost_basis": 3000.0,
-             "total_current_value": 3000.0, "pct_return": 0.0,
-             "portfolio_weight_pct": 30.0},
-            {"symbol": "JPM", "total_quantity": 5, "total_cost_basis": 1500.0,
-             "total_current_value": 3000.0, "pct_return": 100.0,
-             "portfolio_weight_pct": 30.0},
+            {
+                "symbol": "MSFT",
+                "total_quantity": 10,
+                "total_cost_basis": 2000.0,
+                "total_current_value": 4000.0,
+                "pct_return": 100.0,
+                "portfolio_weight_pct": 40.0,
+                "owner": "PRIVATE",
+                "account_name": "PRIVATE",
+                "avg_cost_basis": 200.0,
+            },
+            {
+                "symbol": "AAPL",
+                "total_quantity": 20,
+                "total_cost_basis": 3000.0,
+                "total_current_value": 3000.0,
+                "pct_return": 0.0,
+                "portfolio_weight_pct": 30.0,
+            },
+            {
+                "symbol": "JPM",
+                "total_quantity": 5,
+                "total_cost_basis": 1500.0,
+                "total_current_value": 3000.0,
+                "pct_return": 100.0,
+                "portfolio_weight_pct": 30.0,
+            },
         ]
     )
 
@@ -46,8 +66,14 @@ class TestGetPositions:
         assert isinstance(rows, list)
         assert len(rows) == 3
         first = rows[0]
-        for key in ("symbol", "shares", "cost_basis", "current_value",
-                    "unrealized_gain_pct", "weight_pct"):
+        for key in (
+            "symbol",
+            "shares",
+            "cost_basis",
+            "current_value",
+            "unrealized_gain_pct",
+            "weight_pct",
+        ):
             assert key in first, f"missing key: {key}"
 
     def test_values_mapped_from_basket_columns(self):
@@ -66,6 +92,30 @@ class TestGetPositions:
 
         rows = get_positions(_fetch=lambda: pd.DataFrame())
         assert rows == []
+
+    def test_raw_owner_account_and_lot_fields_are_omitted(self):
+        """Only the fixed sanitized projection crosses the tool boundary."""
+        from openbb_agents.tools.portfolio_tools import get_positions
+
+        row = get_positions(_fetch=_fake_basket)[0]
+        assert set(row) == {
+            "symbol",
+            "shares",
+            "cost_basis",
+            "current_value",
+            "unrealized_gain_pct",
+            "weight_pct",
+        }
+
+    def test_unavailable_basket_raises_instead_of_empty_success(self):
+        """Dependency failure remains distinct from an available empty basket."""
+        from openbb_agents.tools.portfolio_tools import get_positions
+
+        def fail():
+            raise RuntimeError("basket unavailable")
+
+        with pytest.raises(RuntimeError, match="basket unavailable"):
+            get_positions(_fetch=fail)
 
 
 class TestGetSectorExposure:
@@ -86,13 +136,26 @@ class TestGetSectorExposure:
         total = sum(r["weight_pct"] for r in rows)
         assert total == pytest.approx(100.0, abs=0.01)
 
+    def test_failed_profile_enrichment_propagates(self):
+        """Profile dependency failures do not become Unknown-sector success."""
+        from openbb_agents.tools.portfolio_tools import get_sector_exposure
+
+        def fail(_symbol: str):
+            raise RuntimeError("profile unavailable")
+
+        with pytest.raises(RuntimeError, match="profile unavailable"):
+            get_sector_exposure(_fetch=_fake_basket, _profile=fail)
+
 
 @pytest.mark.integration
 class TestPortfolioToolsIntegration:
     def test_get_positions_live_basket(self):
         from openbb_agents.tools.portfolio_tools import get_positions
 
-        rows = get_positions()
+        try:
+            rows = get_positions()
+        except ModuleNotFoundError:
+            pytest.skip("Portfolio data layer is not installed in this environment")
         assert isinstance(rows, list)
         if rows:  # DB may be empty in some envs; only assert shape when populated
             assert "symbol" in rows[0]
