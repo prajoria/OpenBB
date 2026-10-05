@@ -94,6 +94,8 @@ class SpecialistRule(BaseModel):
     access_class: AccessClass
     reason: str
     admitted_profiles: tuple[ProfileName, ...] = ()
+    verification_level: str = "policy_reviewed"
+    verification_evidence: tuple[str, ...] = ()
 
 
 class ProviderRule(SpecialistRule):
@@ -121,6 +123,17 @@ class WorkFamily(BaseModel):
     implementation_state: ImplementationState
 
 
+class ReviewedCapabilityGroup(BaseModel):
+    """Exact members and evidence for one unified catalog capability."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    members: tuple[str, ...] = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+    verification_level: str = Field(min_length=1)
+    verification_evidence: tuple[str, ...] = Field(min_length=1)
+
+
 class TraceabilityPolicy(BaseModel):
     """Mapping from decisions to accountable work families."""
 
@@ -129,6 +142,9 @@ class TraceabilityPolicy(BaseModel):
     work_families: dict[str, WorkFamily]
     rule_owners: dict[str, str]
     reviewed_specialists: dict[str, tuple[str, ...]]
+    reviewed_capability_members: dict[str, ReviewedCapabilityGroup] = Field(
+        default_factory=dict
+    )
 
     @model_validator(mode="after")
     def require_known_family_owners(self) -> TraceabilityPolicy:

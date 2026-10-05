@@ -1,5 +1,7 @@
 """Reviewed capability exposure policy tests."""
 
+# pylint: disable=redefined-outer-name
+
 import csv
 import json
 from collections import Counter
@@ -316,8 +318,8 @@ def test_only_exact_reviewed_metadata_ids_are_admitted(policy):
     assert not policy.evaluate_exposure(unknown, "platform-standard")
 
 
-def test_specialist_catalog_declarations_are_not_overstated(policy):
-    """Agents remain restricted and handler-less Daytrade stays unimplemented."""
+def test_specialist_catalog_matches_verified_separate_stdio_surfaces(policy):
+    """Reviewed specialist tools are direct but not Platform-profile admissions."""
     snapshot = json.loads(
         (FIXTURES / "mcp-catalog-snapshot.json").read_text(encoding="utf-8")
     )
@@ -331,9 +333,13 @@ def test_specialist_catalog_declarations_are_not_overstated(policy):
     ]
     assert len(agents) == 2
     assert len(daytrade) == 6
-    assert {decision.disposition for decision in agents} == {"restricted"}
-    assert {decision.disposition for decision in daytrade} == {"unimplemented"}
+    assert {decision.disposition for decision in [*agents, *daytrade]} == {"direct"}
+    assert all(not decision.admitted_profiles for decision in [*agents, *daytrade])
     assert all(decision.reason for decision in [*agents, *daytrade])
+    assert {
+        policy.document.specialists[surface].verification_level
+        for surface in ("agents", "daytrade")
+    } == {"real_stdio_tested"}
 
 
 def test_restricted_rule_without_reason_is_invalid(tmp_path):

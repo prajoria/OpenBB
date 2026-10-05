@@ -89,12 +89,15 @@ installation, and dependency checks as one manifest-backed unit.
 is at least 32 characters; the launcher uses the same credential for readiness.
 
 The launcher uses `uv` for Workspace and the standard isolated Platform
-profile, serves Platform MCP at
-`http://127.0.0.1:8001/mcp`, and serves Workspace MCP at
-`http://127.0.0.1:8787/mcp`. Copy `.mcp.json.example` to `.mcp.json` to
-register the default `openbb-platform-standard` endpoint and Workspace endpoint
-with compatible MCP clients. Rename the local client entry to match a selected
-Portfolio profile when desired. Runtime state and logs are written under
+profile, serves Platform MCP at `http://127.0.0.1:8001/mcp`, and starts the
+optional standalone Workspace MCP sidecar at
+`http://127.0.0.1:8787/mcp`. A Workspace backend process also mounts the
+integrated Workspace MCP endpoint at `http://127.0.0.1:8000/mcp`; clients
+should use one Workspace mode per session. Copy `.mcp.json.example` to
+`.mcp.json` for credential-free Platform, Workspace, Agents, and Daytrade
+connection templates. Configuration does not prove that a separate server is
+running. Rename the local Platform client entry to match a selected Portfolio
+profile when desired. Runtime state and logs are written under
 `%LOCALAPPDATA%\OpenBB\mcp-stack`, outside the repository. PID, start time, and
 executable identity guard every stop/cleanup operation, so stale state and
 unrelated listeners are never terminated. For older layouts, the launcher also

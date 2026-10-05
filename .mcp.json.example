@@ -4,7 +4,11 @@
       "type": "http",
       "url": "http://127.0.0.1:8001/mcp"
     },
-    "openbb-workspace": {
+    "openbb-workspace-integrated": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp"
+    },
+    "openbb-workspace-standalone-optional": {
       "type": "http",
       "url": "http://127.0.0.1:8787/mcp"
     },
@@ -15,6 +19,11 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}/openbb_platform/extensions/agents"
       }
+    },
+    "openbb-daytrade": {
+      "command": "openbb-daytrade",
+      "args": ["mcp-serve"],
+      "cwd": "${workspaceFolder}"
     }
   }
 }

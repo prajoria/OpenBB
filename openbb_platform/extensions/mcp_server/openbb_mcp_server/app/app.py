@@ -95,6 +95,334 @@ _VENDOR_SKILLS_PROVIDERS = {
     "opencode": OpenCodeSkillsProvider,
 }
 
+CAPABILITY_CATALOG_URI = "resource://openbb/capabilities/v1"
+
+
+def _tool_availability(
+    registered_tools: set[str] | None,
+    enabled_tools: set[str] | None,
+) -> dict[str, str]:
+    """Classify tool availability without treating configuration as evidence."""
+    if registered_tools is None:
+        return {"state": "not_evaluated", "basis": "no_runtime_inventory"}
+    if enabled_tools is None:
+        return {
+            "state": "not_evaluated",
+            "basis": "session_scoped_activation",
+        }
+    if enabled_tools:
+        return {"state": "available", "basis": "enabled_tool_inventory"}
+    if registered_tools:
+        return {"state": "disabled", "basis": "registered_not_enabled"}
+    return {"state": "absent", "basis": "no_registered_tools"}
+
+
+def _build_capability_catalog(
+    settings: MCPSettings,
+    *,
+    registered_tools: set[str] | None = None,
+    enabled_tools: set[str] | None = None,
+) -> dict[str, Any]:
+    """Describe cross-surface capabilities without probing separate sessions."""
+    policy = ExposurePolicy.load()
+    reviewed_members = policy.document.traceability.reviewed_capability_members
+    cache_observability_policy = reviewed_members["platform-cache-observability"]
+    cache_maintenance_policy = reviewed_members["platform-cache-maintenance"]
+    cache_observability_members = set(cache_observability_policy.members)
+    cache_maintenance_members = set(cache_maintenance_policy.members)
+    portfolio_enabled = settings.capability_profile in PORTFOLIO_PROFILES
+    portfolio_registered = (
+        None
+        if registered_tools is None
+        else {name for name in registered_tools if name.startswith("portfolio_")}
+    )
+    portfolio_active = (
+        None
+        if enabled_tools is None
+        else {name for name in enabled_tools if name.startswith("portfolio_")}
+    )
+    specialized_members = {
+        *(portfolio_registered or set()),
+        *cache_observability_members,
+        *cache_maintenance_members,
+    }
+    core_registered = (
+        None if registered_tools is None else registered_tools - specialized_members
+    )
+    core_active = None if enabled_tools is None else enabled_tools - specialized_members
+    cache_observability_registered = (
+        None
+        if registered_tools is None
+        else registered_tools & cache_observability_members
+    )
+    cache_observability_active = (
+        None if enabled_tools is None else enabled_tools & cache_observability_members
+    )
+    cache_maintenance_registered = (
+        None
+        if registered_tools is None
+        else registered_tools & cache_maintenance_members
+    )
+    cache_maintenance_active = (
+        None if enabled_tools is None else enabled_tools & cache_maintenance_members
+    )
+    agents_rule = policy.document.specialists["agents"]
+    daytrade_rule = policy.document.specialists["daytrade"]
+    separate_session = {
+        "state": "not_probed",
+        "basis": "separate_session",
+    }
+    configured_connection = {
+        "state": "not_probed",
+        "basis": "configured_example",
+    }
+    return {
+        "schema_version": "1.0",
+        "resource_uri": CAPABILITY_CATALOG_URI,
+        "availability_policy": (
+            "Only the current Platform MCP registration is runtime-observed. "
+            "Client configuration never proves another MCP session is live."
+        ),
+        "current_session": {
+            "surface": "platform",
+            "capability_profile": settings.capability_profile,
+            "runtime_profile": settings.runtime_profile,
+            "availability": {
+                "state": "available",
+                "basis": "capability_resource_read",
+            },
+        },
+        "capabilities": [
+            {
+                "id": "platform-openapi",
+                "owner_surface": "platform",
+                "connection_prerequisites": [
+                    "Start the Platform MCP server.",
+                    "Configure provider credentials and entitlements required by each tool.",
+                ],
+                "mapping": "direct",
+                "mapping_detail": "Reviewed FastAPI operations converted to MCP tools.",
+                "verification_level": "runtime_inventory",
+                "verification_scope": "platform-current-session-openapi",
+                "availability": _tool_availability(
+                    core_registered,
+                    core_active,
+                ),
+            },
+            {
+                "id": "platform-portfolio-adapters",
+                "owner_surface": "platform",
+                "connection_prerequisites": [
+                    "Select portfolio-read or portfolio-ops.",
+                    "Install the profile's checkout-local dependencies.",
+                    "Use authenticated transport for Portfolio network sessions.",
+                ],
+                "mapping": "indirect",
+                "mapping_detail": (
+                    "Reviewed adapters preserve source Portfolio and Intelligence handlers."
+                ),
+                "verification_level": "profile_admission",
+                "verification_scope": "platform-portfolio-adapters",
+                "availability": (
+                    _tool_availability(
+                        portfolio_registered,
+                        portfolio_active,
+                    )
+                    if portfolio_enabled
+                    else {
+                        "state": "disabled",
+                        "basis": "capability_profile",
+                    }
+                ),
+            },
+            {
+                "id": "platform-cache-observability",
+                "owner_surface": "platform",
+                "connection_prerequisites": [
+                    "Select portfolio-read or portfolio-ops.",
+                    "Install the FMP Cached provider.",
+                ],
+                "mapping": "indirect",
+                "mapping_detail": cache_observability_policy.rationale,
+                "verified_members": sorted(cache_observability_members),
+                "verification_level": (cache_observability_policy.verification_level),
+                "verification_evidence": list(
+                    cache_observability_policy.verification_evidence
+                ),
+                "verification_scope": "platform-cache-observability",
+                "availability": (
+                    _tool_availability(
+                        cache_observability_registered,
+                        cache_observability_active,
+                    )
+                    if portfolio_enabled
+                    else {
+                        "state": "disabled",
+                        "basis": "capability_profile",
+                    }
+                ),
+            },
+            {
+                "id": "platform-cache-maintenance",
+                "owner_surface": "platform",
+                "connection_prerequisites": [
+                    "Select portfolio-ops.",
+                    "Configure effective server authentication.",
+                    "Explicitly enable maintenance operations.",
+                    "Run the durable cache job worker separately.",
+                ],
+                "mapping": "indirect",
+                "mapping_detail": cache_maintenance_policy.rationale,
+                "verified_members": sorted(cache_maintenance_members),
+                "verification_level": cache_maintenance_policy.verification_level,
+                "verification_evidence": list(
+                    cache_maintenance_policy.verification_evidence
+                ),
+                "verification_scope": "platform-cache-maintenance",
+                "availability": (
+                    _tool_availability(
+                        cache_maintenance_registered,
+                        cache_maintenance_active,
+                    )
+                    if (
+                        settings.capability_profile == "portfolio-ops"
+                        and settings.enable_maintenance_operations
+                    )
+                    else {
+                        "state": "disabled",
+                        "basis": (
+                            "maintenance_opt_in"
+                            if settings.capability_profile == "portfolio-ops"
+                            else "capability_profile"
+                        ),
+                    }
+                ),
+            },
+            {
+                "id": "workspace-browser-control",
+                "owner_surface": "workspace",
+                "connection_prerequisites": [
+                    "Start the Workspace backend or optional MCP sidecar.",
+                    "Authenticate to Workspace when required.",
+                    "Connect a live browser bridge session.",
+                ],
+                "mapping": "direct",
+                "mapping_detail": (
+                    "Workspace MCP handlers control browser, dashboard, widget, and app state."
+                ),
+                "verification_level": "protocol_tested",
+                "verification_scope": "workspace-mcp-session",
+                "availability": separate_session,
+            },
+            {
+                "id": "agents-portfolio-qa",
+                "owner_surface": "agents",
+                "connection_prerequisites": [
+                    "Install the Agents extension and ADK dependency.",
+                    "Configure a reachable model endpoint.",
+                    "Start openbb_agents.mcp_server over stdio.",
+                ],
+                "mapping": agents_rule.disposition,
+                "mapping_detail": (
+                    "Two explicitly decorated Portfolio Q&A functions are MCP tools."
+                ),
+                "verified_members": list(
+                    policy.document.traceability.reviewed_specialists["agents"]
+                ),
+                "verification_level": agents_rule.verification_level,
+                "verification_evidence": list(agents_rule.verification_evidence),
+                "verification_scope": "agents-two-tool-stdio",
+                "availability": separate_session,
+            },
+            {
+                "id": "daytrade-read-tools",
+                "owner_surface": "daytrade",
+                "connection_prerequisites": [
+                    "Install openbb-fmp-trading with the agent extra.",
+                    "Configure required provider and local data access.",
+                    "Start openbb-daytrade mcp-serve over stdio.",
+                ],
+                "mapping": daytrade_rule.disposition,
+                "mapping_detail": (
+                    "Six concrete read-only dispatchers expose market and session analysis."
+                ),
+                "verified_members": list(
+                    policy.document.traceability.reviewed_specialists["daytrade"]
+                ),
+                "verification_level": daytrade_rule.verification_level,
+                "verification_evidence": list(daytrade_rule.verification_evidence),
+                "verification_scope": "daytrade-six-tool-stdio",
+                "availability": separate_session,
+            },
+        ],
+        "connections": [
+            {
+                "id": "platform-http",
+                "surface": "platform",
+                "transport": "streamable_http",
+                "endpoint": "http://127.0.0.1:8001/mcp",
+                "mode": "configured_example",
+                "availability": configured_connection,
+            },
+            {
+                "id": "workspace-integrated",
+                "surface": "workspace",
+                "transport": "streamable_http",
+                "endpoint": "http://127.0.0.1:8000/mcp",
+                "mode": "integrated",
+                "availability": separate_session,
+            },
+            {
+                "id": "workspace-standalone",
+                "surface": "workspace",
+                "transport": "streamable_http",
+                "endpoint": "http://127.0.0.1:8787/mcp",
+                "mode": "optional_standalone",
+                "availability": separate_session,
+            },
+            {
+                "id": "agents-stdio",
+                "surface": "agents",
+                "transport": "stdio",
+                "command": "python -m openbb_agents.mcp_server",
+                "mode": "separate_process",
+                "availability": separate_session,
+            },
+            {
+                "id": "daytrade-stdio",
+                "surface": "daytrade",
+                "transport": "stdio",
+                "command": "openbb-daytrade mcp-serve",
+                "mode": "separate_process",
+                "availability": separate_session,
+            },
+        ],
+    }
+
+
+def _setup_capability_catalog_resource(
+    mcp: FastMCP,
+    settings: MCPSettings,
+    *,
+    registered_tools: set[str],
+    enabled_tools: set[str] | None,
+) -> None:
+    """Register the deterministic unified capability catalog."""
+    content = json.dumps(
+        _build_capability_catalog(
+            settings,
+            registered_tools=registered_tools,
+            enabled_tools=enabled_tools,
+        ),
+        indent=2,
+        sort_keys=True,
+    )
+
+    @mcp.resource(CAPABILITY_CATALOG_URI, mime_type="application/json")
+    def capability_catalog_resource() -> str:
+        """Return cross-surface ownership, connection, and verification metadata."""
+        return content
+
 
 def _extract_brief_description(full_description: str) -> str:
     """Extract only the brief description before the detailed API documentation."""
@@ -529,7 +857,7 @@ def create_mcp_server(
     category_index = CategoryIndex()
     _enabled_tools: set[str] = set()
     _all_api_tools: set[str] = set()
-    _allowed_resource_uris: set[str] = set()
+    _allowed_resource_uris: set[str] = {CAPABILITY_CATALOG_URI}
     _allowed_resource_templates: set[str] = set()
     _available_providers: set[str] = set()
     capability_profile = getattr(settings, "capability_profile", None)
@@ -740,6 +1068,13 @@ def create_mcp_server(
         # per-route overrides or default_tool_categories.
         mcp.enable(names=_enabled_tools)
 
+    _setup_capability_catalog_resource(
+        mcp,
+        settings,
+        registered_tools=set(category_index.all_tool_names()),
+        enabled_tools=(None if settings.enable_tool_discovery else _enabled_tools),
+    )
+
     # Add system prompt if configured (or fall back to bundled asset)
     _setup_file_system_prompt(mcp, settings)
 
@@ -750,6 +1085,7 @@ def create_mcp_server(
         available_tools=set(category_index.all_tool_names()),
         available_providers=_available_providers,
         available_resources={
+            CAPABILITY_CATALOG_URI,
             *_allowed_resource_uris,
             *_allowed_resource_templates,
         },

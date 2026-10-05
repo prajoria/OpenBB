@@ -384,10 +384,16 @@
       },
       "jobs-and-cache-operations": {
         "owner_issues": ["#2178 Cache observability", "#2180 Job-backed maintenance"],
-        "rationale": "Durable jobs and cache operations require authenticated operator-only surfaces.",
-        "source_evidence": ["openbb_platform/core/openbb_core/api/router/jobs.py", "openbb_platform/tools/portfolio_utils/portfolio_utils/jobs.py"],
+        "rationale": "Two sanitized observability tools are available to Portfolio profiles; five durable enqueue/status tools additionally require authenticated portfolio-ops and explicit maintenance opt-in.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/adapters/cache_admin.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/adapters/cache_jobs.py",
+          "openbb_platform/extensions/mcp_server/tests/app/test_cache_observability.py",
+          "openbb_platform/extensions/mcp_server/tests/app/test_cache_job_adapter.py",
+          "docs/operations/mcp-cache-jobs.md"
+        ],
         "review_triggers": ["job kind added", "cache mutation added", "authorization changed"],
-        "implementation_state": "adapter_gap"
+        "implementation_state": "implemented_product"
       },
       "execution-controls": {
         "owner_issues": ["#2175 Trading Desk adapter", "#2239 Reviewed exposure policy"],
@@ -398,17 +404,25 @@
       },
       "agents-specialist": {
         "owner_issues": ["#2183 Agents MCP catalog", "#2184 Agents protocol verification"],
-        "rationale": "Implemented agent functions require accurate registration and protocol evidence.",
-        "source_evidence": ["openbb_platform/extensions/agents/openbb_agents/mcp_server.py"],
+        "rationale": "Exactly two explicitly registered Portfolio Q&A tools have sanitized direct handlers and real stdio protocol evidence.",
+        "source_evidence": [
+          "openbb_platform/extensions/agents/openbb_agents/mcp_server.py",
+          "openbb_platform/extensions/agents/tests/test_mcp_server.py",
+          "openbb_platform/extensions/agents/tests/test_mcp_stdio.py"
+        ],
         "review_triggers": ["agent tool registered", "agent documentation changed", "tool protocol changed"],
-        "implementation_state": "adapter_gap"
+        "implementation_state": "implemented_product"
       },
       "daytrade-specialist": {
         "owner_issues": ["#386 Daytrade MCP tool server", "#2182 Daytrade protocol tests"],
-        "rationale": "Declarations exist but callable wire handlers are absent.",
-        "source_evidence": ["openbb_platform/extensions/fmp_trading/openbb_fmp_trading/agent"],
+        "rationale": "Exactly six read-only tools have concrete dispatchers, sanitized errors, mutation rejection, and real stdio protocol evidence.",
+        "source_evidence": [
+          "openbb_platform/extensions/fmp_trading/openbb_fmp_trading/agent",
+          "openbb_platform/extensions/fmp_trading/tests/unit/test_mcp_readonly_surface.py",
+          "openbb_platform/extensions/fmp_trading/tests/integration/test_mcp_stdio.py"
+        ],
         "review_triggers": ["wire handler added", "declaration changed", "transport changed"],
-        "implementation_state": "absent_product"
+        "implementation_state": "implemented_product"
       },
       "url-fetch-hardening": {
         "owner_issues": ["#2242 Harden caller-controlled document URL fetchers"],
@@ -445,18 +459,55 @@
     "reviewed_specialists": {
       "agents": ["get_positions", "get_sector_exposure"],
       "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
+    },
+    "reviewed_capability_members": {
+      "platform-cache-observability": {
+        "members": ["cache_health", "cache_coverage"],
+        "rationale": "Sanitized aggregate cache health and exact route/persistence coverage for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/adapters/cache_admin.py",
+          "openbb_platform/extensions/mcp_server/tests/app/test_cache_observability.py"
+        ]
+      },
+      "platform-cache-maintenance": {
+        "members": [
+          "cache_jobs_definitions",
+          "cache_jobs_health",
+          "cache_jobs_run",
+          "cache_jobs_trigger_position_history",
+          "cache_jobs_trigger_etf_holdings"
+        ],
+        "rationale": "Five allowlisted durable enqueue and status tools gated by authenticated portfolio-ops and explicit maintenance opt-in.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/adapters/cache_jobs.py",
+          "openbb_platform/extensions/mcp_server/tests/app/test_cache_job_adapter.py",
+          "docs/operations/mcp-cache-jobs.md"
+        ]
+      }
     }
   },
   "specialists": {
     "agents": {
-      "disposition": "restricted",
+      "disposition": "direct",
       "access_class": "private_portfolio_read",
-      "reason": "Agents MCP registration and documentation require specialist verification in T33-T34."
+      "reason": "Separate stdio surface; admission is controlled by its own explicit registry and sanitized handlers.",
+      "verification_level": "real_stdio_tested",
+      "verification_evidence": [
+        "openbb_platform/extensions/agents/tests/test_mcp_server.py",
+        "openbb_platform/extensions/agents/tests/test_mcp_stdio.py"
+      ]
     },
     "daytrade": {
-      "disposition": "unimplemented",
+      "disposition": "direct",
       "access_class": "provider_read",
-      "reason": "Declared Daytrade tools do not yet have callable protocol handlers."
+      "reason": "Separate stdio surface exposing only the six reviewed read-only dispatchers.",
+      "verification_level": "real_stdio_tested",
+      "verification_evidence": [
+        "openbb_platform/extensions/fmp_trading/tests/unit/test_mcp_readonly_surface.py",
+        "openbb_platform/extensions/fmp_trading/tests/integration/test_mcp_stdio.py"
+      ]
     }
   }
 }
