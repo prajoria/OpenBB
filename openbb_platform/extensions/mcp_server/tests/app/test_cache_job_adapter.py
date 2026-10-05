@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from openbb_core.api.auth.user import authenticate_user
 from openbb_core.api.dependency.jobs import get_job_service
+from openbb_core.api.router.jobs import router as core_jobs_router
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.sqlite_store import SqliteJobStore
 from openbb_core.app.service.job_service import JobService
@@ -185,12 +186,80 @@ def test_original_authentication_is_required(app: FastAPI):
     assert TestClient(app).get("/api/v1/cache/jobs/definitions").status_code == 401
 
 
+def test_status_survives_service_restart(tmp_path: Path):
+    """Durable run IDs remain queryable after a service restart."""
+    database = tmp_path / "restart-jobs.db"
+    registry = JobRegistry(get_job_definitions())
+    first_store = SqliteJobStore(database)
+    first = JobService(
+        store=first_store,
+        registry=registry,
+        reconcile_now=BASE_TIME,
+    )
+    queued = first.enqueue("portfolio.position_history", {})
+    first_store.close()
+
+    second_store = SqliteJobStore(database)
+    second = JobService(
+        store=second_store,
+        registry=JobRegistry(get_job_definitions()),
+        reconcile_now=BASE_TIME,
+    )
+    app = compose_cache_jobs_app(FastAPI())
+    app.dependency_overrides[get_job_service] = lambda: second
+    app.dependency_overrides[authenticate_user] = lambda: None
+    response = TestClient(app).get(f"/api/v1/cache/jobs/runs/{queued.run_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued"
+    second_store.close()
+
+
+def test_cancellation_and_invalidation_are_not_advertised(
+    client: TestClient,
+    service: JobService,
+):
+    """MCP cannot cancel running work or invalidate arbitrary cache tables."""
+    queued = service.enqueue("portfolio.position_history", {})
+    claimed = service.claim_next("worker-1")
+    assert claimed is not None and claimed.run_id == queued.run_id
+    assert (
+        client.post(f"/api/v1/cache/jobs/runs/{queued.run_id}/cancel").status_code
+        == 404
+    )
+    assert (
+        client.post("/api/v1/cache/invalidate", json={"table": "*"}).status_code == 404
+    )
+
+
+def test_persisted_parameters_are_secret_free(
+    client: TestClient,
+    service: JobService,
+):
+    """Durable params contain only typed business inputs."""
+    response = client.post(
+        "/api/v1/cache/jobs/portfolio.position_history/trigger",
+        json={"params": {"symbols": ["SYNTH"], "years": 3}},
+    )
+    run = service.get_run(response.json()["run_id"])
+    serialized = str(run.params).lower()
+    assert run.params == {
+        "symbols": ["SYNTH"],
+        "years": 3,
+        "skip_holiday_prestep": False,
+    }
+    assert not any(
+        token in serialized
+        for token in ("api_key", "password", "credential", "database")
+    )
+
+
 @pytest.mark.asyncio
 async def test_real_mcp_exposes_jobs_only_with_ops_and_explicit_maintenance(
     service: JobService,
 ):
     """Read/general profiles and non-maintenance ops cannot discover job controls."""
     source = FastAPI()
+    source.include_router(core_jobs_router, prefix="/api/v1")
     source.dependency_overrides[get_job_service] = lambda: service
     source.dependency_overrides[authenticate_user] = lambda: None
     credentials = ("synthetic-user", "x" * 32)
@@ -240,3 +309,10 @@ async def test_real_mcp_exposes_jobs_only_with_ops_and_explicit_maintenance(
         "cache_jobs_trigger_position_history",
         "cache_jobs_trigger_etf_holdings",
     }
+    all_names = {tool.name for tool in await ops.list_tools()}
+    assert not any(
+        fragment in name
+        for name in all_names
+        for fragment in ("cancel", "invalidate")
+    )
+    assert not any(name.startswith("jobs_") for name in all_names)

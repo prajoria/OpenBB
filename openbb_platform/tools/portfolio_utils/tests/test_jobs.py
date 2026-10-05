@@ -13,7 +13,7 @@ from pathlib import Path
 
 import portfolio_utils.jobs as jobs_module
 import pytest
-from openbb_core.app.jobs.models import JobContext, JobDefinition, JobResult
+from openbb_core.app.jobs.models import MAX_WARNING_COUNT, MAX_WARNING_LENGTH, JobContext, JobDefinition, JobResult
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.schedules import DailySchedule
 from portfolio_utils.fetch_position_history import PositionHistoryWarmResult
@@ -70,7 +70,9 @@ def test_timezone_env_override(monkeypatch):
     """OPENBB_JOBS_TIMEZONE overrides both schedules' timezone."""
     monkeypatch.setenv("OPENBB_JOBS_TIMEZONE", "Europe/London")
     definitions = _by_name()
-    assert definitions["portfolio.position_history"].schedule.timezone == "Europe/London"
+    assert (
+        definitions["portfolio.position_history"].schedule.timezone == "Europe/London"
+    )
     assert definitions["portfolio.etf_holdings"].schedule.timezone == "Europe/London"
 
 
@@ -91,7 +93,9 @@ def test_job_params_never_carry_credentials_or_database_overrides():
         field_names = set(model.model_fields)
         assert "database" not in field_names
         assert not any(
-            "key" in name.lower() or "credential" in name.lower() or "secret" in name.lower()
+            "key" in name.lower()
+            or "credential" in name.lower()
+            or "secret" in name.lower()
             for name in field_names
         ), f"{model.__name__} unexpectedly exposes a credential-shaped field: {field_names}"
 
@@ -132,7 +136,9 @@ def test_position_history_handler_returns_job_result(monkeypatch):
     assert result.summary["success_count"] == 2
     assert result.summary["failed_count"] == 1
     assert result.warnings == ["ZZZZ: boom"]
-    assert result.has_warnings  # -> JobRun.complete() classifies succeeded_with_warnings
+    assert (
+        result.has_warnings
+    )  # -> JobRun.complete() classifies succeeded_with_warnings
     # Params were threaded through, and should_cancel was wired for cooperative
     # cancellation between symbols (see _should_cancel's docstring).
     assert captured["years"] == 5
@@ -190,6 +196,34 @@ def test_position_history_handler_reports_cancellation_as_warning(monkeypatch):
     assert any("cancelled" in w for w in result.warnings)
 
 
+def test_position_history_partial_failure_warnings_are_bounded(monkeypatch):
+    """Persisted warnings are bounded by core count and length limits."""
+
+    def _fake_run(**kwargs):
+        del kwargs
+        return PositionHistoryWarmResult(
+            requested_symbols=MAX_WARNING_COUNT + 5,
+            success=[],
+            failed=[
+                {"symbol": f"S{i}", "error": "x" * (MAX_WARNING_LENGTH + 50)}
+                for i in range(MAX_WARNING_COUNT + 5)
+            ],
+            total_rows=0,
+            start_date="2020-01-01",
+            end_date="2025-01-01",
+            years=5,
+            dry_run=False,
+            cancelled=False,
+            readiness={},
+        )
+
+    monkeypatch.setattr(jobs_module, "run_position_history_warm", _fake_run)
+    definition = _by_name()["portfolio.position_history"]
+    result = definition.handler(_context(definition.name), PositionHistoryJobParams())
+    assert len(result.warnings) == MAX_WARNING_COUNT
+    assert all(len(warning) <= MAX_WARNING_LENGTH for warning in result.warnings)
+
+
 def test_position_history_handler_never_threads_a_credential_kwarg(monkeypatch):
     """The handler never passes an API key/credential kwarg to the warm function.
 
@@ -209,7 +243,9 @@ def test_position_history_handler_never_threads_a_credential_kwarg(monkeypatch):
     definition.handler(_context(definition.name), PositionHistoryJobParams())
 
     assert not any(
-        "key" in name.lower() or "credential" in name.lower() or "secret" in name.lower()
+        "key" in name.lower()
+        or "credential" in name.lower()
+        or "secret" in name.lower()
         for name in captured
     )
 
