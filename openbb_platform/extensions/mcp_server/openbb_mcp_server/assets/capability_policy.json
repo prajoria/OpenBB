@@ -418,7 +418,6 @@
         "rationale": "Exactly six read-only tools have concrete dispatchers, sanitized errors, mutation rejection, and real stdio protocol evidence.",
         "source_evidence": [
           "openbb_platform/extensions/fmp_trading/openbb_fmp_trading/agent",
-          "openbb_platform/extensions/fmp_trading/tests/unit/test_mcp_readonly_surface.py",
           "openbb_platform/extensions/fmp_trading/tests/integration/test_mcp_stdio.py"
         ],
         "review_triggers": ["wire handler added", "declaration changed", "transport changed"],

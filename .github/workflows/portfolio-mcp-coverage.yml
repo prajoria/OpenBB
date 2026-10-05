@@ -82,6 +82,8 @@ jobs:
               -e "$GITHUB_WORKSPACE/$source/openbb_platform/extensions/fmp_trading[agent]"
             "$environment/bin/python" -m pip install \
               pytest pytest-asyncio pytest-mock
+            "$environment/bin/python" -c \
+              "import openbb; openbb.build()"
           done
 
       - name: Verify head evidence
