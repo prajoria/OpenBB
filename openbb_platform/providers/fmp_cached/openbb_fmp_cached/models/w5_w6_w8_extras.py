@@ -59,7 +59,17 @@ class _PageQueryParams(QueryParams):
 class _SenateIdQueryParams(QueryParams):
     """Query params for endpoints keyed by ``senateID=<str>``."""
 
-    senateID: str = Field(description="Senate/House member ID (e.g. 'A000360').")
+    model_config = ConfigDict(populate_by_name=True)
+
+    senate_id: str = Field(
+        alias="senateID",
+        description="Senate/House member ID (e.g. 'A000360').",
+    )
+
+    @property
+    def senateID(self) -> str:  # noqa: N802
+        """Retain the provider-native attribute for legacy fetcher tests."""
+        return self.senate_id
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +519,7 @@ class FMPCachedSenateNetWorthFetcher(
         **kwargs: Any,
     ) -> list[dict]:
         """Live pass-through fetch by senateID."""
-        return await FMPCachedSenateNetWorthFetcher._fetch(query.senateID, credentials)
+        return await FMPCachedSenateNetWorthFetcher._fetch(query.senate_id, credentials)
 
     @staticmethod
     def transform_data(
@@ -542,7 +552,7 @@ class FMPCachedSenateNetWorthAggregatedFetcher(
     ) -> list[dict]:
         """Live pass-through fetch by senateID."""
         return await FMPCachedSenateNetWorthAggregatedFetcher._fetch(
-            query.senateID, credentials
+            query.senate_id, credentials
         )
 
     @staticmethod
