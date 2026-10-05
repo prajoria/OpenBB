@@ -48,9 +48,7 @@ class DatabaseManager:
         """Initialize database manager."""
         self.stats = {"hits": 0, "misses": 0, "stores": 0, "errors": 0}
 
-    def get_stored_data(
-        self, endpoint: str, **params
-    ) -> list[dict[str, Any]] | None:
+    def get_stored_data(self, endpoint: str, **params) -> list[dict[str, Any]] | None:
         """Retrieve data from database if available."""
         table_name = get_table_for_endpoint(endpoint)
         if not table_name:
