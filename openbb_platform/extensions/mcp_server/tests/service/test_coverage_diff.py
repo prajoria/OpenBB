@@ -13,6 +13,7 @@ from openbb_mcp_server.service.coverage_diff import (
     AccessGrant,
     CoverageSnapshot,
     _family_evidence,
+    _prompt_references,
     compare_repository_coverage,
     compare_snapshots,
 )
@@ -34,6 +35,7 @@ def _snapshot(**changes) -> CoverageSnapshot:
         "unknown_capabilities": (),
         "duplicate_names": (),
         "stale_prompt_references": (),
+        "scope_limitations": (),
         "access_grants": {
             "operation:GET:/api/v1/equity/price/quote": AccessGrant(
                 disposition="direct",
@@ -108,6 +110,35 @@ def test_prompt_addition_without_manifest_and_test_evidence_is_blocking():
     assert report.unevidenced_additions == (prompt_id,)
 
 
+def test_all_structured_prompt_dependency_kinds_are_validated():
+    """Providers, packages, and resources fail alongside missing tools."""
+    stale = _prompt_references(
+        [
+            {
+                "name": "invalid_dependencies",
+                "dependencies": {
+                    "required_tools": ["missing_tool"],
+                    "any_tool_groups": [],
+                    "providers": ["missing_provider"],
+                    "optional_packages": ["missing-package"],
+                    "resources": ["resource://missing"],
+                },
+            }
+        ],
+        known_tools=set(),
+        known_providers=set(),
+        known_packages=set(),
+        known_resources=set(),
+    )
+
+    assert stale == {
+        "invalid_dependencies:missing tool: missing_tool",
+        "invalid_dependencies:missing provider: missing_provider",
+        "invalid_dependencies:missing optional package: missing-package",
+        "invalid_dependencies:missing resource: resource://missing",
+    }
+
+
 def test_reviewed_addition_with_evidence_is_not_count_frozen():
     """Exact policy-owned additions pass without rewriting old denominators."""
     addition = "operation:GET:/api/v1/equity/price/new"
@@ -152,12 +183,17 @@ def test_reviewed_addition_with_evidence_is_not_count_frozen():
 
 def test_previously_reviewed_policy_identity_can_bootstrap_enumeration():
     """Improved source discovery may reveal an already-reviewed capability."""
-    capability_id = "operation:GET:/api/v1/equity/price/quote"
+    capability_id = "specialist:agents:get_positions"
     base = _snapshot(
         approved_capabilities=(),
         approved_tools=(),
+        reviewed_policy_capabilities=(capability_id,),
+        scope_limitations=("agents-composed-routes:not-enumerated",),
     )
-    head = _snapshot()
+    head = _snapshot(
+        approved_capabilities=(capability_id,),
+        reviewed_policy_capabilities=(capability_id,),
+    )
 
     report = compare_snapshots(base, head)
 
@@ -391,12 +427,14 @@ def test_policy_prose_cannot_change_source_evidence_digest():
         "core-provider-and-compute",
         repo_root,
         repo_root,
+        policy,
     )
     changed = _family_evidence(
         changed_policy,
         "core-provider-and-compute",
         repo_root,
         repo_root,
+        policy,
     )
 
     assert original == changed
@@ -542,6 +580,7 @@ def test_ops_inventory_source_enumerates_jobs_and_specialists(tmp_path):
         "/api/v1/cache/jobs/runs/{run_id}",
         "/api/v1/cache/jobs/portfolio.position_history/trigger",
         "/api/v1/cache/jobs/portfolio.etf_holdings/trigger",
+        "/tt/scan/trigger",
     } <= route_paths
     assert specialist_tools == {
         "agents": {"get_positions", "get_sector_exposure"},

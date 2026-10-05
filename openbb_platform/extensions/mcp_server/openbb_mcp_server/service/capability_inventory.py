@@ -159,6 +159,7 @@ class InventorySources:
     unavailable_components: tuple[str, ...] = ()
     scope_limitations: tuple[str, ...] = ()
     specialists: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    source_operations: tuple[tuple[str, str, str], ...] = ()
 
 
 def _canonical_json(value: Any) -> str:
@@ -538,6 +539,36 @@ def _specialist_records(
     return records
 
 
+def _source_operation_records(
+    operations: tuple[tuple[str, str, str], ...],
+    existing: set[tuple[str, str]],
+) -> list[CapabilityRecord]:
+    """Retain raw source operations removed by reviewed runtime adapters."""
+    records = []
+    for method, path, source_ref in operations:
+        identity = (method, path)
+        if identity in existing:
+            continue
+        records.append(
+            CapabilityRecord(
+                id=_record_id("raw-source-operation", method, path),
+                surface="platform",
+                owner_lane="D-Widgets+QA",
+                source_refs=(source_ref,),
+                decision_ref="source-registry-audit",
+                operation=OperationKey(method=method, path=path),
+                disposition="restricted",
+                access_class=(
+                    "provider_read" if method == "GET" else "financial_mutation"
+                ),
+                persistence="unverified",
+                requirements=("raw-source-registry:portfolio",),
+                verification=VerificationState(schema=True),
+            )
+        )
+    return records
+
+
 def collect_capabilities(
     profile_name: ProfileName,
     *,
@@ -663,8 +694,17 @@ def build_inventory(
     route_records, tools_by_command, inline_prompts = _collect_route_records(
         resolved_sources
     )
+    source_operation_records = _source_operation_records(
+        resolved_sources.source_operations,
+        {
+            (record.operation.method, record.operation.path)
+            for record in route_records
+            if record.operation
+        },
+    )
     records = [
         *route_records,
+        *source_operation_records,
         *_prompt_records(
             inline_prompts,
             source_ref="openbb_mcp_server/utils/fastapi.py",
@@ -770,10 +810,17 @@ def load_default_sources(
     root = (repo_root or Path(__file__).resolve().parents[5]).resolve()
     _, safe_config = _profile_config(profile_name)
     settings = MCPSettings.model_validate(safe_config)
+    settings = settings.model_copy(
+        update={
+            "capability_profile": profile_name,
+            "runtime_profile": profile_name,
+        }
+    )
     profile = load_profile_metadata(profile_name)
 
     provider_fetchers: dict[str, Mapping[str, type]] = {}
     specialists: dict[str, tuple[str, ...]] = {}
+    source_operations: list[tuple[str, str, str]] = []
     unavailable: list[str] = []
     with metadata_import_guard(root, unavailable):
         # Keep optional/heavy registries outside synthetic metadata-only imports.
@@ -813,10 +860,21 @@ def load_default_sources(
                     command_models[command] = route.openapi_extra["model"]
 
         if profile_name in {"portfolio-read", "portfolio-ops"}:
+            from openbb_portfolio import portfolio_router
+
             from openbb_mcp_server.adapters.cache_admin import (
                 compose_cache_observability_app,
             )
             from openbb_mcp_server.adapters.portfolio import compose_portfolio_app
+
+            for route in portfolio_router.router.routes:
+                if not isinstance(route, APIRoute):
+                    continue
+                for method in sorted(route.methods or ()):
+                    if method not in {"HEAD", "OPTIONS"}:
+                        source_operations.append(
+                            (method.upper(), route.path, _source_ref(route.endpoint))
+                        )
 
             app = compose_portfolio_app(app, settings)
             app = compose_cache_observability_app(app)
@@ -950,6 +1008,7 @@ def load_default_sources(
             "provider-fetchers:fmp_cached-only",
         ),
         specialists=specialists,
+        source_operations=tuple(sorted(set(source_operations))),
     )
 
 

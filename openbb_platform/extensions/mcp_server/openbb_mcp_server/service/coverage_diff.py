@@ -8,9 +8,14 @@ import json
 from pathlib import Path
 from typing import Literal
 
+import tomllib
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from openbb_mcp_server.models.capability import AccessClass, Disposition
+from openbb_mcp_server.models.prompts import (
+    PromptDependencies,
+    evaluate_prompt_dependencies,
+)
 from openbb_mcp_server.service.capability_inventory import InventoryDocument
 from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 
@@ -73,6 +78,7 @@ class CoverageSnapshot(BaseModel):
     unknown_capabilities: tuple[str, ...]
     duplicate_names: tuple[str, ...]
     stale_prompt_references: tuple[str, ...]
+    scope_limitations: tuple[str, ...]
     access_grants: dict[str, AccessGrant]
 
     @model_validator(mode="after")
@@ -86,6 +92,7 @@ class CoverageSnapshot(BaseModel):
             "unknown_capabilities",
             "duplicate_names",
             "stale_prompt_references",
+            "scope_limitations",
         ):
             values = getattr(self, field_name)
             if values != tuple(sorted(set(values))):
@@ -135,6 +142,7 @@ def _family_evidence(
     rule_id: str,
     repository: Path,
     baseline_repository: Path,
+    baseline_policy: ExposurePolicy,
 ) -> tuple[
     str,
     str,
@@ -152,6 +160,17 @@ def _family_evidence(
     if family is None:
         fallback = _digest({"rule_id": rule_id})
         return family_name, fallback, fallback, {}, {}, {}, {}, False
+    baseline_family_name = baseline_policy.document.traceability.rule_owners.get(
+        rule_id
+    )
+    baseline_family = (
+        baseline_policy.document.traceability.work_families.get(baseline_family_name)
+        if baseline_family_name == family_name
+        else None
+    )
+    baseline_source_refs = (
+        set(baseline_family.source_evidence) if baseline_family else set()
+    )
     implementation_evidence = {}
     test_evidence = {}
     baseline_implementation_evidence = {}
@@ -196,7 +215,7 @@ def _family_evidence(
                 implementation_evidence[relative] = content_digest
                 implementation_files += 1
             baseline_path = baseline_repository / relative
-            if baseline_path.is_file():
+            if source_ref in baseline_source_refs and baseline_path.is_file():
                 baseline_digest = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
                 if is_test:
                     baseline_test_evidence[relative] = baseline_digest
@@ -222,6 +241,7 @@ def _grant(
     *,
     tests_verified: bool,
     baseline_repository: Path,
+    baseline_policy: ExposurePolicy,
 ) -> AccessGrant:
     (
         family,
@@ -237,6 +257,7 @@ def _grant(
         decision.rule_id,
         repository,
         baseline_repository,
+        baseline_policy,
     )
     return AccessGrant(
         disposition=decision.disposition,
@@ -307,18 +328,25 @@ def _prompt_grant(
 def _prompt_references(
     prompts: list[dict],
     known_tools: set[str],
+    known_providers: set[str],
+    known_packages: set[str],
+    known_resources: set[str],
 ) -> set[str]:
-    """Return unresolved structured tool dependencies."""
-    stale = set()
+    """Return every unresolved structured prompt dependency."""
+    stale: set[str] = set()
     for prompt in prompts:
         name = str(prompt.get("name") or "unnamed_prompt")
-        dependencies = prompt.get("dependencies") or {}
-        for tool in dependencies.get("required_tools", ()):
-            if tool not in known_tools:
-                stale.add(f"{name}:{tool}")
-        for group in dependencies.get("any_tool_groups", ()):
-            if not set(group) & known_tools:
-                stale.add(f"{name}:any({','.join(sorted(group))})")
+        dependencies = PromptDependencies.model_validate(
+            prompt.get("dependencies") or {}
+        )
+        readiness = evaluate_prompt_dependencies(
+            dependencies,
+            tools=known_tools,
+            providers=known_providers,
+            packages=known_packages,
+            resources=known_resources,
+        )
+        stale.update(f"{name}:{reason}" for reason in readiness.reasons)
     return stale
 
 
@@ -330,13 +358,17 @@ def build_coverage_snapshot(
     evidence_baseline_repository: Path | None = None,
 ) -> CoverageSnapshot:
     """Normalize one inventory against its checkout-local policy and prompts."""
+    # pylint: disable=too-many-locals
     baseline_repository = evidence_baseline_repository or repository
     policy, assets = _policy_assets(repository)
+    baseline_policy, _ = _policy_assets(baseline_repository)
     approved = set()
     reviewed_policy = set()
-    tools = set()
+    tools: set[str] = set()
     unknown = set()
     grants: dict[str, AccessGrant] = {}
+    source_dispositions: dict[str, Disposition] = {}
+    source_tools: dict[str, set[str]] = {}
 
     catalog_path = assets / policy.document.operation_catalog.file
     with catalog_path.open(encoding="utf-8", newline="") as stream:
@@ -354,6 +386,7 @@ def build_coverage_snapshot(
             repository,
             tests_verified=tests_verified,
             baseline_repository=baseline_repository,
+            baseline_policy=baseline_policy,
         )
         if decision.disposition in _APPROVED_DISPOSITIONS:
             reviewed_policy.add(capability_id)
@@ -361,6 +394,14 @@ def build_coverage_snapshot(
     for surface, names in policy.document.traceability.reviewed_specialists.items():
         for name in names:
             decision = policy.classify_specialist(surface, name)
+            grants[decision.capability_id] = _grant(
+                policy,
+                decision,
+                repository,
+                tests_verified=tests_verified,
+                baseline_repository=baseline_repository,
+                baseline_policy=baseline_policy,
+            )
             if decision.disposition in _APPROVED_DISPOSITIONS:
                 reviewed_policy.add(decision.capability_id)
 
@@ -378,20 +419,32 @@ def build_coverage_snapshot(
                     "operation:" f"{record.operation.method}:{record.operation.path}"
                 )
             continue
-        grants.setdefault(
-            decision.capability_id,
-            _grant(
-                policy,
-                decision,
-                repository,
-                tests_verified=tests_verified,
-                baseline_repository=baseline_repository,
-            ),
+        current = source_dispositions.get(decision.capability_id)
+        if (
+            current is None
+            or _DISPOSITION_EXPOSURE[record.disposition]
+            > _DISPOSITION_EXPOSURE[current]
+        ):
+            source_dispositions[decision.capability_id] = record.disposition
+        if record.tool_name:
+            source_tools.setdefault(decision.capability_id, set()).add(record.tool_name)
+
+    disposition_by_rank = {
+        rank: disposition for disposition, rank in _DISPOSITION_EXPOSURE.items()
+    }
+    for capability_id, source_disposition in source_dispositions.items():
+        policy_grant = grants[capability_id]
+        effective_rank = min(
+            _DISPOSITION_EXPOSURE[policy_grant.disposition],
+            _DISPOSITION_EXPOSURE[source_disposition],
         )
-        if decision.disposition in _APPROVED_DISPOSITIONS:
-            approved.add(decision.capability_id)
-            if record.tool_name:
-                tools.add(record.tool_name)
+        effective = policy_grant.model_copy(
+            update={"disposition": disposition_by_rank[effective_rank]}
+        )
+        grants[capability_id] = effective
+        if effective.disposition in _APPROVED_DISPOSITIONS:
+            approved.add(capability_id)
+            tools.update(source_tools.get(capability_id, ()))
 
     for record in document.capabilities.records:
         if record.surface not in {"agents", "daytrade"} or not record.tool_name:
@@ -414,6 +467,7 @@ def build_coverage_snapshot(
             repository,
             tests_verified=tests_verified,
             baseline_repository=baseline_repository,
+            baseline_policy=baseline_policy,
         )
         if decision.disposition in _APPROVED_DISPOSITIONS:
             approved.add(decision.capability_id)
@@ -436,7 +490,29 @@ def build_coverage_snapshot(
         for row in document.provider_models
         if row.status == "routed" and row.provider_registered
     }
-    stale = _prompt_references(prompts, tools)
+    known_providers = {row.provider for row in document.provider_models} | {
+        path.name
+        for path in (repository / "openbb_platform/providers").iterdir()
+        if path.is_dir()
+    }
+    known_packages = set()
+    for manifest in (repository / "openbb_platform").rglob("pyproject.toml"):
+        payload = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        name = payload.get("project", {}).get("name") or payload.get("tool", {}).get(
+            "poetry", {}
+        ).get("name")
+        if isinstance(name, str):
+            known_packages.add(name)
+    stale = _prompt_references(
+        prompts,
+        tools,
+        known_providers,
+        known_packages,
+        {
+            "resource://openbb/capabilities/v1",
+            "resource://system_prompt",
+        },
+    )
     duplicates = {
         f"{collision.kind}:{collision.key}" for collision in document.collisions
     }
@@ -454,6 +530,7 @@ def build_coverage_snapshot(
         unknown_capabilities=tuple(sorted(unknown)),
         duplicate_names=tuple(sorted(duplicates)),
         stale_prompt_references=tuple(sorted(stale)),
+        scope_limitations=tuple(sorted(document.scope_limitations)),
         access_grants=dict(sorted(grants.items())),
     )
 
@@ -486,6 +563,34 @@ def _mapped_content_changed(
     return implementation_changed and tests_changed
 
 
+def _is_policy_bootstrap(
+    capability_id: str,
+    base: CoverageSnapshot,
+) -> bool:
+    """Allow only source surfaces explicitly absent from the old enumerator."""
+    limitations = set(base.scope_limitations)
+    custom_operation = capability_id.startswith(
+        (
+            "operation:live-portfolio-custom:",
+            "operation:live-intelligence-custom:",
+        )
+    )
+    if (
+        custom_operation
+        and "portfolio-launch-composed-routes:not-enumerated" in limitations
+    ):
+        return True
+    if (
+        capability_id.startswith("specialist:")
+        and "agents-composed-routes:not-enumerated" in limitations
+    ):
+        return True
+    return (
+        "/api/v1/cache/jobs/" in capability_id
+        and "dev-mode-and-jobs-routes:forced-disabled" in limitations
+    )
+
+
 def compare_snapshots(
     base: CoverageSnapshot,
     head: CoverageSnapshot,
@@ -512,12 +617,15 @@ def compare_snapshots(
     additions = (head_capabilities - base_capabilities) | (
         head_policy_capabilities - base_policy_capabilities
     )
-    policy_bootstrap_additions = {
-        capability_id
-        for capability_id in additions
-        if capability_id in base_policy_capabilities
-        and capability_id in head_policy_capabilities
-    }
+    policy_bootstrap_additions = set()
+    for capability_id in additions:
+        if (
+            capability_id not in base_policy_capabilities
+            or capability_id not in head_policy_capabilities
+        ):
+            continue
+        if _is_policy_bootstrap(capability_id, base):
+            policy_bootstrap_additions.add(capability_id)
     unevidenced_additions = {
         capability_id
         for capability_id in additions - policy_bootstrap_additions
