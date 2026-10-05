@@ -102,7 +102,7 @@ def test_composition_preserves_fastapi_route_contracts_and_namespaces_tools():
         original = originals[path]
         assert route is not original
         assert route.endpoint is original.endpoint
-        assert route.dependant is original.dependant
+        assert route.dependant is original.dependant  # codespell:ignore dependant
         assert route.response_model is original.response_model
         assert route.responses == original.responses
         assert route.operation_id == f"portfolio_{path.strip('/').replace('/', '_')}"
