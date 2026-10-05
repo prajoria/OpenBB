@@ -7,8 +7,9 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.datastructures import State
 from starlette.routing import Match, Mount, Route
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from openbb_mcp_server.models.settings import CapabilityProfile
+from openbb_mcp_server.models.settings import MCPSettings
 from openbb_mcp_server.service.exposure_policy import ExposurePolicy
 from openbb_mcp_server.utils.fastapi import get_mcp_route_identity
 
@@ -23,17 +24,49 @@ def _mcp_name(route: APIRoute) -> str | None:
     return config.get("name") if isinstance(config, dict) else None
 
 
+class IntelligenceRouteAuthMiddleware:
+    """Inject the fixed upstream token only for Intelligence route calls."""
+
+    def __init__(self, app: ASGIApp, token: str):
+        self.app = app
+        self.token = token
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        """Inject upstream authentication only for reviewed route prefixes."""
+        path = str(scope.get("path", ""))
+        if scope["type"] == "http" and path.startswith(("/pi/", "/tt/")):
+            scope = dict(scope)
+            headers = [
+                (name, value)
+                for name, value in scope.get("headers", [])
+                if name.lower() != b"authorization"
+            ]
+            headers.append((b"authorization", f"Bearer {self.token}".encode()))
+            scope["headers"] = headers
+        await self.app(scope, receive, send)
+
+
 def compose_portfolio_intel_app(
     source_app: FastAPI,
     intelligence_app: FastAPI | None,
-    profile: CapabilityProfile,
+    settings: MCPSettings,
     policy: ExposurePolicy,
+    upstream_token: str | None = None,
 ) -> FastAPI:
     """Clone reviewed Intelligence routes into an isolated MCP application."""
     if intelligence_app is None:
         raise RuntimeError("Portfolio Intelligence service is unavailable")
+    if settings.capability_profile is None:
+        raise RuntimeError("Intelligence adapter requires a capability profile")
+    profile = settings.capability_profile
 
     composed = copy.copy(source_app)
+    composed.user_middleware = list(source_app.user_middleware)
     composed.state = State(dict(vars(source_app.state).get("_state", {})))
     composed.state.background_tasks = set(
         getattr(composed.state, "background_tasks", set())
@@ -58,6 +91,7 @@ def compose_portfolio_intel_app(
     existing_mcp_names = {
         get_mcp_route_identity(
             route.path,
+            settings,
             name_override=_mcp_name(route),
         ).component_name
         for route in composed.router.routes
@@ -71,7 +105,11 @@ def compose_portfolio_intel_app(
             continue
         methods = sorted(original.methods)
         if not methods or not all(
-            policy.is_operation_admitted(method, original.path, profile)
+            policy.is_operation_admitted(
+                method,
+                original.path,
+                profile,
+            )
             for method in methods
         ):
             continue
@@ -128,5 +166,10 @@ def compose_portfolio_intel_app(
             yield
 
     composed.router.lifespan_context = composed_lifespan
+    if upstream_token:
+        composed.add_middleware(
+            IntelligenceRouteAuthMiddleware,
+            token=upstream_token,
+        )
     composed.openapi_schema = None
     return composed

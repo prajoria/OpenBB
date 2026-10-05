@@ -445,11 +445,27 @@ def create_mcp_server(
             raise RuntimeError(
                 "Portfolio Intelligence adapter is enabled but unavailable"
             ) from exc
+        auth_mode = (
+            os.getenv(
+                "PI_WIDGET_BACKEND_AUTH_MODE",
+                "required",
+            )
+            .strip()
+            .lower()
+        )
+        upstream_token = None
+        if auth_mode != "loopback-dev":
+            upstream_token = os.getenv("PI_WIDGET_BACKEND_TOKEN", "").strip()
+            if not upstream_token:
+                raise RuntimeError(
+                    "Intelligence adapter requires PI_WIDGET_BACKEND_TOKEN"
+                )
         source_app = compose_portfolio_intel_app(
             source_app,
             intelligence_app,
-            capability_profile,
+            settings,
             selected_policy,
+            upstream_token,
         )
     composed_app = copy.copy(source_app)
     composed_app.router = copy.copy(source_app.router)
@@ -586,17 +602,6 @@ def create_mcp_server(
 
     # Extract httpx_client_kwargs from settings/kwargs if available
     httpx_client_kwargs = dict(httpx_kwargs or settings.get_httpx_kwargs())
-    if settings.enable_intelligence_adapter:
-        auth_mode = os.getenv("PI_WIDGET_BACKEND_AUTH_MODE", "required")
-        if auth_mode != "loopback-dev":
-            token = os.getenv("PI_WIDGET_BACKEND_TOKEN", "").strip()
-            if not token:
-                raise RuntimeError(
-                    "Intelligence adapter requires PI_WIDGET_BACKEND_TOKEN"
-                )
-            headers = dict(httpx_client_kwargs.get("headers") or {})
-            headers["Authorization"] = f"Bearer {token}"
-            httpx_client_kwargs["headers"] = headers
 
     # Get only FastMCP constructor parameters (excludes uvicorn_config, httpx_client_kwargs)
     fastmcp_kwargs = settings.get_fastmcp_kwargs()

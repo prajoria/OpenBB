@@ -4,7 +4,7 @@ import os
 from unittest.mock import patch
 
 import pytest
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from fastmcp.exceptions import ToolError
@@ -56,12 +56,15 @@ def _compose(
     return compose_portfolio_intel_app(
         source,
         upstream,
-        profile,
+        MCPSettings(
+            api_prefix="/api/v1",
+            capability_profile=profile,
+        ),
         ExposurePolicy.load(),
     )
 
 
-def test_adapter_clones_63_reviewed_routes_and_preserves_contracts():
+def test_read_adapter_clones_62_reviewed_routes_and_preserves_contracts():
     """Approved routes retain original handlers, dependencies, and schemas."""
     source = FastAPI()
     original_source_routes = tuple(source.router.routes)
@@ -229,6 +232,61 @@ def test_secure_upstream_mode_requires_server_controlled_token(monkeypatch):
             FastAPI(),
             auth=("synthetic-user", "x" * 32),
         )
+
+
+def test_loopback_auth_mode_uses_backend_normalization(monkeypatch):
+    """Case and whitespace accepted upstream are accepted by the adapter."""
+    monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", " LOOPBACK-DEV ")
+    monkeypatch.delenv("PI_WIDGET_BACKEND_TOKEN", raising=False)
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile="portfolio-read",
+        enable_intelligence_adapter=True,
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    create_mcp_server(
+        settings,
+        FastAPI(),
+        auth=("synthetic-user", "x" * 32),
+    )
+
+
+def test_widget_authorization_is_scoped_to_intelligence_routes():
+    """The upstream secret never replaces credentials on unrelated tools."""
+    source = FastAPI()
+
+    @source.get("/unrelated")
+    async def unrelated(request: Request):
+        return request.headers.get("authorization")
+
+    upstream = FastAPI()
+
+    @upstream.get("/pi/context/symbol")
+    async def protected_symbol(request: Request):
+        return request.headers.get("authorization")
+
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile="portfolio-read",
+    )
+    widget_token = "widget-" + "synthetic"
+    composed = compose_portfolio_intel_app(
+        source,
+        upstream,
+        settings,
+        ExposurePolicy.load(),
+        upstream_token=widget_token,
+    )
+    client = TestClient(composed)
+    assert (
+        client.get(
+            "/unrelated",
+            headers={"Authorization": "Bearer operator-secret"},
+        ).json()
+        == "Bearer operator-secret"
+    )
+    assert client.get("/pi/context/symbol").json() == f"Bearer {widget_token}"
 
 
 def test_adapter_exposes_no_caller_controlled_destination_overrides():
