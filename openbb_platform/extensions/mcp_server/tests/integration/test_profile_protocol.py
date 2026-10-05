@@ -2,6 +2,7 @@
 
 # pylint: disable=protected-access
 
+import json
 from collections.abc import AsyncIterator
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -228,6 +229,18 @@ async def test_profile_initialize_activate_list_call_and_deny(
             )
             assert compatibility.structured_content == {"called": True}
         else:
+            compatibility_server, _ = _profile_server(
+                None,
+                discovery=False,
+            )
+            async with Client(
+                compatibility_server,
+                name=f"{baseline.name}-denial-control",
+            ) as compatibility_client:
+                compatibility_names = {
+                    tool.name for tool in await compatibility_client.list_tools()
+                }
+            assert baseline.denied_tool in compatibility_names
             with pytest.raises(ToolError, match="denied"):
                 await client.call_tool(baseline.denied_tool, {})
 
@@ -262,8 +275,16 @@ async def test_protocol_pagination_schema_prompt_and_resource_access():
         assert quote_schema["properties"]["symbol"]["type"] == "string"
 
         prompts = await client.list_prompts()
-        assert len(prompts) == 43
-        assert "system_prompt" in {prompt.name for prompt in prompts}
+        prompt_manifest = json.loads(
+            (MCPSettings.get_default_assets_dir() / "server_prompts.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected_prompts = {
+            "system_prompt",
+            *(prompt["name"] for prompt in prompt_manifest),
+        }
+        assert {prompt.name for prompt in prompts} == expected_prompts
         rendered = await client.get_prompt("system_prompt")
         assert rendered.messages
 
