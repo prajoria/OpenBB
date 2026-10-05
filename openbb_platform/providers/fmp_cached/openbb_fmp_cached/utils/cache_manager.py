@@ -1,6 +1,7 @@
 """Database-backed response persistence for FMP Cached provider."""
 
 # ruff: noqa: PLW0603, S324, S608, SIM118
+# pylint: disable=consider-iterating-dictionary,global-statement,import-outside-toplevel,logging-fstring-interpolation,no-else-return,no-member,unnecessary-comprehension,unused-argument
 
 import logging
 from typing import Any
