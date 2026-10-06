@@ -20,6 +20,43 @@ function New-Tool {
     }
 }
 
+Describe "Portfolio MCP package replay contract" {
+    It "declares protocol and package modes" {
+        $command = Get-Command $ScriptPath
+        $validateSet = $command.Parameters["Mode"].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+        @($validateSet.ValidValues) -join "," | Should Be "protocol,package"
+    }
+
+    It "reports a missing replay interpreter explicitly" {
+        {
+            Test-PackageReplay -RuntimeProfile "portfolio-read" `
+                -Python (Join-Path $TestDrive "missing-python.exe") `
+                -Root (Split-Path $PSScriptRoot -Parent)
+        } | Should Throw "Package replay Python executable is unavailable."
+    }
+
+    It "preserves an unsupported interpreter constraint diagnostic" {
+        $fakePython = Join-Path $TestDrive "python-3.14.cmd"
+        @'
+@echo off
+        echo 3.14
+        exit /b 0
+'@ | Set-Content -LiteralPath $fakePython -Encoding UTF8
+        $message = ""
+        try {
+            Test-PackageReplay -RuntimeProfile "portfolio-read" `
+                -Python $fakePython `
+                -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
+            throw "Unsupported interpreter replay unexpectedly succeeded."
+        } catch {
+            $message = $_.Exception.Message
+        }
+        $message | Should Match "Unsupported Python 3\.14"
+        $message | Should Match ([regex]::Escape(">=3.10,<3.14"))
+    }
+}
+
 Describe "Portfolio MCP session lifecycle" {
     BeforeEach {
         $script:sessionDeleted = $false
