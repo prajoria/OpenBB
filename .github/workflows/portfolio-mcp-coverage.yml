@@ -105,6 +105,7 @@ jobs:
             "$wheelhouse"/openbb_techtrade-*.whl
           "$replay" -m pip install --no-deps \
             "$wheelhouse"/openbb_portfolio_intel-*.whl
+          "$replay" -m pip install openpyxl pandas-ta-classic
           "$replay" -m pip check
           "$replay" -m pip install pytest pytest-asyncio pytest-mock
           "$replay" -c "import openbb; openbb.build()"
