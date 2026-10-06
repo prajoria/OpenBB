@@ -97,9 +97,12 @@ jobs:
           "$replay" -m pip install --upgrade pip
           mapfile -t regular_wheels < <(
             find "$wheelhouse" -maxdepth 1 -name '*.whl' \
-              ! -name 'openbb_portfolio_intel-*' -print
+              ! -name 'openbb_portfolio_intel-*' \
+              ! -name 'openbb_techtrade-*' -print
           )
           "$replay" -m pip install "${regular_wheels[@]}"
+          "$replay" -m pip install --no-deps \
+            "$wheelhouse"/openbb_techtrade-*.whl
           "$replay" -m pip install --no-deps \
             "$wheelhouse"/openbb_portfolio_intel-*.whl
           "$replay" -m pip check
