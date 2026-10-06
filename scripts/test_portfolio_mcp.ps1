@@ -14,7 +14,9 @@ param(
         "package",
         "workspace-no-browser",
         "workspace-read",
-        "workspace-mutation"
+        "workspace-mutation",
+        "operator-fixture",
+        "provider-live"
     )]
     [string]$Mode = "protocol",
 
@@ -30,11 +32,145 @@ param(
 
     [string]$WorkspaceRoot = (Split-Path $PSScriptRoot -Parent),
 
+    [switch]$AllowMaintenance,
+
+    [switch]$AllowPaidRequests,
+
+    [ValidateRange(1, 2)]
+    [int]$MaxProviderRequests = 1,
+
+    [ValidatePattern("^[A-Z]{1,10}$")]
+    [string]$ProviderSymbol = "AAPL",
+
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 30
 )
 
 $ErrorActionPreference = "Stop"
+
+function Test-OperatorFixture {
+    param(
+        [string]$Python,
+        [string]$Root,
+        [switch]$MaintenanceApproved
+    )
+
+    if (-not $MaintenanceApproved) {
+        throw "Operator fixture requires -AllowMaintenance."
+    }
+    if (-not $Python -or -not (Test-Path $Python -PathType Leaf)) {
+        throw "Operator fixture Python executable is unavailable."
+    }
+    $tests = @(
+        "openbb_platform/providers/fmp_cached/tests/test_cache_manager.py",
+        "openbb_platform/providers/fmp_cached/tests/test_aftermarket_quote_ttl.py",
+        "openbb_platform/providers/fmp_cached/tests/test_persistence_contract.py",
+        "openbb_platform/providers/fmp_cached/tests/test_statements_router.py",
+        "openbb_platform/providers/fmp_cached/tests/test_corporate_router.py",
+        "openbb_platform/providers/fmp_cached/tests/test_government_news_router.py",
+        "openbb_platform/core/tests/app/jobs/test_models.py",
+        "openbb_platform/core/tests/app/jobs/test_worker.py",
+        "openbb_platform/extensions/mcp_server/tests/app/test_cache_observability.py",
+        "openbb_platform/extensions/mcp_server/tests/app/test_cache_job_adapter.py",
+        "openbb_platform/extensions/mcp_server/tests/app/test_exposure_enforcement.py",
+        "openbb_platform/extensions/mcp_server/tests/service/test_exposure_policy.py",
+        "openbb_platform/extensions/mcp_server/tests/app/test_intelligence_dispositions.py"
+    ) | ForEach-Object { Join-Path $Root $_ }
+    $priorPythonPath = $env:PYTHONPATH
+    $priorFixtureRoot = $env:OPENBB_MCP_FIXTURE_ROOT
+    $sourcePaths = @(
+        "openbb_platform\extensions\mcp_server",
+        "openbb_platform\core",
+        "openbb_platform\providers\fmp",
+        "openbb_platform\providers\fmp_cached",
+        "openbb_platform\tools\portfolio_utils"
+    ) | ForEach-Object { Join-Path $Root $_ }
+    try {
+        $env:PYTHONPATH = (
+            @($sourcePaths) + @($priorPythonPath) |
+                Where-Object { $_ }
+        ) -join [System.IO.Path]::PathSeparator
+        $env:OPENBB_MCP_FIXTURE_ROOT = $Root
+        $originProbe = @'
+import importlib
+import os
+from pathlib import Path
+
+root = Path(os.environ["OPENBB_MCP_FIXTURE_ROOT"]).resolve()
+expected = {
+    "openbb_mcp_server": root / "openbb_platform/extensions/mcp_server",
+    "openbb_core": root / "openbb_platform/core",
+    "openbb_fmp": root / "openbb_platform/providers/fmp",
+    "openbb_fmp_cached": root / "openbb_platform/providers/fmp_cached",
+    "portfolio_utils": root / "openbb_platform/tools/portfolio_utils",
+}
+wrong = {}
+for name, source in expected.items():
+    module = importlib.import_module(name)
+    origin = Path(module.__file__).resolve()
+    source = source.resolve()
+    if source != origin and source not in origin.parents:
+        wrong[name] = str(origin)
+if wrong:
+    raise SystemExit(f"Fixture package origins are outside the worktree: {sorted(wrong)}")
+'@
+        $originProbe | & $Python -
+        if ($LASTEXITCODE -ne 0) {
+            throw "Operator fixture package origin verification failed."
+        }
+        Push-Location $Root
+        try {
+            & $Python -m pytest @tests -q
+            if ($LASTEXITCODE -ne 0) {
+                throw "Operator fixture verification failed."
+            }
+        } finally {
+            Pop-Location
+        }
+    } finally {
+        $env:PYTHONPATH = $priorPythonPath
+        $env:OPENBB_MCP_FIXTURE_ROOT = $priorFixtureRoot
+    }
+    return [pscustomobject]@{
+        database = "disposable"
+        entitlement_errors = "passed"
+        financial_mutations = "denied"
+        fixture_coverage = "passed"
+        hit_miss_stale = "passed"
+        idempotency = "passed"
+        live_provider_requests = 0
+        retry = "passed"
+        symbols = @("SYNTH")
+        verification = "offline_fixture"
+        worker_absence_and_warnings = "passed"
+    }
+}
+
+function Test-ProviderLive {
+    param(
+        [string]$Root,
+        [switch]$PaidApproved,
+        [int]$RequestLimit,
+        [string]$Symbol
+    )
+
+    if (-not $PaidApproved) {
+        throw "Provider live verification requires -AllowPaidRequests."
+    }
+    if ($RequestLimit -lt 1 -or $RequestLimit -gt 2) {
+        throw "Provider live verification permits at most two requests."
+    }
+    $python = if ($PythonExecutable) {
+        $PythonExecutable
+    } else {
+        (Get-Command python -CommandType Application -ErrorAction Stop).Source
+    }
+    $harness = Join-Path $Root "scripts\test_provider_live.py"
+    & $python $harness --symbol $Symbol --max-requests $RequestLimit
+    if ($LASTEXITCODE -ne 0) {
+        throw "Provider live verification failed."
+    }
+}
 
 function Test-WorkspaceParity {
     param(
@@ -48,6 +184,7 @@ function Test-WorkspaceParity {
     if ($WorkspaceMode -eq "mutation" -and -not $MutationApproved) {
         throw "Workspace mutation requires -AllowWorkspaceMutation."
     }
+
     if ($WorkspaceMode -eq "mutation" -and
         [string]::IsNullOrWhiteSpace($DashboardId)) {
         throw "Workspace mutation requires -DisposableDashboardId."
@@ -711,6 +848,14 @@ if ($MyInvocation.InvocationName -ne ".") {
         Test-WorkspaceParity -WorkspaceMode mutation -Root $WorkspaceRoot `
             -MutationApproved:$AllowWorkspaceMutation `
             -DashboardId $DisposableDashboardId
+    } elseif ($Mode -eq "operator-fixture") {
+        Test-OperatorFixture -Python $PythonExecutable `
+            -Root $RepositoryRoot -MaintenanceApproved:$AllowMaintenance
+    } elseif ($Mode -eq "provider-live") {
+        Test-ProviderLive -Root $RepositoryRoot `
+            -PaidApproved:$AllowPaidRequests `
+            -RequestLimit $MaxProviderRequests `
+            -Symbol $ProviderSymbol
     } elseif ($Mode -eq "package") {
         Test-PackageReplay -RuntimeProfile $Profile `
             -Python $PythonExecutable -Root $RepositoryRoot `
