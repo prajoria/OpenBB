@@ -8,8 +8,11 @@ on:
     paths:
       - ".github/workflows/portfolio-mcp-coverage.yml"
       - "openbb_platform/**"
+      - "third_party/workspace"
       - "scripts/audit_mcp_capabilities.py"
       - "scripts/test_portfolio_mcp.ps1"
+      - "scripts/test_workspace_mcp.py"
+      - "scripts/invoke_workspace_mcp_command.ps1"
       - "scripts/tests/Test-PortfolioMcp.Tests.ps1"
 
 concurrency:
@@ -20,6 +23,36 @@ permissions:
   contents: read
 
 jobs:
+  verify-workspace-contract:
+    name: Verify Workspace MCP contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Portfolio source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Workspace backend tests
+        working-directory: third_party/workspace/backend-api/backend
+        run: |
+          python -m pip install poetry
+          poetry install --with dev --no-root
+
+      - name: Verify metadata, bridge, and resource parity
+        working-directory: third_party/workspace/backend-api/backend
+        run: |
+          poetry run python -m pytest \
+            tests/test_workspace_mcp_surface_parity.py \
+            tests/test_workspace_mcp_bridge.py \
+            tests/test_workspace_mcp_resources.py \
+            -q
+
   reject-unsupported-interpreter:
     name: Reject unsupported Python 3.14
     runs-on: ubuntu-latest

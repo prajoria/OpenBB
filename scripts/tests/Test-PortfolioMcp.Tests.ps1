@@ -25,7 +25,8 @@ Describe "Portfolio MCP package replay contract" {
         $command = Get-Command $ScriptPath
         $validateSet = $command.Parameters["Mode"].Attributes |
             Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
-        @($validateSet.ValidValues) -join "," | Should Be "protocol,package"
+        @($validateSet.ValidValues) -join "," |
+            Should Be "protocol,package,workspace-no-browser,workspace-read,workspace-mutation"
     }
 
     It "reports a missing replay interpreter explicitly" {
@@ -54,6 +55,24 @@ Describe "Portfolio MCP package replay contract" {
         }
         $message | Should Match "Unsupported Python 3\.14"
         $message | Should Match ([regex]::Escape(">=3.10,<3.14"))
+    }
+}
+
+Describe "Workspace MCP parity safety contract" {
+    It "rejects mutation without explicit approval" {
+        {
+            Test-WorkspaceParity -WorkspaceMode mutation `
+                -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) `
+                -DashboardId "disposable-dashboard"
+        } | Should Throw "Workspace mutation requires -AllowWorkspaceMutation."
+    }
+
+    It "rejects mutation without a disposable dashboard" {
+        {
+            Test-WorkspaceParity -WorkspaceMode mutation `
+                -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) `
+                -MutationApproved
+        } | Should Throw "Workspace mutation requires -DisposableDashboardId."
     }
 }
 

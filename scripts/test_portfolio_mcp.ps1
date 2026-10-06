@@ -9,7 +9,13 @@ param(
 
     [string]$Authorization,
 
-    [ValidateSet("protocol", "package")]
+    [ValidateSet(
+        "protocol",
+        "package",
+        "workspace-no-browser",
+        "workspace-read",
+        "workspace-mutation"
+    )]
     [string]$Mode = "protocol",
 
     [string]$PythonExecutable = $env:OPENBB_PORTFOLIO_PYTHON,
@@ -18,11 +24,63 @@ param(
 
     [string[]]$OptionalAnalytics = @(),
 
+    [switch]$AllowWorkspaceMutation,
+
+    [string]$DisposableDashboardId,
+
+    [string]$WorkspaceRoot = (Split-Path $PSScriptRoot -Parent),
+
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 30
 )
 
 $ErrorActionPreference = "Stop"
+
+function Test-WorkspaceParity {
+    param(
+        [ValidateSet("no-browser", "read", "mutation")]
+        [string]$WorkspaceMode,
+        [string]$Root,
+        [switch]$MutationApproved,
+        [string]$DashboardId
+    )
+
+    if ($WorkspaceMode -eq "mutation" -and -not $MutationApproved) {
+        throw "Workspace mutation requires -AllowWorkspaceMutation."
+    }
+    if ($WorkspaceMode -eq "mutation" -and
+        [string]::IsNullOrWhiteSpace($DashboardId)) {
+        throw "Workspace mutation requires -DisposableDashboardId."
+    }
+    $helper = Join-Path $Root "scripts\invoke_workspace_mcp_command.ps1"
+    $harness = Join-Path $Root "scripts\test_workspace_mcp.py"
+    if (-not (Test-Path $helper -PathType Leaf) -or
+        -not (Test-Path $harness -PathType Leaf)) {
+        throw "Workspace parity harness is unavailable."
+    }
+    $python = if ($PythonExecutable) {
+        $PythonExecutable
+    } else {
+        (Get-Command python -CommandType Application -ErrorAction Stop).Source
+    }
+    $arguments = @($harness, "--mode", $WorkspaceMode)
+    if ($WorkspaceMode -eq "mutation") {
+        $arguments += @(
+            "--allow-mutation",
+            "--dashboard-id",
+            $DashboardId
+        )
+    }
+    & $helper `
+        -WorkspaceRoot $Root `
+        -FilePath $python `
+        -ArgumentList $arguments `
+        -WorkingDirectory $Root `
+        -BackendUrl "http://127.0.0.1:8000"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Workspace parity child command failed."
+    }
+}
 
 function Test-PackageReplay {
     param(
@@ -34,6 +92,7 @@ function Test-PackageReplay {
     if (-not $Python) {
         throw "Package replay requires -PythonExecutable or OPENBB_PORTFOLIO_PYTHON."
     }
+
     if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
         throw "Package replay Python executable is unavailable."
     }
@@ -644,7 +703,15 @@ function Test-PortfolioMcp {
 }
 
 if ($MyInvocation.InvocationName -ne ".") {
-    if ($Mode -eq "package") {
+    if ($Mode -eq "workspace-no-browser") {
+        Test-WorkspaceParity -WorkspaceMode no-browser -Root $WorkspaceRoot
+    } elseif ($Mode -eq "workspace-read") {
+        Test-WorkspaceParity -WorkspaceMode read -Root $WorkspaceRoot
+    } elseif ($Mode -eq "workspace-mutation") {
+        Test-WorkspaceParity -WorkspaceMode mutation -Root $WorkspaceRoot `
+            -MutationApproved:$AllowWorkspaceMutation `
+            -DashboardId $DisposableDashboardId
+    } elseif ($Mode -eq "package") {
         Test-PackageReplay -RuntimeProfile $Profile `
             -Python $PythonExecutable -Root $RepositoryRoot `
             -OptionalAnalytics $OptionalAnalytics
