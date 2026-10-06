@@ -40,8 +40,8 @@ Describe "Portfolio MCP package replay contract" {
         $fakePython = Join-Path $TestDrive "python-3.14.cmd"
         @'
 @echo off
-echo Unsupported Python 3.14; profile requires ^>=3.10,^<3.14. 1>&2
-exit /b 1
+        echo 3.14
+        exit /b 0
 '@ | Set-Content -LiteralPath $fakePython -Encoding UTF8
         $message = ""
         try {

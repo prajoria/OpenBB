@@ -95,7 +95,14 @@ jobs:
           python -m venv "$RUNNER_TEMP/portfolio-replay"
           replay="$RUNNER_TEMP/portfolio-replay/bin/python"
           "$replay" -m pip install --upgrade pip
-          "$replay" -m pip install "$wheelhouse"/*.whl
+          mapfile -t regular_wheels < <(
+            find "$wheelhouse" -maxdepth 1 -name '*.whl' \
+              ! -name 'openbb_portfolio_intel-*' -print
+          )
+          "$replay" -m pip install "${regular_wheels[@]}"
+          "$replay" -m pip install --no-deps \
+            "$wheelhouse"/openbb_portfolio_intel-*.whl
+          "$replay" -m pip check
           "$replay" -m pip install pytest pytest-asyncio pytest-mock
           "$replay" -c "import openbb; openbb.build()"
 

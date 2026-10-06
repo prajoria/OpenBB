@@ -47,6 +47,19 @@ function Test-PackageReplay {
     if ($null -eq $profile) {
         throw "Package replay profile is not declared."
     }
+    $versionOutput = & $Python -c `
+        "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
+        throw "Package replay could not determine the interpreter version."
+    }
+    $interpreterVersion = [version]([string]$versionOutput).Trim()
+    $constraint = [string]$profile.python
+    if (
+        $interpreterVersion -lt [version]"3.10" -or
+        $interpreterVersion -ge [version]"3.14"
+    ) {
+        throw "Unsupported Python $($interpreterVersion.Major).$($interpreterVersion.Minor); profile requires $constraint."
+    }
     $previousProfile = $env:OPENBB_MCP_REPLAY_PROFILE
     $previousRoot = $env:OPENBB_MCP_REPLAY_ROOT
     $previousOptional = $env:OPENBB_MCP_REPLAY_OPTIONAL
