@@ -26,7 +26,7 @@ Describe "Portfolio MCP package replay contract" {
         $validateSet = $command.Parameters["Mode"].Attributes |
             Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
         @($validateSet.ValidValues) -join "," |
-            Should Be "protocol,package,workspace-no-browser,workspace-read,workspace-mutation"
+            Should Be "protocol,package,workspace-no-browser,workspace-read,workspace-mutation,operator-fixture,provider-live"
     }
 
     It "reports a missing replay interpreter explicitly" {
@@ -73,6 +73,31 @@ Describe "Workspace MCP parity safety contract" {
                 -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) `
                 -MutationApproved
         } | Should Throw "Workspace mutation requires -DisposableDashboardId."
+    }
+}
+
+Describe "Controlled provider and operator safety contract" {
+    It "rejects operator fixture without maintenance approval" {
+        {
+            Test-OperatorFixture -Python $PSHOME\pwsh.exe `
+                -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
+        } | Should Throw "Operator fixture requires -AllowMaintenance."
+    }
+
+    It "rejects paid provider calls without explicit approval" {
+        {
+            Test-ProviderLive `
+                -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) `
+                -RequestLimit 1 -Symbol "AAPL"
+        } | Should Throw "Provider live verification requires -AllowPaidRequests."
+    }
+
+    It "caps paid provider requests at two" {
+        {
+            Test-ProviderLive `
+                -Root (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) `
+                -PaidApproved -RequestLimit 3 -Symbol "AAPL"
+        } | Should Throw "Provider live verification permits at most two requests."
     }
 }
 
