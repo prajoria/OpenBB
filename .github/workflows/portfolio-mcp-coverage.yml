@@ -161,7 +161,7 @@ jobs:
             fi
             sleep 1
           done
-          authorization="Basic $(printf '%s' \
+          authorization="Bearer $(printf '%s' \
             'replay-user:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' | base64 -w0)"
           pwsh -NoProfile -File ./scripts/test_portfolio_mcp.ps1 \
             -Profile portfolio-read \
