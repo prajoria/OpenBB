@@ -9,11 +9,239 @@ param(
 
     [string]$Authorization,
 
+    [ValidateSet("protocol", "package")]
+    [string]$Mode = "protocol",
+
+    [string]$PythonExecutable = $env:OPENBB_PORTFOLIO_PYTHON,
+
+    [string]$RepositoryRoot = (Split-Path $PSScriptRoot -Parent),
+
+    [string[]]$OptionalAnalytics = @(),
+
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 30
 )
 
 $ErrorActionPreference = "Stop"
+
+function Test-PackageReplay {
+    param(
+        [string]$RuntimeProfile,
+        [string]$Python,
+        [string]$Root
+    )
+
+    if (-not $Python) {
+        throw "Package replay requires -PythonExecutable or OPENBB_PORTFOLIO_PYTHON."
+    }
+    if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
+        throw "Package replay Python executable is unavailable."
+    }
+    $manifestPath = Join-Path $Root `
+        "openbb_platform\extensions\mcp_server\openbb_mcp_server\assets\runtime_profiles.json"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Package replay runtime manifest is unavailable."
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $profile = $manifest.profiles.$RuntimeProfile
+    if ($null -eq $profile) {
+        throw "Package replay profile is not declared."
+    }
+    $previousProfile = $env:OPENBB_MCP_REPLAY_PROFILE
+    $previousRoot = $env:OPENBB_MCP_REPLAY_ROOT
+    $previousOptional = $env:OPENBB_MCP_REPLAY_OPTIONAL
+    try {
+        $env:OPENBB_MCP_REPLAY_PROFILE = $RuntimeProfile
+        $env:OPENBB_MCP_REPLAY_ROOT = $Root
+        $env:OPENBB_MCP_REPLAY_OPTIONAL = $OptionalAnalytics -join ","
+        $assetProbe = @'
+import json
+import os
+import re
+import sys
+import sysconfig
+from importlib import metadata, resources
+from pathlib import Path
+
+profile_name = os.environ["OPENBB_MCP_REPLAY_PROFILE"]
+root = Path(os.environ["OPENBB_MCP_REPLAY_ROOT"]).resolve()
+optional = {
+    item for item in os.environ.get("OPENBB_MCP_REPLAY_OPTIONAL", "").split(",")
+    if item
+}
+source_catalog = json.loads(
+    (root / "openbb_platform/extensions/mcp_server/openbb_mcp_server/"
+     "assets/runtime_profiles.json").read_text(encoding="utf-8")
+)
+profile = source_catalog["profiles"][profile_name]
+
+constraint = profile["python"]
+major, minor = sys.version_info[:2]
+for operator, expected_major, expected_minor in re.findall(
+    r"(>=|>|<=|<|==)\s*(\d+)\.(\d+)", constraint
+):
+    current = (major, minor)
+    expected = (int(expected_major), int(expected_minor))
+    valid = {
+        ">=": current >= expected,
+        ">": current > expected,
+        "<=": current <= expected,
+        "<": current < expected,
+        "==": current == expected,
+    }[operator]
+    if not valid:
+        raise SystemExit(
+            f"Unsupported Python {major}.{minor}; profile requires {constraint}."
+        )
+
+installed_catalog = json.loads(
+    resources.files("openbb_mcp_server")
+    .joinpath("assets/runtime_profiles.json")
+    .read_text(encoding="utf-8")
+)
+if installed_catalog["profiles"][profile_name] != profile:
+    raise SystemExit("Installed runtime profile catalog differs from source manifest.")
+
+assets = resources.files("openbb_mcp_server").joinpath("assets")
+required = (
+    "capability_policy.json",
+    "capability_policy_operations.csv",
+    "runtime_profiles.json",
+    "server_prompts.json",
+    "system_prompt.txt",
+)
+missing = [name for name in required if not assets.joinpath(name).is_file()]
+if missing:
+    raise SystemExit(f"Missing packaged MCP assets: {missing}")
+
+missing_distributions = []
+foreign_distributions = {}
+site_roots = {
+    Path(path).resolve()
+    for key in ("purelib", "platlib")
+    if (path := sysconfig.get_path(key))
+}
+def in_site_packages(path):
+    resolved = Path(path).resolve()
+    return any(root == resolved or root in resolved.parents for root in site_roots)
+
+for name in (*profile["required_distributions"], *optional):
+    try:
+        distribution = metadata.distribution(name)
+    except metadata.PackageNotFoundError:
+        missing_distributions.append(name)
+        continue
+    metadata_root = Path(distribution.locate_file("")).resolve()
+    direct_url = distribution.read_text("direct_url.json")
+    editable = False
+    if direct_url:
+        editable = bool(json.loads(direct_url).get("dir_info", {}).get("editable"))
+    if not in_site_packages(metadata_root) or editable:
+        foreign_distributions[name] = {
+            "editable": editable,
+            "metadata_root": str(metadata_root),
+        }
+if missing_distributions:
+    raise SystemExit(f"Missing declared distributions: {missing_distributions}")
+if foreign_distributions:
+    raise SystemExit(
+        "Distributions did not resolve from non-editable site-packages: "
+        + json.dumps(foreign_distributions, sort_keys=True)
+    )
+
+missing_modules = []
+foreign_origins = {}
+for name in profile["required_modules"]:
+    spec = __import__("importlib.util").util.find_spec(name)
+    if spec is None or spec.origin is None:
+        missing_modules.append(name)
+        continue
+    origin = Path(spec.origin).resolve()
+    if not in_site_packages(origin):
+        foreign_origins[name] = str(origin)
+for distribution in optional:
+    module = distribution.removeprefix("openbb-").replace("-", "_")
+    spec = __import__("importlib.util").util.find_spec(f"openbb_{module}")
+    if spec is None or spec.origin is None:
+        missing_modules.append(f"openbb_{module}")
+    elif not in_site_packages(Path(spec.origin).resolve()):
+        foreign_origins[f"openbb_{module}"] = str(Path(spec.origin).resolve())
+if missing_modules:
+    raise SystemExit(f"Missing declared modules: {missing_modules}")
+if foreign_origins:
+    raise SystemExit(
+        "Package replay resolved checkout source instead of installed wheels: "
+        + json.dumps(foreign_origins, sort_keys=True)
+    )
+
+entry_points = {
+    (ep.group, ep.name): ep.value
+    for group in (
+        "console_scripts",
+        "openbb_core_extension",
+        "openbb_provider_extension",
+        "openbb_job_extension",
+    )
+    for ep in metadata.entry_points(group=group)
+}
+required_entry_points = {
+    ("console_scripts", "openbb-mcp"): "openbb_mcp_server.app.app:main",
+    ("openbb_provider_extension", "fmp_cached"): "openbb_fmp_cached:fmp_cached_provider",
+    ("openbb_core_extension", "fmp_cached"): "openbb_fmp_cached.fmp_cached_router:router",
+    ("openbb_core_extension", "portfolio_intel"): "openbb_portfolio_intel.portfolio_intel_router:router",
+    ("openbb_core_extension", "techtrade"): "openbb_techtrade.techtrade_router:router",
+    ("openbb_core_extension", "backtest"): "openbb_backtest.backtest_router:router",
+    ("openbb_core_extension", "regime"): "openbb_regime.regime_router:router",
+}
+missing_entry_points = sorted(set(required_entry_points) - set(entry_points))
+if missing_entry_points:
+    raise SystemExit(f"Missing declared entry points: {missing_entry_points}")
+wrong_targets = {
+    f"{group}:{name}": {
+        "expected": target,
+        "installed": entry_points[(group, name)],
+    }
+    for (group, name), target in required_entry_points.items()
+    if entry_points[(group, name)] != target
+}
+if wrong_targets:
+    raise SystemExit(
+        "Installed entry-point targets differ from declarations: "
+        + json.dumps(wrong_targets, sort_keys=True)
+    )
+for key, target in required_entry_points.items():
+    metadata.EntryPoint(
+        name=key[1],
+        value=target,
+        group=key[0],
+    ).load()
+print(
+    json.dumps(
+        {
+            "entry_points": sorted(f"{group}:{name}" for group, name in required_entry_points),
+            "optional_analytics": sorted(optional),
+            "profile": profile_name,
+            "python": f"{major}.{minor}",
+            "ready": True,
+        },
+        sort_keys=True,
+    )
+)
+'@
+        $probeResult = $assetProbe | & $Python - 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $diagnostic = Protect-McpDiagnostic -Message (
+                $probeResult | Out-String
+            )
+            throw "Package replay package, provenance, or catalog verification failed: $diagnostic"
+        }
+        return $probeResult | ConvertFrom-Json
+    } finally {
+        $env:OPENBB_MCP_REPLAY_PROFILE = $previousProfile
+        $env:OPENBB_MCP_REPLAY_ROOT = $previousRoot
+        $env:OPENBB_MCP_REPLAY_OPTIONAL = $previousOptional
+    }
+}
 
 function ConvertFrom-McpEvent {
     param([string]$Content)
@@ -403,6 +631,12 @@ function Test-PortfolioMcp {
 }
 
 if ($MyInvocation.InvocationName -ne ".") {
-    Test-PortfolioMcp -RuntimeProfile $Profile -RequestUri $Uri `
-        -AuthHeader $Authorization -RequestTimeout $TimeoutSeconds
+    if ($Mode -eq "package") {
+        Test-PackageReplay -RuntimeProfile $Profile `
+            -Python $PythonExecutable -Root $RepositoryRoot `
+            -OptionalAnalytics $OptionalAnalytics
+    } else {
+        Test-PortfolioMcp -RuntimeProfile $Profile -RequestUri $Uri `
+            -AuthHeader $Authorization -RequestTimeout $TimeoutSeconds
+    }
 }

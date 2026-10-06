@@ -9,6 +9,8 @@ on:
       - ".github/workflows/portfolio-mcp-coverage.yml"
       - "openbb_platform/**"
       - "scripts/audit_mcp_capabilities.py"
+      - "scripts/test_portfolio_mcp.ps1"
+      - "scripts/tests/Test-PortfolioMcp.Tests.ps1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -18,6 +20,173 @@ permissions:
   contents: read
 
 jobs:
+  reject-unsupported-interpreter:
+    name: Reject unsupported Python 3.14
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up unsupported Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Require explicit version diagnostic
+        shell: pwsh
+        run: |
+          try {
+            ./scripts/test_portfolio_mcp.ps1 `
+              -Profile portfolio-read `
+              -Mode package `
+              -PythonExecutable (Get-Command python).Source `
+              -RepositoryRoot $env:GITHUB_WORKSPACE
+            throw "Unsupported interpreter replay unexpectedly succeeded."
+          } catch {
+            $output = $_ | Out-String
+          }
+          if ($output -notmatch "Unsupported Python 3.14" -or
+              $output -notmatch ">=3.10,<3.14") {
+            throw "Unsupported interpreter diagnostic was not explicit: $output"
+          }
+
+  replay-portfolio-profile:
+    name: Replay Portfolio MCP (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      PIP_NO_CACHE_DIR: "1"
+    steps:
+      - name: Check out exact head source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create clean Portfolio environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheelhouse="$RUNNER_TEMP/portfolio-wheels"
+          mkdir -p "$wheelhouse"
+          python -m pip wheel --no-deps --wheel-dir "$wheelhouse" \
+            openbb_platform/core \
+            openbb_platform/extensions/platform_api \
+            openbb_platform/extensions/mcp_server \
+            openbb_platform/extensions/equity \
+            openbb_platform/extensions/portfolio \
+            openbb_platform/extensions/portfolio_intel \
+            openbb_platform/extensions/techtrade \
+            openbb_platform/extensions/backtest \
+            openbb_platform/extensions/regime \
+            openbb_platform/providers/fmp \
+            openbb_platform/providers/fmp_cached \
+            openbb_platform/providers/yfinance
+          python -m venv "$RUNNER_TEMP/portfolio-replay"
+          replay="$RUNNER_TEMP/portfolio-replay/bin/python"
+          "$replay" -m pip install --upgrade pip
+          "$replay" -m pip install "$wheelhouse"/*.whl
+          "$replay" -m pip install pytest pytest-asyncio pytest-mock
+          "$replay" -c "import openbb; openbb.build()"
+
+      - name: Verify required manifest sources and packaged assets
+        shell: pwsh
+        run: |
+          ./scripts/test_portfolio_mcp.ps1 `
+            -Profile portfolio-read `
+            -Mode package `
+            -PythonExecutable "$env:RUNNER_TEMP/portfolio-replay/bin/python" `
+            -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Verify optional package absence
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/portfolio-replay/bin/python" - <<'PY'
+          import importlib.util
+          assert importlib.util.find_spec("openbb_financialtoolkit") is None
+          PY
+
+      - name: Replay installed HTTP protocol
+        shell: bash
+        env:
+          OPENBB_MCP_RUNTIME_PROFILE: portfolio-read
+          OPENBB_MCP_CAPABILITY_PROFILE: portfolio-read
+          OPENBB_MCP_INSTALLATION_KIND: portfolio_venv
+          OPENBB_MCP_APP_TARGET: openbb_platform/extensions/portfolio/launch.py
+          OPENBB_MCP_ENABLE_TOOL_DISCOVERY: "true"
+          OPENBB_MCP_ENABLE_INTELLIGENCE_ADAPTER: "true"
+          OPENBB_MCP_SERVER_AUTH: '["replay-user","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]'
+          PI_WIDGET_BACKEND_TOKEN: runtime-replay-token
+        run: |
+          set -euo pipefail
+          replay_root="$RUNNER_TEMP/portfolio-replay"
+          "$replay_root/bin/openbb-mcp" \
+            --app openbb_platform/extensions/portfolio/launch.py \
+            --host 127.0.0.1 \
+            --port 8001 \
+            --transport streamable-http \
+            --tool-discovery \
+            >"$RUNNER_TEMP/openbb-mcp.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do
+            if curl --silent --output /dev/null \
+              http://127.0.0.1:8001/mcp; then
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/openbb-mcp.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          authorization="Basic $(printf '%s' \
+            'replay-user:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' | base64 -w0)"
+          pwsh -NoProfile -File ./scripts/test_portfolio_mcp.ps1 \
+            -Profile portfolio-read \
+            -Mode protocol \
+            -Uri http://127.0.0.1:8001/mcp \
+            -Authorization "$authorization" \
+            -TimeoutSeconds 60
+
+      - name: Replay real profile protocol
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/portfolio-replay/bin/python" -m pytest \
+            openbb_platform/extensions/mcp_server/tests/integration/test_profile_protocol.py \
+            openbb_platform/extensions/mcp_server/tests/service/test_runtime_profiles.py \
+            -q
+
+      - name: Verify optional FinancialToolkit installation
+        shell: bash
+        run: |
+          replay="$RUNNER_TEMP/portfolio-replay/bin/python"
+          python -m pip wheel --no-deps \
+            --wheel-dir "$RUNNER_TEMP/portfolio-wheels" \
+            openbb_platform/extensions/financialtoolkit
+          "$replay" -m pip install \
+            "$RUNNER_TEMP"/portfolio-wheels/openbb_financialtoolkit-*.whl
+          "$replay" -c "import openbb; openbb.build()"
+          pwsh ./scripts/test_portfolio_mcp.ps1 \
+            -Profile portfolio-read \
+            -Mode package \
+            -PythonExecutable "$replay" \
+            -RepositoryRoot "$GITHUB_WORKSPACE" \
+            -OptionalAnalytics openbb-financialtoolkit
+          "$replay" -m pytest \
+            openbb_platform/extensions/mcp_server/tests/app/test_analytics_profiles.py \
+            -q
+
   compare-portfolio-inventories:
     name: Compare Portfolio MCP inventories
     runs-on: ubuntu-latest
