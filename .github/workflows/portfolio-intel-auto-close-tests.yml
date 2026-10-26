@@ -1,0 +1,38 @@
+name: Portfolio-Intel Auto-Close Script Tests
+
+# Issue: #1975
+# Runs the fixture tests for the cited-issue extraction used by
+# portfolio-intel-auto-close-on-merge.yml. That workflow only runs after a
+# merge, so its logic is tested here on the pull request that changes it.
+
+on:
+  pull_request:
+    branches:
+      - portfolio
+    paths:
+      - ".github/scripts/auto-close-cited-issues.sh"
+      - ".github/scripts/test-auto-close-cited-issues.sh"
+      - ".github/workflows/portfolio-intel-auto-close-on-merge.yml"
+      - ".github/workflows/portfolio-intel-auto-close-tests.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fixtures:
+    name: Auto-close extraction fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (scripts only)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Run fixture set
+        run: bash .github/scripts/test-auto-close-cited-issues.sh
