@@ -233,18 +233,12 @@ if ($Installation -eq "portfolio_venv") {
     $platformEnvironmentArgs = @()
 } else {
     $PlatformExecutable = "uv"
-    $platformEnvironmentArgs = @(
-        "run",
-        "--no-project",
-        "--python", "3.13",
-        # FastMCP 3.4.6 requires Starlette >=1.0.1, which conflicts with Platform FastAPI.
-        "--with", "fastmcp==3.4.0",
-        "--with-editable", (Join-Path $OpenBBRoot "openbb_platform"),
-        "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\core"),
-        "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\extensions\platform_api"),
-        "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\extensions\mcp_server")
-    )
+    # Committed lock (scripts\mcp_locks) plus checkout-local editables.
+    $platformEnvironmentArgs = @(Get-PlatformUvArguments -OpenBBRoot $OpenBBRoot)
 }
+# Resolve the Workspace lock before anything runs so a missing lock fails fast.
+$workspaceEnvironmentArgs = @(Get-WorkspaceUvArguments -OpenBBRoot $OpenBBRoot `
+    -WorkspaceBackend $WorkspaceBackend)
 
 $RuntimeManifestPath = Join-Path $ProfileRepositoryRoot `
     "openbb_platform\extensions\mcp_server\openbb_mcp_server\assets\runtime_profiles.json"
@@ -309,16 +303,7 @@ $platformArgs = $platformEnvironmentArgs + $pythonPrefix + @(
 if ($RuntimeProfile.app.kind -eq "custom") {
     $platformArgs += @("--app", $PlatformAppTarget)
 }
-$workspaceArgs = @(
-    "run",
-    "--no-project",
-    "--python", "3.13",
-    "--with", "fastmcp==3.4.6",
-    "--with", "openbb-ai==2.1.0",
-    "--with", "pydantic==2.12.5",
-    "--with", "starlette==1.6.0",
-    "--with", "uvicorn==0.52.3",
-    "--directory", $WorkspaceBackend,
+$workspaceArgs = $workspaceEnvironmentArgs + @(
     "python", "-m", "workspace_mcp",
     "--host", "127.0.0.1",
     "--port", $WorkspacePort,

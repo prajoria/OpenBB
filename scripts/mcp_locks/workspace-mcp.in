@@ -1,0 +1,11 @@
+# Direct inputs for the Workspace MCP environment. The workspace_mcp module itself
+# runs from the Workspace checkout (start-dual-mcp.ps1 --directory), not from this lock.
+# Compiled into workspace-mcp.txt by scripts/lock_mcp_envs.py; edit this file, not the lock.
+#
+# FastMCP split (intentional): this environment runs FastMCP 3.4.6 / Starlette 1.6.0,
+# while the Platform MCP stays on FastMCP 3.4.0 (see platform-mcp.in).
+fastmcp==3.4.6
+openbb-ai==2.1.0
+pydantic==2.12.5
+starlette==1.6.0
+uvicorn==0.52.3

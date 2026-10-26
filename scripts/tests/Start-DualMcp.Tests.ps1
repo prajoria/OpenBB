@@ -3,6 +3,9 @@ $ScriptText = Get-Content -LiteralPath $ScriptPath -Raw
 $ManifestPath = Join-Path $PSScriptRoot "..\..\openbb_platform\extensions\mcp_server\openbb_mcp_server\assets\runtime_profiles.json"
 $Manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 $LifecycleModule = Join-Path $PSScriptRoot "..\mcp_stack_lifecycle.psm1"
+$RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$PlatformInput = Get-Content -LiteralPath (Join-Path $RepoRoot "scripts\mcp_locks\platform-mcp.in") -Raw
+$WorkspaceInput = Get-Content -LiteralPath (Join-Path $RepoRoot "scripts\mcp_locks\workspace-mcp.in") -Raw
 
 Import-Module $LifecycleModule -Force
 
@@ -11,16 +14,33 @@ Describe "start-dual-mcp reproducibility" {
         $ScriptText | Should Match '#Requires -Version 7\.0'
     }
 
-    It "pins Workspace external dependencies exactly" {
-        ([regex]::Matches($ScriptText, '"fastmcp==3\.4\.0"')).Count | Should Be 1
-        ([regex]::Matches($ScriptText, '"fastmcp==3\.4\.6"')).Count | Should Be 1
+    It "keeps direct pins in the lock inputs" {
+        $PlatformInput | Should Match '(?m)^fastmcp==3\.4\.0\r?$'
+        $WorkspaceInput | Should Match '(?m)^fastmcp==3\.4\.6\r?$'
+        $WorkspaceInput | Should Match '(?m)^openbb-ai==2\.1\.0\r?$'
+        $WorkspaceInput | Should Match '(?m)^pydantic==2\.12\.5\r?$'
+        $WorkspaceInput | Should Match '(?m)^starlette==1\.6\.0\r?$'
+        $WorkspaceInput | Should Match '(?m)^uvicorn==0\.52\.3\r?$'
         $Manifest.profiles.'platform-standard'.required_versions.fastmcp |
             Should Be "3.4.0"
-        $ScriptText | Should Match '"openbb-ai==2\.1\.0"'
-        $ScriptText | Should Match '"pydantic==2\.12\.5"'
-        $ScriptText | Should Match '"starlette==1\.6\.0"'
-        $ScriptText | Should Match '"uvicorn==0\.52\.3"'
-        $ScriptText | Should Not Match '"(fastmcp|openbb-ai|pydantic|starlette|uvicorn)>='
+        $ScriptText | Should Not Match '"(fastmcp|openbb-ai|pydantic|starlette|uvicorn)(==|>=)'
+    }
+
+    It "launches both servers from the committed locks" {
+        $ScriptText | Should Match 'Get-PlatformUvArguments -OpenBBRoot \$OpenBBRoot'
+        $ScriptText | Should Match 'Get-WorkspaceUvArguments -OpenBBRoot \$OpenBBRoot'
+        foreach ($case in @(
+            @{ Args = @(Get-PlatformUvArguments -OpenBBRoot $RepoRoot); Lock = "platform-mcp.txt" },
+            @{ Args = @(Get-WorkspaceUvArguments -OpenBBRoot $RepoRoot -WorkspaceBackend $TestDrive); Lock = "workspace-mcp.txt" }
+        )) {
+            $lockPath = Join-Path $RepoRoot "scripts\mcp_locks\$($case.Lock)"
+            $arguments = $case.Args
+            $arguments[0..1] -join " " | Should Be "run --no-project"
+            $arguments[[array]::IndexOf($arguments, "--with-requirements") + 1] |
+                Should Be $lockPath
+            $arguments[[array]::IndexOf($arguments, "--exclude-newer") + 1] |
+                Should Be (Get-McpLockTimestamp -LockPath $lockPath)
+        }
     }
 
     It "verifies the isolated Platform environment before startup" {
@@ -39,9 +59,32 @@ Describe "start-dual-mcp reproducibility" {
     }
 
     It "uses only checkout-local editable Platform packages" {
-        $ScriptText | Should Match 'openbb_platform\\core'
-        $ScriptText | Should Match 'openbb_platform\\extensions\\platform_api'
-        $ScriptText | Should Match 'openbb_platform\\extensions\\mcp_server'
+        $arguments = @(Get-PlatformUvArguments -OpenBBRoot $RepoRoot)
+        $editables = for ($i = 0; $i -lt $arguments.Count; $i++) {
+            if ($arguments[$i] -eq "--with-editable") {
+                $arguments[$i + 1].Substring($RepoRoot.Length).TrimStart("\").Replace("\", "/")
+            }
+        }
+        $declared = [regex]::Matches($PlatformInput, '(?m)^-e \.\./\.\./(\S+?)\r?$') |
+            ForEach-Object { $_.Groups[1].Value }
+        @($editables).Count | Should Be 4
+        (@($editables | Sort-Object) -join ",") | Should Be (@($declared | Sort-Object) -join ",")
+    }
+
+    It "fails before startup when a lock is missing or unstamped" {
+        $missing = Join-Path $TestDrive "absent.txt"
+        { Get-McpLockTimestamp -LockPath $missing } |
+            Should Throw "is missing. Run python scripts/lock_mcp_envs.py."
+        $unstamped = Join-Path $TestDrive "unstamped.txt"
+        Set-Content -LiteralPath $unstamped -Value "fastmcp==3.4.0"
+        { Get-McpLockTimestamp -LockPath $unstamped } |
+            Should Throw "has no locked-at header."
+    }
+
+    It "keeps a spaced Workspace path as one argument" {
+        $backend = "C:\Work Space\backend"
+        $arguments = @(Get-WorkspaceUvArguments -OpenBBRoot $RepoRoot -WorkspaceBackend $backend)
+        $arguments[[array]::IndexOf($arguments, "--directory") + 1] | Should Be $backend
     }
 
     It "selects a validated runtime profile with the compatibility default" {

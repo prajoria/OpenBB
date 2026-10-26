@@ -297,12 +297,69 @@ function Resolve-PortfolioEnvironment {
     }
 }
 
+function Get-McpLockTimestamp {
+    param([string]$LockPath)
+
+    if (-not (Test-Path -LiteralPath $LockPath -PathType Leaf)) {
+        throw "Dependency lock '$LockPath' is missing. Run python scripts/lock_mcp_envs.py."
+    }
+    $match = [regex]::Match(
+        (Get-Content -LiteralPath $LockPath -Raw),
+        '(?m)^# locked-at: (\S+)\s*$'
+    )
+    if (-not $match.Success) {
+        throw "Dependency lock '$LockPath' has no locked-at header."
+    }
+    return $match.Groups[1].Value
+}
+
+function Get-LockedUvArguments {
+    param([string]$OpenBBRoot, [string]$LockName)
+
+    # --exclude-newer bounds any requirement the lock does not yet pin.
+    $lockPath = Join-Path $OpenBBRoot "scripts\mcp_locks\$LockName"
+    return @(
+        "run",
+        "--no-project",
+        "--python", "3.13",
+        "--exclude-newer", (Get-McpLockTimestamp -LockPath $lockPath),
+        "--with-requirements", $lockPath
+    )
+}
+
+function Get-PlatformUvArguments {
+    param([string]$OpenBBRoot)
+
+    # FastMCP 3.4.6 requires Starlette >=1.0.1, which conflicts with Platform
+    # FastAPI; platform-mcp.txt keeps the Platform on FastMCP 3.4.0.
+    $arguments = Get-LockedUvArguments -OpenBBRoot $OpenBBRoot -LockName "platform-mcp.txt"
+    foreach ($editable in @(
+        "openbb_platform",
+        "openbb_platform\core",
+        "openbb_platform\extensions\platform_api",
+        "openbb_platform\extensions\mcp_server"
+    )) {
+        $arguments += @("--with-editable", (Join-Path $OpenBBRoot $editable))
+    }
+    return $arguments
+}
+
+function Get-WorkspaceUvArguments {
+    param([string]$OpenBBRoot, [string]$WorkspaceBackend)
+
+    return (Get-LockedUvArguments -OpenBBRoot $OpenBBRoot -LockName "workspace-mcp.txt") +
+        @("--directory", $WorkspaceBackend)
+}
+
 Export-ModuleMember -Function @(
     "Clear-StaleProcessState",
     "ConvertTo-NativeArguments",
     "Get-DescendantProcessIds",
+    "Get-McpLockTimestamp",
+    "Get-PlatformUvArguments",
     "Get-ProcessIdentity",
     "Get-ServerAuthHeader",
+    "Get-WorkspaceUvArguments",
     "Read-ProcessState",
     "Resolve-PortfolioEnvironment",
     "Stop-PartialStack",

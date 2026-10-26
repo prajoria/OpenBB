@@ -1,0 +1,15 @@
+# Direct inputs for the OpenBB Platform MCP environment (isolated_uv installation).
+# Compiled into platform-mcp.txt by scripts/lock_mcp_envs.py; edit this file, not the lock.
+#
+# FastMCP split (intentional): FastMCP 3.4.6 requires Starlette >=1.0.1, which
+# conflicts with the Platform's FastAPI. The Platform stays on FastMCP 3.4.0 while
+# the Workspace MCP runs 3.4.6 in its own environment (workspace-mcp.in). The two
+# servers never share an interpreter.
+fastmcp==3.4.0
+
+# Checkout-local editable sources (#2159). The launcher installs these with
+# --with-editable; they are excluded from the lock, their dependencies are not.
+-e ../../openbb_platform
+-e ../../openbb_platform/core
+-e ../../openbb_platform/extensions/platform_api
+-e ../../openbb_platform/extensions/mcp_server
