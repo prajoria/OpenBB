@@ -38,14 +38,19 @@ jobs:
       - name: Checkout (deep enough to inspect merge commits)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 20   # HEAD + a bit of context; PR merges add 1 commit typically
+          # Full history: the pushed range (e.g. an absorb from develop) can
+          # exceed any fixed depth, and a missing base must fail loudly
+          # rather than silently cite nothing.
+          fetch-depth: 0
 
-      - name: Extract cited issues from HEAD commit
+      - name: Extract cited issues from pushed commits and merged PR bodies
         id: extract
         env:
           # SHAs pushed in this event.
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
+          # Reads each commit's merged PR body (#1975).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # Get all commit messages in the pushed range.
@@ -59,21 +64,12 @@ jobs:
           fi
           echo "Range: $RANGE"
 
-          # Grep for closing-verb clauses. Case-insensitive via -i (portable).
-          # Grammar mirrors .github/scripts/closes-syntax-check.sh:
-          #   Closes|Fixes|Resolves  #NN                    (same-repo, single)
-          #   Closes|Fixes|Resolves  #NN, #MM, #PP          (comma-separated multi)
-          #   Closes|Fixes|Resolves  owner/repo#NN          (cross-repo — we only
-          #                                                  auto-close same-repo here)
-          # Two-stage: first extract the whole clause (verb + possibly-comma-sep
-          # issue list), then extract every #NN from the clause. Necessary
-          # because a single grep can't capture repeated #NN groups.
-          # Output one issue number per line, deduplicated.
-          git log --pretty=format:'%B%n---%n' "$RANGE" \
-            | grep -oiE '(Closes|Fixes|Resolves)[[:space:]]+#[0-9]+([[:space:]]*,[[:space:]]*#[0-9]+)*' \
-            | grep -oE '#[0-9]+' \
-            | tr -d '#' \
-            | sort -u > cited_issues.txt || true
+          # Commit messages plus the body of each commit's merged PR: a squash
+          # merge keeps the branch commits' "Refs #NN" but drops the PR body's
+          # "Closes #NN" (#1975). Grammar and tests live in the sourced script.
+          # shellcheck source=./.github/scripts/auto-close-cited-issues.sh
+          source .github/scripts/auto-close-cited-issues.sh
+          collect_closing_text "$RANGE" | extract_cited_issues > cited_issues.txt
           echo "Cited issues:"
           cat cited_issues.txt || echo "(none)"
           # Emit count for logs.
@@ -96,6 +92,11 @@ jobs:
             | grep -oE '#[0-9]+' \
             | tr -d '#' \
             | head -1 || true)
+          if [ -z "$SOURCE_PR" ]; then
+            # Squash merges name the PR as a trailing "(#NNN)" in the subject.
+            SOURCE_PR=$(git log -1 --format=%s "$MERGE_SHA" \
+              | grep -oE '\(#[0-9]+\)$' | tr -d '(#)' || true)
+          fi
           if [ -n "$SOURCE_PR" ]; then
             PR_REF="#$SOURCE_PR"
           else
