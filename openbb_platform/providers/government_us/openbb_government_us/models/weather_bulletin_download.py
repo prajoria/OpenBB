@@ -12,6 +12,9 @@ from openbb_core.provider.standard_models.weather_bulletin_download import (
 )
 from pydantic import Field
 
+# Exact host for caller-supplied bulletin URLs (#2242).
+USDA_ESMIS_HOSTS = ("esmis.nal.usda.gov",)
+
 
 class GovernmentUsWeatherBulletinDownloadQueryParams(
     WeatherBulletinDownloadQueryParams
@@ -55,18 +58,18 @@ class GovernmentUsWeatherBulletinDownloadFetcher(
         """Extract the raw PDF content."""
         # pylint: disable=import-outside-toplevel
         from openbb_core.provider.utils.helpers import get_async_requests_session
+        from openbb_core.provider.utils.url_safety import (
+            amake_safe_request,
+            validate_public_url,
+        )
 
         results: dict = {}
         urls = query.urls
 
-        # Verify that all URLs are going to be valid USDA URLs
+        # Verify every URL before downloading any (#2242): exact USDA ESMIS host,
+        # https, default port, public address. Redirects are re-checked per hop.
         for url in urls:
-            if not url.lower().startswith("https://esmis.nal.usda.gov/"):
-                raise OpenBBError(
-                    ValueError(
-                        f"Invalid URL '{url}'. Only URLs from 'esmis.nal.usda.gov' are supported."
-                    )
-                )
+            validate_public_url(url, USDA_ESMIS_HOSTS)
             if not url.lower().endswith(".pdf"):
                 raise OpenBBError(
                     ValueError(
@@ -74,22 +77,31 @@ class GovernmentUsWeatherBulletinDownloadFetcher(
                     )
                 )
 
+        async def read_pdf(response, _session):
+            if response.status != 200:
+                raise OpenBBError(
+                    ValueError(
+                        f"Failed to download document from {response.url}."
+                        f" Status code: {response.status}"
+                    )
+                )
+            return await response.read()
+
         try:
             async with await get_async_requests_session() as session:
                 session._max_field_size = 32768  # pylint: disable=protected-access
 
                 for url in urls:
-                    async with await session.get(url) as response:
-                        if response.status != 200:
-                            raise OpenBBError(
-                                ValueError(
-                                    f"Failed to download document from {url}. Status code: {response.status}"
-                                )
-                            )
-                        content_bytes = await response.read()
-                        results[url] = content_bytes
+                    results[url] = await amake_safe_request(
+                        url,
+                        USDA_ESMIS_HOSTS,
+                        session=session,
+                        response_callback=read_pdf,
+                    )
 
             return results
+        except OpenBBError:
+            raise
         except Exception as e:
             raise OpenBBError(e) from e
 

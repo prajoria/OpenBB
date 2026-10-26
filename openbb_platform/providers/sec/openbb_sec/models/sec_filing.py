@@ -11,6 +11,9 @@ from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.abstract.query_params import QueryParams
 from pydantic import ConfigDict, Field, PrivateAttr, computed_field
 
+# Exact hosts for caller-supplied filing and document URLs (#2242).
+SEC_HOSTS = ("www.sec.gov", "sec.gov")
+
 
 class SecFilingQueryParams(QueryParams):
     """SEC Filing Query Parameters."""
@@ -309,7 +312,7 @@ class SecBaseFiling(Data):  # pylint: disable=too-many-instance-attributes
         if len(check_val) != 18:
             raise ValueError("Invalid SEC URL supplied, must be a filing URL.")
 
-        new_url = url.split(check_val)[0] + check_val + "/"
+        new_url = url.split(check_val, maxsplit=1)[0] + check_val + "/"
 
         cik_check = new_url.split("/")[-3]
         new_url = new_url.replace(f"/{cik_check}/", f"/{cik_check.lstrip('0')}/")
@@ -342,12 +345,15 @@ class SecBaseFiling(Data):  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     async def _adownload_file(url, use_cache: bool = True):
-        """Download a file asynchronously from a SEC URL."""
+        """Download a file asynchronously from a SEC URL.
+
+        The URL and every redirect hop must be an https sec.gov address (#2242).
+        """
         # pylint: disable=import-outside-toplevel
         from aiohttp_client_cache import SQLiteBackend
         from aiohttp_client_cache.session import CachedSession
         from openbb_core.app.utils import get_user_cache_directory
-        from openbb_core.provider.utils.helpers import amake_request
+        from openbb_core.provider.utils.url_safety import amake_safe_request
         from openbb_sec.utils.definitions import SEC_HEADERS
         from openbb_sec.utils.helpers import sec_callback
 
@@ -357,8 +363,9 @@ class SecBaseFiling(Data):  # pylint: disable=too-many-instance-attributes
             async with CachedSession(cache=SQLiteBackend(cache_dir)) as session:
                 try:
                     await session.delete_expired_responses()
-                    response = await amake_request(
+                    response = await amake_safe_request(
                         url,
+                        SEC_HOSTS,
                         headers=SEC_HEADERS,
                         session=session,
                         response_callback=sec_callback,
@@ -367,8 +374,9 @@ class SecBaseFiling(Data):  # pylint: disable=too-many-instance-attributes
                 finally:
                     await session.close()
         else:
-            response = await amake_request(
+            response = await amake_safe_request(
                 url,
+                SEC_HOSTS,
                 headers=SEC_HEADERS,
                 response_callback=sec_callback,
                 raise_for_status=True,
