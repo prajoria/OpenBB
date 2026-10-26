@@ -210,6 +210,24 @@ scratch `MEMORY.md` files in random locations.
 comments, or old docs is historical only — treat it as a permanent
 identifier of past work, but never file new `bd-XX` items.
 
+**Retired Beads Git hooks (#2235):** checkouts set up with `bd hooks
+install` still have `core.hooksPath` pointing at `.beads/hooks`, or Beads
+sections inside `.git/hooks`, so every commit ran `bd` and rewrote
+`.beads/issues.jsonl`. That setting also makes `pre-commit install`
+refuse to install the supported hooks. The tracked `.beads/hooks/*` files
+are now inert stubs that only print a warning. Run once per checkout
+(worktrees share it):
+
+```bash
+python scripts/retire_beads_hooks.py --check   # exit 1 if Beads hooks remain
+python scripts/retire_beads_hooks.py           # idempotent migration
+pre-commit install                             # then install supported hooks
+```
+
+The migration keeps any non-Beads lines by moving them into the default
+hooks directory. It never overwrites an existing hook there: on a
+conflict it exits 2 and changes nothing.
+
 **Prohibited tracking tools (hard rule, no exceptions without explicit
 per-call user approval):**
 
