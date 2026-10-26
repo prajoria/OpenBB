@@ -103,6 +103,8 @@ try {
         throw "A lock with a tampered hash installed; hash verification is not enforced."
     }
     Write-Host "Tampered lock refused before install."
+    # The refused uv sync was expected; do not let its exit code fail the run.
+    $global:LASTEXITCODE = 0
 } finally {
     $env:UV_CACHE_DIR = $PreviousCache
     Remove-Item -LiteralPath $Scratch -Recurse -Force -ErrorAction SilentlyContinue
