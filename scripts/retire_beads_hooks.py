@@ -26,6 +26,7 @@ BEADS_SECTION = re.compile(
     r"^# --- BEGIN BEADS INTEGRATION[^\n]*\n.*?^# --- END BEADS INTEGRATION[^\n]*(?:\n|$)",
     re.MULTILINE | re.DOTALL,
 )
+RETIRED_STUB = re.compile(r"^# Retired Beads [\w-]+ hook \(#2235\)", re.MULTILINE)
 
 
 class MigrationConflict(RuntimeError):
@@ -97,14 +98,27 @@ def strip_beads(text: str) -> str | None:
     return remainder if meaningful else None
 
 
+def is_retired_stub(text: str) -> bool:
+    """Return True for an unmodified retired ``.beads/hooks`` stub."""
+    if not RETIRED_STUB.search(text):
+        return False
+    return all(
+        not line.strip() or line.startswith(("#", "echo ", "exit 0"))
+        for line in text.splitlines()
+    )
+
+
 def find_problems(repo: Path) -> list[str]:
     """Return every remaining way this checkout would run Beads hooks."""
     problems = []
     if _beads_hooks_path(repo) is not None:
         problems.append("core.hooksPath points at the retired Beads hooks directory")
     for hook in _hooks(_hooks_dir(repo)):
-        if BEADS_SECTION.search(_read(hook)):
+        text = _read(hook)
+        if BEADS_SECTION.search(text):
             problems.append(f"{hook.name}: contains the Beads integration section")
+        elif is_retired_stub(text):
+            problems.append(f"{hook.name}: is a retired Beads stub")
     return problems
 
 
@@ -113,6 +127,9 @@ def _plan(repo: Path) -> _Plan:
     hooks_dir = _hooks_dir(repo)
     for hook in _hooks(hooks_dir):
         text = _read(hook)
+        if is_retired_stub(text):
+            plan.deletes.append(hook)
+            continue
         if not BEADS_SECTION.search(text):
             continue
         kept = strip_beads(text)
@@ -127,7 +144,9 @@ def _plan(repo: Path) -> _Plan:
     plan.unset_hooks_path = True
     conflicts = []
     for hook in _hooks(beads_dir):
-        kept = strip_beads(_read(hook))
+        # A retired stub is Beads-owned; copying it would re-add the warning.
+        text = _read(hook)
+        kept = None if is_retired_stub(text) else strip_beads(text)
         if kept is None:
             continue
         target = hooks_dir / hook.name
@@ -149,7 +168,7 @@ def migrate(repo: Path) -> list[str]:
     actions = []
     for path in plan.deletes:
         path.unlink()
-        actions.append(f"removed {path.name} (Beads-only hook)")
+        actions.append(f"removed {path.name} (Beads-only hook or retired stub)")
     for path, text in plan.writes.items():
         _write(path, text)
         actions.append(f"wrote {path.name} without the Beads section")
