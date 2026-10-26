@@ -66,9 +66,9 @@ def test_all_317_audited_operations_classify_exactly_once(policy):
         decision.rule_id.startswith("deny-unreviewed") for decision in decisions
     )
     assert Counter(decision.disposition for decision in decisions) == {
-        "direct": 289,
+        "direct": 298,
         "metadata_only": 10,
-        "restricted": 18,
+        "restricted": 9,
     }
 
 
@@ -118,12 +118,17 @@ def test_execution_actions_are_denied_in_every_profile(policy, path):
         ("/api/v1/regulators/sec/filing_headers", "GET"),
     ],
 )
-def test_unhardened_url_fetches_are_denied(policy, path, method):
-    """Caller-controlled URL fetches stay unavailable until SSRF hardening."""
+def test_ssrf_hardened_url_fetches_are_admitted_reads(policy, path, method):
+    """SSRF-hardened URL fetches (#2242) are admitted by their own rule (#2290)."""
     decision = policy.classify_operation("portfolio-venv-core-in-process", method, path)
-    assert decision.disposition == "restricted"
-    assert decision.admitted_profiles == ()
-    assert "SSRF" in (decision.reason or "")
+    assert decision.rule_id == "deny-unhardened-congress-url-fetches"
+    assert decision.disposition == "direct"
+    assert decision.access_class == "provider_read"
+    assert decision.admitted_profiles == (
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops",
+    )
 
 
 def test_bundle_ingest_requires_ops_filesystem_access(policy):
