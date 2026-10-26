@@ -88,6 +88,8 @@ $PlatformErrorLog = Join-Path $StateRoot "openbb-platform-mcp.error.log"
 $WorkspaceLog = Join-Path $StateRoot "workspace-mcp.log"
 $WorkspaceErrorLog = Join-Path $StateRoot "workspace-mcp.error.log"
 $RuntimeResolutionArtifact = Join-Path $StateRoot "runtime-resolution.json"
+# Launcher-owned, hash-verified server environments (#2282).
+$EnvironmentRoot = Join-Path $StateRoot "envs"
 
 function Read-State {
     return Read-ProcessState -StatePath $StatePath
@@ -230,15 +232,14 @@ if ($Installation -eq "portfolio_venv") {
         -PortfolioRoot $PortfolioRoot
     $PlatformExecutable = $portfolioEnvironment.Python
     $ProfileRepositoryRoot = $portfolioEnvironment.RepositoryRoot
-    $platformEnvironmentArgs = @()
 } else {
-    $PlatformExecutable = "uv"
-    # Committed lock (scripts\mcp_locks) plus checkout-local editables.
-    $platformEnvironmentArgs = @(Get-PlatformUvArguments -OpenBBRoot $OpenBBRoot)
+    # Hash-verified venv from the committed lock plus checkout-local editables.
+    $PlatformExecutable = Get-PlatformLockedPython -OpenBBRoot $OpenBBRoot `
+        -EnvironmentRoot $EnvironmentRoot
 }
-# Resolve the Workspace lock before anything runs so a missing lock fails fast.
-$workspaceEnvironmentArgs = @(Get-WorkspaceUvArguments -OpenBBRoot $OpenBBRoot `
-    -WorkspaceBackend $WorkspaceBackend)
+# Build or verify the Workspace environment before any server process starts.
+$WorkspaceExecutable = Get-WorkspaceLockedPython -OpenBBRoot $OpenBBRoot `
+    -EnvironmentRoot $EnvironmentRoot
 
 $RuntimeManifestPath = Join-Path $ProfileRepositoryRoot `
     "openbb_platform\extensions\mcp_server\openbb_mcp_server\assets\runtime_profiles.json"
@@ -277,12 +278,7 @@ if ($PlatformAppTarget.EndsWith(".py") -and
     $PlatformAppTarget = Join-Path $ProfileRepositoryRoot $PlatformAppTarget
 }
 $RuntimeVerifier = Join-Path $ProfileRepositoryRoot "scripts\verify_mcp_runtime.py"
-$pythonPrefix = if ($Installation -eq "isolated_uv") {
-    @("python")
-} else {
-    @()
-}
-$resolutionArgs = $platformEnvironmentArgs + $pythonPrefix + @(
+$resolutionArgs = @(
     $RuntimeVerifier,
     "--profile", $Profile,
     "--installation", $Installation,
@@ -293,7 +289,7 @@ $resolutionArgs = $platformEnvironmentArgs + $pythonPrefix + @(
 if ($LASTEXITCODE -ne 0) {
     throw "OpenBB Platform runtime provenance validation failed for '$Profile'."
 }
-$platformArgs = $platformEnvironmentArgs + $pythonPrefix + @(
+$platformArgs = @(
     "-m", "openbb_mcp_server.app.app",
     "--host", "127.0.0.1",
     "--port", $PlatformPort,
@@ -303,8 +299,8 @@ $platformArgs = $platformEnvironmentArgs + $pythonPrefix + @(
 if ($RuntimeProfile.app.kind -eq "custom") {
     $platformArgs += @("--app", $PlatformAppTarget)
 }
-$workspaceArgs = $workspaceEnvironmentArgs + @(
-    "python", "-m", "workspace_mcp",
+$workspaceArgs = @(
+    "-m", "workspace_mcp",
     "--host", "127.0.0.1",
     "--port", $WorkspacePort,
     "--cors-allow", "https://pro.openbb.co"
@@ -339,7 +335,8 @@ try {
         throw "Selected checkout does not contain scripts\test_portfolio_mcp.ps1."
     }
     & $ReadinessScript @readinessArgs | Out-Host
-    $workspaceProcess = Start-Process -FilePath "uv" `
+    $workspaceProcess = Start-Process -FilePath $WorkspaceExecutable `
+        -WorkingDirectory $WorkspaceBackend `
         -ArgumentList (ConvertTo-NativeArguments -Arguments $workspaceArgs) -PassThru `
         -RedirectStandardOutput $WorkspaceLog -RedirectStandardError $WorkspaceErrorLog `
         -WindowStyle Hidden

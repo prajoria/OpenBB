@@ -85,11 +85,11 @@ mask provenance failures by adding an unrelated editable checkout to
 
 ### Dependency locks
 
-The launcher builds two uv environments: Platform MCP (`platform-standard`) and
-Workspace MCP. Both install from committed, fully pinned locks, so the full
-transitive dependency graph is known and reviewed. The locks pin versions, not
-artifact hashes: `uv run` does not verify hashes, so none are recorded. Portfolio profiles
-are unaffected: they run the pre-built `.venv_portfolio` interpreter.
+The launcher builds two environments: Platform MCP (`platform-standard`) and
+Workspace MCP. Both install from committed, fully pinned locks that also record
+a `sha256` hash for every artifact, so the full transitive dependency graph is
+known, reviewed and integrity-checked. Portfolio profiles are unaffected: they
+run the pre-built `.venv_portfolio` interpreter.
 
 | File | Role |
 |---|---|
@@ -97,11 +97,22 @@ are unaffected: they run the pre-built `.venv_portfolio` interpreter.
 | `scripts/mcp_locks/workspace-mcp.in` | Workspace direct inputs: FastMCP, OpenBB AI, Pydantic, Starlette, Uvicorn |
 | `scripts/mcp_locks/*.txt` | Generated locks; never edit by hand |
 
-Each lock is consumed with `uv run --with-requirements <lock>`. The editables
-are still installed from the checkout with `--with-editable`; they are excluded
-from the lock, but their dependencies are not. `--exclude-newer <locked-at>`
-bounds anything the lock does not pin to versions published before the lock
-was compiled. The Workspace app still runs from the Workspace checkout.
+Each server runs from a launcher-owned virtual environment under
+`%LOCALAPPDATA%\OpenBB\mcp-stack\envs\` (#2282). The environment is built with
+`uv pip sync --require-hashes <lock>`, so a package whose artifact matches none
+of its locked hashes stops startup before any server process starts. The four
+Platform editables are then installed from the checkout with
+`uv pip install --no-deps -e`; they are excluded from the lock, but their
+dependencies are not. The Workspace app runs with the Workspace checkout as its
+working directory.
+
+A stamp records the SHA-256 of the lock each environment was built from, and
+the lock asserter checks the environment on every start. A changed lock, a
+failed build, or a drifted environment is rebuilt rather than reused. To force a
+rebuild, stop the stack and delete the `envs` folder.
+
+`uv run` is not used for these servers: it neither verifies hashes nor honors
+`UV_REQUIRE_HASHES` or `UV_VERIFY_HASHES`.
 
 The two environments intentionally differ on FastMCP. FastMCP 3.4.6 requires
 Starlette 1.0.1 or newer, which conflicts with the Platform's FastAPI. The
@@ -112,7 +123,7 @@ Starlette 1.6.0. The servers never share an interpreter.
 python scripts\lock_mcp_envs.py            # apply edited .in files, keeping other pins
 python scripts\lock_mcp_envs.py --upgrade  # deliberate refresh to the latest versions
 python scripts\lock_mcp_envs.py --check    # exit 1 if a lock no longer matches its inputs
-.\scripts\test_mcp_lock_replay.ps1         # rebuild both environments in a clean cache
+.\scripts\test_mcp_lock_replay.ps1         # clean-cache rebuild; a tampered hash must be refused
 ```
 
 The `Dual MCP Dependency Lock` workflow runs `--check` and the clean-cache
@@ -120,10 +131,12 @@ replay on pull requests. A weekly job reports available upgrades without
 changing the branch. Constraint files are not used, because `uv run` ignores
 `UV_CONSTRAINT`.
 
-If startup fails with a missing lock, a missing `locked-at` header, or a
-dependency filtered by `exclude-newer`, an input changed without regenerating
-its lock. Run `python scripts\lock_mcp_envs.py`, review the lock diff, and commit
-it together with the input change.
+If startup fails with a missing lock or a missing `locked-at` header, an input
+changed without regenerating its lock. Run `python scripts\lock_mcp_envs.py`,
+review the lock diff, and commit it together with the input change. If it fails
+with a hash mismatch, the downloaded artifact is not the one that was locked:
+treat it as a supply-chain warning, do not regenerate the lock to make it pass,
+and investigate the package index or proxy first.
 
 ## 3. Credential prerequisites
 

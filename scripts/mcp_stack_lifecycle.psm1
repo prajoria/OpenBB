@@ -313,42 +313,106 @@ function Get-McpLockTimestamp {
     return $match.Groups[1].Value
 }
 
-function Get-LockedUvArguments {
-    param([string]$OpenBBRoot, [string]$LockName)
-
-    # --exclude-newer bounds any requirement the lock does not yet pin.
-    $lockPath = Join-Path $OpenBBRoot "scripts\mcp_locks\$LockName"
-    return @(
-        "run",
-        "--no-project",
-        "--python", "3.13",
-        "--exclude-newer", (Get-McpLockTimestamp -LockPath $lockPath),
-        "--with-requirements", $lockPath
-    )
-}
-
-function Get-PlatformUvArguments {
+function Get-PlatformEditablePaths {
     param([string]$OpenBBRoot)
 
-    # FastMCP 3.4.6 requires Starlette >=1.0.1, which conflicts with Platform
-    # FastAPI; platform-mcp.txt keeps the Platform on FastMCP 3.4.0.
-    $arguments = Get-LockedUvArguments -OpenBBRoot $OpenBBRoot -LockName "platform-mcp.txt"
-    foreach ($editable in @(
+    # Checkout-local sources the Platform MCP runs from (#2159 provenance).
+    return @(
         "openbb_platform",
         "openbb_platform\core",
         "openbb_platform\extensions\platform_api",
         "openbb_platform\extensions\mcp_server"
-    )) {
-        $arguments += @("--with-editable", (Join-Path $OpenBBRoot $editable))
-    }
-    return $arguments
+    ) | ForEach-Object { Join-Path $OpenBBRoot $_ }
 }
 
-function Get-WorkspaceUvArguments {
-    param([string]$OpenBBRoot, [string]$WorkspaceBackend)
+function Get-McpEnvironmentStamp {
+    param([string]$LockPath, [string[]]$Editables = @())
 
-    return (Get-LockedUvArguments -OpenBBRoot $OpenBBRoot -LockName "workspace-mcp.txt") +
-        @("--directory", $WorkspaceBackend)
+    $lockHash = (Get-FileHash -LiteralPath $LockPath -Algorithm SHA256).Hash
+    return (@("lock-sha256=$($lockHash.ToLowerInvariant())") +
+        @($Editables | ForEach-Object { "editable=$_" })) -join "`n"
+}
+
+function Invoke-Uv {
+    # Single seam for every uv call, so tests can substitute it.
+    & uv @args
+}
+
+function Test-McpEnvironmentMatchesLock {
+    param([string]$Python, [string]$LockPath, [string]$Asserter)
+
+    & $Python $Asserter $LockPath | Out-Host
+    return $LASTEXITCODE -eq 0
+}
+
+function Initialize-McpLockedEnvironment {
+    param(
+        [string]$OpenBBRoot,
+        [string]$LockName,
+        [string]$EnvironmentRoot,
+        [string[]]$Editables = @()
+    )
+
+    # uv run cannot verify artifact hashes (#2282), so each server runs from a
+    # launcher-owned venv built with `uv pip sync --require-hashes`.
+    $lockPath = Join-Path $OpenBBRoot "scripts\mcp_locks\$LockName"
+    $null = Get-McpLockTimestamp -LockPath $lockPath
+    $asserter = Join-Path $OpenBBRoot "scripts\mcp_locks\assert_lock_replay.py"
+    $environment = Join-Path $EnvironmentRoot `
+        ([System.IO.Path]::GetFileNameWithoutExtension($LockName))
+    $python = Join-Path $environment "Scripts\python.exe"
+    $stampPath = Join-Path $environment ".mcp-lock-stamp"
+    $stamp = Get-McpEnvironmentStamp -LockPath $lockPath -Editables $Editables
+
+    $stampMatches = (Test-Path -LiteralPath $python -PathType Leaf) -and
+        (Test-Path -LiteralPath $stampPath -PathType Leaf) -and
+        ((Get-Content -LiteralPath $stampPath -Raw).Trim() -eq $stamp)
+    if ($stampMatches -and (Test-McpEnvironmentMatchesLock -Python $python `
+            -LockPath $lockPath -Asserter $asserter)) {
+        return $python
+    }
+
+    # Missing, built from another lock, or drifted: rebuild. The stamp is
+    # written only after every step succeeds, so a failed build is never reused.
+    Remove-Item -LiteralPath $environment -Recurse -Force -ErrorAction SilentlyContinue
+    Invoke-Uv venv --quiet --python 3.13 $environment | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not create the $LockName environment."
+    }
+    Invoke-Uv pip sync --quiet --require-hashes --python $python $lockPath | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Dependency lock '$LockName' failed its hash-verified install; no server was started."
+    }
+    if ($Editables.Count -gt 0) {
+        $editableArgs = foreach ($path in $Editables) { "-e"; $path }
+        Invoke-Uv pip install --quiet --no-deps --python $python @editableArgs | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not install the checkout-local editables for $LockName."
+        }
+    }
+    if (-not (Test-McpEnvironmentMatchesLock -Python $python -LockPath $lockPath `
+            -Asserter $asserter)) {
+        throw "The rebuilt $LockName environment does not match its lock."
+    }
+    Set-Content -LiteralPath $stampPath -Value $stamp -NoNewline -Encoding UTF8
+    return $python
+}
+
+function Get-PlatformLockedPython {
+    param([string]$OpenBBRoot, [string]$EnvironmentRoot)
+
+    # FastMCP 3.4.6 requires Starlette >=1.0.1, which conflicts with Platform
+    # FastAPI; platform-mcp.txt keeps the Platform on FastMCP 3.4.0.
+    return Initialize-McpLockedEnvironment -OpenBBRoot $OpenBBRoot `
+        -LockName "platform-mcp.txt" -EnvironmentRoot $EnvironmentRoot `
+        -Editables @(Get-PlatformEditablePaths -OpenBBRoot $OpenBBRoot)
+}
+
+function Get-WorkspaceLockedPython {
+    param([string]$OpenBBRoot, [string]$EnvironmentRoot)
+
+    return Initialize-McpLockedEnvironment -OpenBBRoot $OpenBBRoot `
+        -LockName "workspace-mcp.txt" -EnvironmentRoot $EnvironmentRoot
 }
 
 Export-ModuleMember -Function @(
@@ -356,10 +420,12 @@ Export-ModuleMember -Function @(
     "ConvertTo-NativeArguments",
     "Get-DescendantProcessIds",
     "Get-McpLockTimestamp",
-    "Get-PlatformUvArguments",
+    "Get-PlatformEditablePaths",
+    "Get-PlatformLockedPython",
     "Get-ProcessIdentity",
     "Get-ServerAuthHeader",
-    "Get-WorkspaceUvArguments",
+    "Get-WorkspaceLockedPython",
+    "Initialize-McpLockedEnvironment",
     "Read-ProcessState",
     "Resolve-PortfolioEnvironment",
     "Stop-PartialStack",

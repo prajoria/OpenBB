@@ -114,8 +114,8 @@ def compile_lock(spec: LockSpec, output: Path, *, upgrade: bool) -> None:
     """Compile ``spec`` into ``output``, preserving pins already in ``output``.
 
     Runs from LOCK_DIR with relative inputs so annotations stay
-    machine-independent. No hashes: ``uv run --with-requirements`` does not
-    verify them, so they would promise integrity the launcher cannot enforce.
+    machine-independent. Hashes are generated because the launcher installs
+    each lock with ``uv pip sync --require-hashes`` (#2282).
     """
     command = [
         "uv",
@@ -126,6 +126,7 @@ def compile_lock(spec: LockSpec, output: Path, *, upgrade: bool) -> None:
         "--python-version",
         "3.13",
         "--no-header",
+        "--generate-hashes",
         "--quiet",
         "--output-file",
         str(output),
