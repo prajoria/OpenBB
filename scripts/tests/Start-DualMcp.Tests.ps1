@@ -26,21 +26,12 @@ Describe "start-dual-mcp reproducibility" {
         $ScriptText | Should Not Match '"(fastmcp|openbb-ai|pydantic|starlette|uvicorn)(==|>=)'
     }
 
-    It "launches both servers from the committed locks" {
-        $ScriptText | Should Match 'Get-PlatformUvArguments -OpenBBRoot \$OpenBBRoot'
-        $ScriptText | Should Match 'Get-WorkspaceUvArguments -OpenBBRoot \$OpenBBRoot'
-        foreach ($case in @(
-            @{ Args = @(Get-PlatformUvArguments -OpenBBRoot $RepoRoot); Lock = "platform-mcp.txt" },
-            @{ Args = @(Get-WorkspaceUvArguments -OpenBBRoot $RepoRoot -WorkspaceBackend $TestDrive); Lock = "workspace-mcp.txt" }
-        )) {
-            $lockPath = Join-Path $RepoRoot "scripts\mcp_locks\$($case.Lock)"
-            $arguments = $case.Args
-            $arguments[0..1] -join " " | Should Be "run --no-project"
-            $arguments[[array]::IndexOf($arguments, "--with-requirements") + 1] |
-                Should Be $lockPath
-            $arguments[[array]::IndexOf($arguments, "--exclude-newer") + 1] |
-                Should Be (Get-McpLockTimestamp -LockPath $lockPath)
-        }
+    It "launches both servers from hash-verified locked environments" {
+        $ScriptText | Should Match 'Get-PlatformLockedPython -OpenBBRoot \$OpenBBRoot'
+        $ScriptText | Should Match 'Get-WorkspaceLockedPython -OpenBBRoot \$OpenBBRoot'
+        $ScriptText | Should Match '-WorkingDirectory \$WorkspaceBackend'
+        $ScriptText | Should Not Match '--with-requirements'
+        $ScriptText | Should Not Match '"run",\s*"--no-project"'
     }
 
     It "verifies the isolated Platform environment before startup" {
@@ -59,13 +50,10 @@ Describe "start-dual-mcp reproducibility" {
     }
 
     It "uses only checkout-local editable Platform packages" {
-        $arguments = @(Get-PlatformUvArguments -OpenBBRoot $RepoRoot)
-        $editables = for ($i = 0; $i -lt $arguments.Count; $i++) {
-            if ($arguments[$i] -eq "--with-editable") {
-                $arguments[$i + 1].Substring($RepoRoot.Length).TrimStart("\").Replace("\", "/")
-            }
+        $editables = @(Get-PlatformEditablePaths -OpenBBRoot $RepoRoot) | ForEach-Object {
+            $_.Substring($RepoRoot.Length).TrimStart("\").Replace("\", "/")
         }
-        $declared = [regex]::Matches($PlatformInput, '(?m)^-e \.\./\.\./(\S+?)\r?$') |
+        $declared = [regex]::Matches($PlatformInput, '(?m)^-e \.\./\.\./(\S+?)?$') |
             ForEach-Object { $_.Groups[1].Value }
         @($editables).Count | Should Be 4
         (@($editables | Sort-Object) -join ",") | Should Be (@($declared | Sort-Object) -join ",")
@@ -81,18 +69,90 @@ Describe "start-dual-mcp reproducibility" {
             Should Throw "has no locked-at header."
     }
 
-    It "keeps a spaced Workspace path as one argument" {
-        $backend = "C:\Work Space\backend"
-        $arguments = @(Get-WorkspaceUvArguments -OpenBBRoot $RepoRoot -WorkspaceBackend $backend)
-        $arguments[[array]::IndexOf($arguments, "--directory") + 1] | Should Be $backend
-    }
-
     It "selects a validated runtime profile with the compatibility default" {
         $ScriptText | Should Match '\[ValidateSet\("platform-standard", "portfolio-read", "portfolio-ops"\)\]'
         $ScriptText | Should Match '\[string\]\$Profile\s*=\s*"platform-standard"'
         $ScriptText | Should Match '\[string\]\$PortfolioRoot'
         $ScriptText | Should Match '\$RuntimeProfile\.app\.target'
         $ScriptText | Should Match '\$RuntimeProfile\.app\.kind -eq "custom"'
+    }
+}
+
+Describe "hash-verified MCP environments" {
+    $FakeRoot = Join-Path $TestDrive "openbb"
+    $LockDir = Join-Path $FakeRoot "scripts\mcp_locks"
+    $Lock = Join-Path $LockDir "demo-mcp.txt"
+    $EnvRoot = Join-Path $TestDrive "envs"
+    $Python = Join-Path $EnvRoot "demo-mcp\Scripts\python.exe"
+    $Stamp = Join-Path $EnvRoot "demo-mcp\.mcp-lock-stamp"
+
+    function Write-Lock([string]$Body) {
+        New-Item -ItemType Directory -Path $LockDir -Force | Out-Null
+        Set-Content -LiteralPath $Lock -Value "# locked-at: 2026-10-26T00:00:00Z`n$Body"
+    }
+
+    BeforeEach {
+        $global:UvCalls = @()
+        $global:UvSyncExit = 0
+        $global:LockMatches = $true
+        Remove-Item -LiteralPath $EnvRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Lock "idna==3.10 --hash=sha256:aa"
+    }
+
+    Mock -ModuleName mcp_stack_lifecycle Invoke-Uv {
+        $global:UvCalls += , ($args -join " ")
+        $global:LASTEXITCODE = 0
+        if ($args[0] -eq "venv") {
+            New-Item -ItemType File -Path (Join-Path $args[-1] "Scripts\python.exe") -Force | Out-Null
+        } elseif ($args[1] -eq "sync") {
+            $global:LASTEXITCODE = $global:UvSyncExit
+        }
+    }
+    Mock -ModuleName mcp_stack_lifecycle Test-McpEnvironmentMatchesLock { $global:LockMatches }
+
+    It "builds with a hash-verified sync, then checkout editables without deps" {
+        $result = Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" `
+            -EnvironmentRoot $EnvRoot -Editables @("C:\src\a", "C:\src\b")
+        $result | Should Be $Python
+        $global:UvCalls.Count | Should Be 3
+        $global:UvCalls[0] | Should Match '^venv .*--python 3\.13'
+        $global:UvCalls[1] | Should Match '^pip sync .*--require-hashes'
+        $global:UvCalls[1] | Should Match ([regex]::Escape($Lock))
+        $global:UvCalls[2] | Should Match '^pip install .*--no-deps .*-e C:\\src\\a -e C:\\src\\b$'
+        Test-Path -LiteralPath $Stamp | Should Be $true
+    }
+
+    It "reuses an environment only while its lock is unchanged" {
+        Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot | Out-Null
+        $global:UvCalls = @()
+        Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot | Out-Null
+        $global:UvCalls.Count | Should Be 0
+        Write-Lock "idna==3.11 --hash=sha256:bb"
+        Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot | Out-Null
+        @($global:UvCalls | Where-Object { $_ -match '^pip sync' }).Count | Should Be 1
+    }
+
+    It "fails before any server starts when the hash-verified sync fails" {
+        $global:UvSyncExit = 1
+        { Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot } |
+            Should Throw "failed its hash-verified install; no server was started."
+        Test-Path -LiteralPath $Stamp | Should Be $false
+    }
+
+    It "rebuilds a stamped environment that no longer matches its lock" {
+        Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot | Out-Null
+        $global:UvCalls = @()
+        $global:LockMatches = $false
+        { Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot } |
+            Should Throw "does not match its lock."
+        @($global:UvCalls | Where-Object { $_ -match '^pip sync' }).Count | Should Be 1
+    }
+
+    It "refuses a missing lock before touching uv" {
+        Remove-Item -LiteralPath $Lock -Force
+        { Initialize-McpLockedEnvironment -OpenBBRoot $FakeRoot -LockName "demo-mcp.txt" -EnvironmentRoot $EnvRoot } |
+            Should Throw "is missing."
+        $global:UvCalls.Count | Should Be 0
     }
 }
 

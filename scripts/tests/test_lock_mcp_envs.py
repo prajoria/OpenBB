@@ -1,6 +1,7 @@
 """Tests for the dual-MCP dependency lock generator (#2245)."""
 
 import json
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -150,9 +151,14 @@ def test_committed_locks_contain_no_local_paths(spec):
 
 
 @pytest.mark.parametrize("spec", lock_mcp_envs.ENVIRONMENTS, ids=lambda s: s.name)
-def test_committed_locks_carry_no_unverified_hashes(spec):
-    """Uv run ignores hashes, so a hashed lock would promise integrity it lacks."""
-    assert "--hash=" not in spec.out_path.read_text(encoding="utf-8")
+def test_committed_locks_hash_every_pin(spec):
+    """Every pin carries a sha256 hash for the launcher's --require-hashes sync (#2282)."""
+    text = lock_mcp_envs.lock_body(spec.out_path.read_text(encoding="utf-8"))
+    blocks = re.split(r"\n(?=[^\s#])", text.strip())
+    pinned = [block for block in blocks if "==" in block.splitlines()[0]]
+    assert len(pinned) == len(lock_mcp_envs.read_pins(text)) > 0
+    unhashed = [b.split()[0] for b in pinned if "--hash=sha256:" not in b]
+    assert unhashed == []
 
 
 def test_committed_locks_pin_direct_requirements():
