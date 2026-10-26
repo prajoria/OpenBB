@@ -1437,3 +1437,23 @@ generated annotation by its declared module and name, including
 `OBBject_EtfCountries` when the ETF model is installed. TechTrade's universe
 resolution fallback remains separate: provider failures still log and widen to
 no filter.
+
+## portfolio-pause-handoff-2026-10-26
+
+Operator paused Portfolio work for several months on 2026-10-26. The full
+resume record is `docs/handoff/2026-10-26-portfolio-pause.md`: what shipped,
+board state, local-only state at risk, and an ordered resume checklist.
+
+- **Read it first on return.** The highest-risk item is `stash@{0}`, which
+  holds the only copies of both program plans
+  (`2026-10-03-portfolio-mcp-capability-parity.md`,
+  `2026-10-03-notebook-mcp-agent.md`), the notebook-agent design, and the
+  `docs/cross_repo_workflow` coverage artifacts.
+- **Standing rule:** leave an issue open only when it needs a human
+  (decision, money, hardware or legal), with the blocker written on it.
+  Finish everything else.
+- **Squash merges into `portfolio`:** auto-close reads only the commit
+  message (#1975), so put `Closes #NN` in the commit body.
+- **uv facts behind the #2245 locks:** `uv run` ignores `UV_CONSTRAINT` and
+  never verifies requirement hashes. That is why the locks pin versions only
+  and #2282 tracks hash enforcement.
