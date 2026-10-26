@@ -10,6 +10,10 @@ from openbb_congress_gov.utils.constants import (
     base_url,
     bill_type_options,
 )
+from openbb_congress_gov.utils.safe_requests import (
+    congress_api_request,
+    fetch_congress_document,
+)
 from openbb_core.app.model.abstract.singleton import SingletonMeta
 from openbb_core.provider.utils.errors import UnauthorizedError
 
@@ -99,22 +103,13 @@ def download_bills(urls: list[str]) -> list:
     # pylint: disable=import-outside-toplevel
     import base64  # noqa
     from io import BytesIO
-    from openbb_core.provider.utils.helpers import make_request
+    from openbb_core.provider.utils.url_safety import UnsafeUrlError
 
     results: list = []
 
     for url in urls:
-        if "congress.gov" not in url and "govinfo.gov" not in url:
-            results.append(
-                {
-                    "error_type": "invalid_url",
-                    "content": f"Invalid URL: {url}. Must be a valid Congress.gov or GovInfo.gov URL.",
-                    "filename": url.split("/")[-1],
-                }
-            )
-            continue
         try:
-            response = make_request(url)
+            response = fetch_congress_document(url)
             response.raise_for_status()
             pdf = (
                 base64.b64encode(BytesIO(response.content).getvalue()).decode("utf-8")
@@ -128,6 +123,14 @@ def download_bills(urls: list[str]) -> list:
                         "data_type": "pdf",
                         "filename": url.split("/")[-1],
                     },
+                }
+            )
+        except UnsafeUrlError as exc:
+            results.append(
+                {
+                    "error_type": "invalid_url",
+                    "content": str(exc),
+                    "filename": url.split("/")[-1],
                 }
             )
         except Exception as exc:  # pylint: disable=broad-except
@@ -423,13 +426,9 @@ async def get_bill_text_choices(bill_url: str, is_workspace: bool = False) -> li
     list[dict]
         List of dictionaries with the results.
     """
-    # pylint: disable=import-outside-toplevel
-    from openbb_core.provider.utils.helpers import amake_request
-
     api_key = check_api_key()
     results: list = []
-    url = bill_url.replace("?", "/text?") + f"&api_key={api_key}"
-    response = await amake_request(url)
+    response = await congress_api_request(bill_url.replace("?", "/text?"), api_key)
     bill_text = response.get("textVersions", [])  # type: ignore
 
     # Return the results for non-Workspace queries
@@ -782,19 +781,20 @@ async def get_amendment_text_choices(  # noqa: PLR0912
         amendment_url = f"https://api.congress.gov/v3/amendment/{path}?format=json"
 
     # Step 1: Amendment base detail for description (committee report check) and text URL
-    detail_response: dict = await amake_request(amendment_url + f"&api_key={api_key}")  # type: ignore
+    detail_response: dict = await congress_api_request(amendment_url, api_key)  # type: ignore
     amendment_detail = detail_response.get("amendment", {})
 
     # Step 2: Fetch the /text sub-resource.
     tv_info = amendment_detail.get("textVersions", {})
 
-    if isinstance(tv_info, dict) and tv_info.get("url"):
-        tv_url = tv_info["url"] + f"&api_key={api_key}"
-    else:
-        # Construct the /text URL directly as a fallback
-        tv_url = amendment_url.replace("?", "/text?") + f"&api_key={api_key}"
+    # Prefer the API-provided /text URL; construct it directly as a fallback.
+    tv_url = (
+        tv_info["url"]
+        if isinstance(tv_info, dict) and tv_info.get("url")
+        else amendment_url.replace("?", "/text?")
+    )
 
-    tv_response: dict = await amake_request(tv_url)  # type: ignore
+    tv_response: dict = await congress_api_request(tv_url, api_key)  # type: ignore
     text_versions: list = tv_response.get("textVersions", [])
     # Step 3: Check if the amendment was printed in a committee report and fetch that text
     committee_report_text: list = []
@@ -828,10 +828,12 @@ async def get_amendment_text_choices(  # noqa: PLR0912
         bill_url = amended_bill.get("url", "") if amended_bill else ""
 
         if bill_url:
-            bill_text_url = bill_url.replace("?", "/text?") + f"&api_key={api_key}"
+            bill_text_url = bill_url.replace("?", "/text?")
 
             try:
-                bill_tv_response: dict = await amake_request(bill_text_url)  # type: ignore
+                bill_tv_response: dict = await congress_api_request(  # type: ignore
+                    bill_text_url, api_key
+                )
                 bill_text_versions = bill_tv_response.get("textVersions", [])
             except Exception:  # pylint: disable=broad-except  # noqa: S110
                 pass
@@ -955,7 +957,7 @@ async def get_amendment_text_choices(  # noqa: PLR0912
                 results.append({"label": filename, "value": doc_url})
                 break
 
-    # Amended bill text fallback (for ANS amendments that adopt the printed bill)
+    # Amended bill text fallback (for substitute amendments that adopt the printed bill)
     for version in bill_text_versions:
         version_date = version.get("date")
         formats = version.get("formats", [])

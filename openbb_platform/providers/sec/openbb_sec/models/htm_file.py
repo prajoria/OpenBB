@@ -8,6 +8,8 @@ from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.abstract.data import Data
 from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.abstract.query_params import QueryParams
+from openbb_core.provider.utils.url_safety import validate_public_url
+from openbb_sec.models.sec_filing import SEC_HOSTS
 from pydantic import Field
 
 
@@ -44,12 +46,10 @@ class SecHtmFileFetcher(Fetcher[SecHtmFileQueryParams, SecHtmFileData]):
             raise OpenBBError(ValueError("Please enter a URL."))
 
         url = params.get("url", "")
+        # Exact https sec.gov host, default port, public address (#2242).
+        validate_public_url(url, SEC_HOSTS)
 
-        if (
-            not url.startswith("http")
-            or "sec.gov" not in url
-            or (not url.endswith(".htm") and not url.endswith(".html"))
-        ):
+        if not url.endswith(".htm") and not url.endswith(".html"):
             raise OpenBBError(
                 ValueError(
                     "Invalid URL. Please a SEC URL that directs specifically to a HTM or HTML file."

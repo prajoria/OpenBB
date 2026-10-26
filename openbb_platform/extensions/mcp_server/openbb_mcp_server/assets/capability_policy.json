@@ -73,26 +73,6 @@
       "reason": "Execution actions require a later sandbox and human-approval contract."
     },
     {
-      "id": "deny-unhardened-congress-url-fetches",
-      "priority": 100,
-      "scopes": ["portfolio-venv-core-in-process"],
-      "paths": [
-        "/api/v1/uscongress/bill_text",
-        "/api/v1/uscongress/amendment_text",
-        "/api/v1/uscongress/bill_text_urls",
-        "/api/v1/uscongress/bill_info",
-        "/api/v1/uscongress/amendment_text_urls",
-        "/api/v1/uscongress/amendment_info",
-        "/api/v1/commodity/weather_bulletins_download",
-        "/api/v1/regulators/sec/htm_file",
-        "/api/v1/regulators/sec/filing_headers"
-      ],
-      "disposition": "restricted",
-      "access_class": "provider_read",
-      "admitted_profiles": [],
-      "reason": "Caller-supplied document URLs require parsed-host and redirect SSRF hardening before MCP exposure."
-    },
-    {
       "id": "operator-filesystem-writes",
       "priority": 95,
       "scopes": ["portfolio-venv-core-in-process", "live-intelligence-custom"],
@@ -442,16 +422,15 @@
       },
       "url-fetch-hardening": {
         "owner_issues": ["#2242 Harden caller-controlled document URL fetchers"],
-        "rationale": "Caller-controlled document URL fetches remain excluded until complete SSRF defenses pass.",
-        "source_evidence": ["openbb_platform/providers/congress_gov", "openbb_platform/providers/government_us", "openbb_platform/providers/sec"],
+        "rationale": "Caller-controlled document URL fetches pass exact-host, https, default-port, no-credential, public-address and per-hop redirect checks before any request.",
+        "source_evidence": ["openbb_platform/core/openbb_core/provider/utils/url_safety.py", "openbb_platform/providers/congress_gov", "openbb_platform/providers/government_us", "openbb_platform/providers/sec"],
         "review_triggers": ["URL parser changed", "hostname allowlist changed", "redirect handling changed", "restricted route set changed"],
-        "implementation_state": "approved_exclusion"
+        "implementation_state": "implemented_product"
       }
     },
     "rule_owners": {
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
-      "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
       "operator-filesystem-writes": "jobs-and-cache-operations",
       "operator-job-control": "jobs-and-cache-operations",
       "operator-cache-jobs": "jobs-and-cache-operations",

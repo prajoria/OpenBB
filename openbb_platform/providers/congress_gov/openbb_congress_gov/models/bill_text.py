@@ -73,7 +73,8 @@ class CongressBillTextFetcher(
         # pylint: disable=import-outside-toplevel
         import base64  # noqa
         from io import BytesIO
-        from openbb_core.provider.utils.helpers import make_request
+        from openbb_congress_gov.utils.safe_requests import fetch_congress_document
+        from openbb_core.provider.utils.url_safety import UnsafeUrlError
 
         urls = (
             query.urls.get("urls", [])
@@ -86,19 +87,8 @@ class CongressBillTextFetcher(
             from urllib.parse import urlparse
 
             filename = urlparse(url).path.split("/")[-1]
-
-            _url_lower = url.strip().lower()
-            if "congress.gov" not in _url_lower and "govinfo.gov" not in _url_lower:
-                results.append(
-                    {
-                        "error_type": "invalid_url",
-                        "content": f"Invalid URL: {url}. Must be a valid Congress.gov or GovInfo URL.",
-                        "filename": filename,
-                    }
-                )
-                continue
             try:
-                response = make_request(url)
+                response = fetch_congress_document(url)
                 response.raise_for_status()
                 datatype = filename.split(".")[-1].lower()
 
@@ -125,6 +115,14 @@ class CongressBillTextFetcher(
                             },
                         }
                     )
+            except UnsafeUrlError as exc:
+                results.append(
+                    {
+                        "error_type": "invalid_url",
+                        "content": str(exc),
+                        "filename": filename,
+                    }
+                )
             except Exception as exc:  # pylint: disable=broad-except
                 results.append(
                     {
