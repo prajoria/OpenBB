@@ -83,6 +83,48 @@ environment from checkout-local projects listed by the runtime profile; do not
 mask provenance failures by adding an unrelated editable checkout to
 `PYTHONPATH`.
 
+### Dependency locks
+
+The launcher builds two uv environments: Platform MCP (`platform-standard`) and
+Workspace MCP. Both install from committed, fully pinned locks, so the full
+transitive dependency graph is known and reviewed. The locks pin versions, not
+artifact hashes: `uv run` does not verify hashes, so none are recorded. Portfolio profiles
+are unaffected: they run the pre-built `.venv_portfolio` interpreter.
+
+| File | Role |
+|---|---|
+| `scripts/mcp_locks/platform-mcp.in` | Platform direct inputs: `fastmcp==3.4.0` plus the four checkout-local editables |
+| `scripts/mcp_locks/workspace-mcp.in` | Workspace direct inputs: FastMCP, OpenBB AI, Pydantic, Starlette, Uvicorn |
+| `scripts/mcp_locks/*.txt` | Generated locks; never edit by hand |
+
+Each lock is consumed with `uv run --with-requirements <lock>`. The editables
+are still installed from the checkout with `--with-editable`; they are excluded
+from the lock, but their dependencies are not. `--exclude-newer <locked-at>`
+bounds anything the lock does not pin to versions published before the lock
+was compiled. The Workspace app still runs from the Workspace checkout.
+
+The two environments intentionally differ on FastMCP. FastMCP 3.4.6 requires
+Starlette 1.0.1 or newer, which conflicts with the Platform's FastAPI. The
+Platform stays on FastMCP 3.4.0; the Workspace server runs FastMCP 3.4.6 with
+Starlette 1.6.0. The servers never share an interpreter.
+
+```powershell
+python scripts\lock_mcp_envs.py            # apply edited .in files, keeping other pins
+python scripts\lock_mcp_envs.py --upgrade  # deliberate refresh to the latest versions
+python scripts\lock_mcp_envs.py --check    # exit 1 if a lock no longer matches its inputs
+.\scripts\test_mcp_lock_replay.ps1         # rebuild both environments in a clean cache
+```
+
+The `Dual MCP Dependency Lock` workflow runs `--check` and the clean-cache
+replay on pull requests. A weekly job reports available upgrades without
+changing the branch. Constraint files are not used, because `uv run` ignores
+`UV_CONSTRAINT`.
+
+If startup fails with a missing lock, a missing `locked-at` header, or a
+dependency filtered by `exclude-newer`, an input changed without regenerating
+its lock. Run `python scripts\lock_mcp_envs.py`, review the lock diff, and commit
+it together with the input change.
+
 ## 3. Credential prerequisites
 
 For `portfolio-read` and `portfolio-ops` over HTTP:

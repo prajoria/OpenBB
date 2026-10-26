@@ -1,0 +1,133 @@
+name: Dual MCP Dependency Lock
+
+# Keeps scripts/start-dual-mcp.ps1 on its committed dependency locks (#2245).
+# Pull requests: fail on a stale lock and replay both environments from a clean
+# cache. Weekly: report available upgrades only; upgrades land through a
+# reviewed pull request, never from this workflow.
+
+on:
+  pull_request:
+    branches:
+      - portfolio
+    paths:
+      - ".github/workflows/dual-mcp-lock.yml"
+      - "scripts/mcp_locks/**"
+      - "scripts/lock_mcp_envs.py"
+      - "scripts/test_mcp_lock_replay.ps1"
+      - "scripts/start-dual-mcp.ps1"
+      - "scripts/mcp_stack_lifecycle.psm1"
+      - "scripts/tests/Start-DualMcp.Tests.ps1"
+      - "openbb_platform/pyproject.toml"
+      - "openbb_platform/core/pyproject.toml"
+      - "openbb_platform/extensions/platform_api/pyproject.toml"
+      - "openbb_platform/extensions/mcp_server/**"
+      - "third_party/workspace"
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Must match the uv used to compile the locks; compile output can vary by version.
+  UV_VERSION: "0.11.26"
+
+jobs:
+  lock-check:
+    name: Locks match their inputs
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Check dependency locks
+        run: python scripts/lock_mcp_envs.py --check
+
+  replay:
+    name: Clean-cache replay on Windows
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - name: Check out exact head source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install "uv==${env:UV_VERSION}"
+        shell: pwsh
+
+      - name: Run launcher Pester suite
+        shell: pwsh
+        run: |
+          # The suite uses Pester v3/v4 assertions; Pester 5 rejects them.
+          Install-Module Pester -RequiredVersion 4.10.1 -Force -SkipPublisherCheck -Scope CurrentUser
+          Import-Module Pester -RequiredVersion 4.10.1
+          $result = Invoke-Pester scripts/tests/Start-DualMcp.Tests.ps1 -PassThru
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Replay both MCP environments from their locks
+        shell: pwsh
+        run: ./scripts/test_mcp_lock_replay.ps1
+
+  refresh-report:
+    name: Report available upgrades
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Compile upgraded locks
+        run: python scripts/lock_mcp_envs.py --upgrade
+
+      - name: Summarize pin changes
+        run: |
+          {
+            echo "## Dual MCP dependency lock refresh"
+            if git diff --quiet -- scripts/mcp_locks; then
+              echo "Locks are current; no upgrades available."
+            else
+              echo "Upgrades available. Apply them in a reviewed PR with"
+              echo "\`python scripts/lock_mcp_envs.py --upgrade\`."
+              echo '```diff'
+              git diff -U0 -- scripts/mcp_locks | grep -E '^[+-][A-Za-z0-9]' || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload upgraded locks
+        uses: actions/upload-artifact@v6
+        with:
+          name: dual-mcp-lock-refresh
+          path: scripts/mcp_locks/*.txt
