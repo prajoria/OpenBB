@@ -133,7 +133,9 @@ async def test_denied_route_cannot_bypass_policy_as_resource():
     mcp = create_mcp_server(policy_settings(), app)
     unfiltered = await mcp.list_resources(run_middleware=False)
     denied_uri = next(
-        str(resource.uri) for resource in unfiltered if "document_fetch" in str(resource.uri)
+        str(resource.uri)
+        for resource in unfiltered
+        if "document_fetch" in str(resource.uri)
     )
     filtered = await mcp.list_resources()
     assert denied_uri not in {str(resource.uri) for resource in filtered}
