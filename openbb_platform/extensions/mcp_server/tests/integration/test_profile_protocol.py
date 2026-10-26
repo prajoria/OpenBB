@@ -53,7 +53,7 @@ BASELINES = (
         callable_tool="equity_price_quote",
         callable_arguments={"symbol": "AAPL"},
         expected_result={"symbol": "AAPL", "provider": "synthetic"},
-        denied_tool="uscongress_bill_info",
+        denied_tool="techtrade_export",
     ),
     ProfileBaseline(
         name="portfolio-read",
@@ -86,7 +86,7 @@ def _protocol_app(calls: dict[str, int]) -> FastAPI:
         calls["backtest"] += 1
         return {"ok": True}
 
-    def denied_congress() -> dict[str, bool]:
+    def denied_export() -> dict[str, bool]:
         calls["denied"] += 1
         return {"called": True}
 
@@ -110,9 +110,9 @@ def _protocol_app(calls: dict[str, int]) -> FastAPI:
         methods=["POST"],
     )
     app.add_api_route(
-        "/api/v1/uscongress/bill_info",
-        denied_congress,
-        methods=["GET"],
+        "/api/v1/techtrade/export",
+        denied_export,
+        methods=["POST"],
     )
     app.add_api_route(
         "/api/v1/backtest/bundle/ingest",
@@ -221,10 +221,10 @@ async def test_profile_initialize_activate_list_call_and_deny(
         if baseline.denied_tool is None:
             await client.call_tool(
                 "activate_category",
-                {"category": "uscongress"},
+                {"category": "techtrade"},
             )
             compatibility = await client.call_tool(
-                "uscongress_bill_info",
+                "techtrade_export",
                 {},
             )
             assert compatibility.structured_content == {"called": True}

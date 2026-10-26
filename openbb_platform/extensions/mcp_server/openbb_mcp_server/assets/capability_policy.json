@@ -73,6 +73,26 @@
       "reason": "Execution actions require a later sandbox and human-approval contract."
     },
     {
+      "id": "hardened-document-url-fetches",
+      "priority": 100,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/uscongress/bill_text",
+        "/api/v1/uscongress/amendment_text",
+        "/api/v1/uscongress/bill_text_urls",
+        "/api/v1/uscongress/bill_info",
+        "/api/v1/uscongress/amendment_text_urls",
+        "/api/v1/uscongress/amendment_info",
+        "/api/v1/commodity/weather_bulletins_download",
+        "/api/v1/regulators/sec/htm_file",
+        "/api/v1/regulators/sec/filing_headers"
+      ],
+      "disposition": "direct",
+      "access_class": "provider_read",
+      "admitted_profiles": ["platform-standard", "portfolio-read", "portfolio-ops"],
+      "reason": "Caller-supplied document URLs pass exact-host, https, default-port, no-credential, public-address and per-hop redirect checks (#2242)."
+    },
+    {
       "id": "operator-filesystem-writes",
       "priority": 95,
       "scopes": ["portfolio-venv-core-in-process", "live-intelligence-custom"],
@@ -422,8 +442,8 @@
       },
       "url-fetch-hardening": {
         "owner_issues": ["#2242 Harden caller-controlled document URL fetchers"],
-        "rationale": "Caller-controlled document URL fetches pass exact-host, https, default-port, no-credential, public-address and per-hop redirect checks before any request.",
-        "source_evidence": ["openbb_platform/core/openbb_core/provider/utils/url_safety.py", "openbb_platform/providers/congress_gov", "openbb_platform/providers/government_us", "openbb_platform/providers/sec"],
+        "rationale": "Caller-controlled document URL fetches are admitted only through openbb_core.provider.utils.url_safety: exact host allowlists, https, default port, no credentials, public addresses and per-hop redirect checks.",
+        "source_evidence": ["openbb_platform/core/openbb_core/provider/utils/url_safety.py", "openbb_platform/providers/congress_gov/openbb_congress_gov", "openbb_platform/providers/government_us/openbb_government_us/models/weather_bulletin_download.py", "openbb_platform/providers/sec/openbb_sec/models/htm_file.py", "openbb_platform/providers/sec/openbb_sec/models/sec_filing.py", "openbb_platform/core/tests/provider/utils/test_url_safety.py", "openbb_platform/providers/congress_gov/tests/test_url_hardening.py", "openbb_platform/providers/government_us/tests/test_url_hardening.py", "openbb_platform/providers/sec/tests/test_url_hardening.py"],
         "review_triggers": ["URL parser changed", "hostname allowlist changed", "redirect handling changed", "restricted route set changed"],
         "implementation_state": "implemented_product"
       }
@@ -431,6 +451,7 @@
     "rule_owners": {
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
+      "hardened-document-url-fetches": "url-fetch-hardening",
       "operator-filesystem-writes": "jobs-and-cache-operations",
       "operator-job-control": "jobs-and-cache-operations",
       "operator-cache-jobs": "jobs-and-cache-operations",

@@ -25,7 +25,7 @@ def policy_app(calls: dict[str, int]) -> FastAPI:
         return {"result": "ok"}
 
     app.add_api_route(
-        "/api/v1/uscongress/bill_info",
+        "/api/v1/unreviewed/document_fetch",
         denied_get,
         methods=["GET"],
     )
@@ -51,14 +51,14 @@ def policy_settings(**changes) -> MCPSettings:
 
 @pytest.mark.asyncio
 async def test_policy_filters_discovery_and_allows_analytical_post():
-    """Denied GET fetches are hidden while approved POST analytics remain."""
+    """Unreviewed GET fetches are hidden while approved POST analytics remain."""
     calls = {"denied": 0, "allowed": 0}
     app = policy_app(calls)
     original_routes = tuple(app.router.routes)
     mcp = create_mcp_server(policy_settings(), app)
     names = {tool.name for tool in await mcp.list_tools()}
     assert "backtest_run" in names
-    assert "uscongress_bill_info" not in names
+    assert "unreviewed_document_fetch" not in names
     result = await mcp.call_tool("backtest_run", {})
     assert result
     assert calls == {"denied": 0, "allowed": 1}
@@ -73,9 +73,9 @@ async def test_direct_call_and_activation_cannot_elevate_denied_tool():
         policy_settings(enable_tool_discovery=True),
         policy_app(calls),
     )
-    mcp.enable(names={"uscongress_bill_info"})
+    mcp.enable(names={"unreviewed_document_fetch"})
     with pytest.raises(PermissionError, match="denied"):
-        await mcp.call_tool("uscongress_bill_info", {})
+        await mcp.call_tool("unreviewed_document_fetch", {})
     assert calls["denied"] == 0
 
 
@@ -91,7 +91,7 @@ async def test_compatibility_mode_preserves_existing_surface():
     )
     mcp = create_mcp_server(settings, policy_app(calls))
     names = {tool.name for tool in await mcp.list_tools()}
-    assert {"backtest_run", "uscongress_bill_info"} <= names
+    assert {"backtest_run", "unreviewed_document_fetch"} <= names
 
 
 @pytest.mark.asyncio
@@ -125,7 +125,7 @@ async def test_denied_route_cannot_bypass_policy_as_resource():
         return {"secret": True}
 
     app.add_api_route(
-        "/api/v1/uscongress/bill_info",
+        "/api/v1/unreviewed/document_fetch",
         denied_resource,
         methods=["GET"],
         openapi_extra={"mcp_config": {"mcp_type": "resource"}},
@@ -133,7 +133,7 @@ async def test_denied_route_cannot_bypass_policy_as_resource():
     mcp = create_mcp_server(policy_settings(), app)
     unfiltered = await mcp.list_resources(run_middleware=False)
     denied_uri = next(
-        str(resource.uri) for resource in unfiltered if "bill_info" in str(resource.uri)
+        str(resource.uri) for resource in unfiltered if "document_fetch" in str(resource.uri)
     )
     filtered = await mcp.list_resources()
     assert denied_uri not in {str(resource.uri) for resource in filtered}

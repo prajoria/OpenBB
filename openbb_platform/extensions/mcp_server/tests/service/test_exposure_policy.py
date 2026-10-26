@@ -124,6 +124,7 @@ def test_hardened_url_fetches_are_provider_reads(policy, path, method):
     assert decision.disposition == "direct"
     assert decision.access_class == "provider_read"
     assert "platform-standard" in decision.admitted_profiles
+    assert decision.rule_id == "hardened-document-url-fetches"
 
 
 def test_bundle_ingest_requires_ops_filesystem_access(policy):
