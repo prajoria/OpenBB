@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/06",
+  "family": "portfolio/06",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/06-backtest-and-validation.ipynb",
+  "source_sha256": "1e1596f71636a6bae852d3cbfdcf96722af647287f0bc1fff1e4125d2323ec44",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "artifact",
+      "cells": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "depends_on": [],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio/05",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-from-rationale-to-backtestconfig",
+      "title": "1. From rationale to `BacktestConfig`",
+      "kind": "job",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-from-rationale-to-backtestconfig-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-run-obb-backtest-run",
+      "title": "2. Run \u2014 `obb.backtest.run`",
+      "kind": "analysis",
+      "cells": [
+        7,
+        8
+      ],
+      "depends_on": [
+        "1-from-rationale-to-backtestconfig"
+      ],
+      "capabilities": [
+        "platform:backtest_run"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-run-obb-backtest-run-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-sweep-obb-backtest-sweep",
+      "title": "3. Sweep \u2014 `obb.backtest.sweep`",
+      "kind": "analysis",
+      "cells": [
+        9,
+        10
+      ],
+      "depends_on": [
+        "2-run-obb-backtest-run"
+      ],
+      "capabilities": [
+        "platform:backtest_sweep"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-sweep-obb-backtest-sweep-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-validate-walk-forward-pbo",
+      "title": "4. Validate \u2014 walk-forward + PBO",
+      "kind": "analysis",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "3-sweep-obb-backtest-sweep"
+      ],
+      "capabilities": [
+        "platform:backtest_validate"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-validate-walk-forward-pbo-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-reading-a-pbo-number-honestly",
+      "title": "5. Reading a PBO number honestly",
+      "kind": "narrative",
+      "cells": [
+        13
+      ],
+      "depends_on": [
+        "4-validate-walk-forward-pbo"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "5-reading-a-pbo-number-honestly-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-tearsheet-obb-backtest-tearsheet",
+      "title": "6. Tearsheet \u2014 `obb.backtest.tearsheet`",
+      "kind": "analysis",
+      "cells": [
+        14,
+        15
+      ],
+      "depends_on": [
+        "5-reading-a-pbo-number-honestly"
+      ],
+      "capabilities": [
+        "platform:backtest_tearsheet"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio/05",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "6-tearsheet-obb-backtest-tearsheet-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-factor-panel-alphalens",
+      "title": "7. Factor panel + alphalens",
+      "kind": "analysis",
+      "cells": [
+        16,
+        17
+      ],
+      "depends_on": [
+        "6-tearsheet-obb-backtest-tearsheet"
+      ],
+      "capabilities": [
+        "platform:backtest_factor_eval"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-factor-panel-alphalens-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-data-bundle-reproducibility",
+      "title": "8. Data bundle \u2014 reproducibility",
+      "kind": "analysis",
+      "cells": [
+        18,
+        19
+      ],
+      "depends_on": [
+        "7-factor-panel-alphalens"
+      ],
+      "capabilities": [
+        "platform:backtest_bundle_ingest"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-data-bundle-reproducibility-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-save-state-for-nb07",
+      "title": "9. Save state for NB07",
+      "kind": "state",
+      "cells": [
+        20,
+        21
+      ],
+      "depends_on": [
+        "8-data-bundle-reproducibility"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        22
+      ],
+      "depends_on": [
+        "9-save-state-for-nb07"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        23
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/06:fixture",
+    "portfolio/06:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

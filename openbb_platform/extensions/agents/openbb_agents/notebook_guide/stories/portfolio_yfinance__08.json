@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio_yfinance/08",
+  "family": "portfolio/08",
+  "variant": "free-provider",
+  "notebook_path": "notebooks/portfolio_yfinance/08-analyst-recommendations-basket.ipynb",
+  "source_sha256": "d74a1d7cde70101da86f52a9164ffe60ca480e5dbc2261404ed366f99d4a0915",
+  "stages": [
+    {
+      "id": "where-this-notebook-fits-track-b",
+      "title": "Where this notebook fits (Track B)",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "where-this-notebook-fits-track-b-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-before-we-run-anything",
+      "title": "0. Before we run anything",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3
+      ],
+      "depends_on": [
+        "where-this-notebook-fits-track-b"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "0-before-we-run-anything-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-5-why-free-only-nb08-looks-different-from-trac",
+      "title": "0.5 Why free-only NB08 looks different from Track A",
+      "kind": "narrative",
+      "cells": [
+        4,
+        5
+      ],
+      "depends_on": [
+        "0-before-we-run-anything"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "0-5-why-free-only-nb08-looks-different-from-trac-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-why-this-notebook-reader-contract",
+      "title": "1. Why this notebook + reader contract",
+      "kind": "narrative",
+      "cells": [
+        6
+      ],
+      "depends_on": [
+        "0-5-why-free-only-nb08-looks-different-from-trac"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "1-why-this-notebook-reader-contract-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-portfolio-construction-the-5-frameworks",
+      "title": "2. Portfolio construction \u2014 the 5 frameworks",
+      "kind": "narrative",
+      "cells": [
+        7
+      ],
+      "depends_on": [
+        "1-why-this-notebook-reader-contract"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "2-portfolio-construction-the-5-frameworks-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-trader-analyst-sources-where-the-pros-look-and",
+      "title": "3. Trader / analyst sources \u2014 where the pros look (and the free-tier gap)",
+      "kind": "narrative",
+      "cells": [
+        8
+      ],
+      "depends_on": [
+        "2-portfolio-construction-the-5-frameworks"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "3-trader-analyst-sources-where-the-pros-look-and-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-the-16-etf-variant-a-basket-table-rationale",
+      "title": "4. The 16-ETF Variant A basket \u2014 table + rationale",
+      "kind": "analysis",
+      "cells": [
+        9,
+        10
+      ],
+      "depends_on": [
+        "3-trader-analyst-sources-where-the-pros-look-and"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-the-16-etf-variant-a-basket-table-rationale-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-basket-x-ray-sec-n-port-look-through",
+      "title": "5. Basket X-Ray \u2014 SEC N-PORT look-through",
+      "kind": "analysis",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "4-the-16-etf-variant-a-basket-table-rationale"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-basket-x-ray-sec-n-port-look-through-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-risk-metrics-hhi-effective-n-free-tier-sector",
+      "title": "6. Risk metrics \u2014 HHI + effective-N + free-tier sector view",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14
+      ],
+      "depends_on": [
+        "5-basket-x-ray-sec-n-port-look-through"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-risk-metrics-hhi-effective-n-free-tier-sector-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-single-name-spot-check-honest-hand-off-to-trac",
+      "title": "7. Single-name spot-check \u2014 honest hand-off to Track A NB02",
+      "kind": "narrative",
+      "cells": [
+        15
+      ],
+      "depends_on": [
+        "6-risk-metrics-hhi-effective-n-free-tier-sector"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "7-single-name-spot-check-honest-hand-off-to-trac-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-backtest-buy-and-hold-on-the-16-etf-universe-v",
+      "title": "8. Backtest \u2014 buy-and-hold on the 16-ETF universe vs SPY (provider='cboe')",
+      "kind": "job",
+      "cells": [
+        16,
+        17
+      ],
+      "depends_on": [
+        "7-single-name-spot-check-honest-hand-off-to-trac"
+      ],
+      "capabilities": [
+        "platform:backtest_run",
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-backtest-buy-and-hold-on-the-16-etf-universe-v-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-fortress-swap-bring-your-own-reference-basket",
+      "title": "9. Fortress swap \u2014 bring your own reference basket",
+      "kind": "analysis",
+      "cells": [
+        18,
+        19
+      ],
+      "depends_on": [
+        "8-backtest-buy-and-hold-on-the-16-etf-universe-v"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio_yfinance/07",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "9-fortress-swap-bring-your-own-reference-basket-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-the-self-maintained-alternative-five-etfs-one",
+      "title": "10. The self-maintained alternative \u2014 five ETFs, one rebalance a year",
+      "kind": "job",
+      "cells": [
+        20,
+        21
+      ],
+      "depends_on": [
+        "9-fortress-swap-bring-your-own-reference-basket"
+      ],
+      "capabilities": [
+        "platform:backtest_run",
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "10-the-self-maintained-alternative-five-etfs-one-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "11-what-is-not-in-this-notebook-free-tier-delta",
+      "title": "11. What is NOT in this notebook (free-tier delta)",
+      "kind": "narrative",
+      "cells": [
+        22
+      ],
+      "depends_on": [
+        "10-the-self-maintained-alternative-five-etfs-one"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "11-what-is-not-in-this-notebook-free-tier-delta-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "12-further-reading",
+      "title": "12. \ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        23
+      ],
+      "depends_on": [
+        "11-what-is-not-in-this-notebook-free-tier-delta"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "12-further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio_yfinance/08:fixture",
+    "portfolio_yfinance/08:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

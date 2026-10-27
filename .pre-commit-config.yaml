@@ -84,11 +84,14 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
+        # Notebook story manifests are generated and hold only SHA-256 content
+        # hashes (source and tool-schema fingerprints), which read as
+        # high-entropy hex and change on every regeneration (#2212).
         args:
           [
             "--baseline",
             ".secrets.baseline",
             "--exclude-files",
-            "cassettes/.*|record/.*|website/content/api/.*|openbb_platform/extensions/charting/openbb_charting/infrastructure/assets/.*\\.js|openbb_platform/extensions/charting/openbb_charting/infrastructure/.*\\.html",
+            "cassettes/.*|record/.*|website/content/api/.*|openbb_platform/extensions/charting/openbb_charting/infrastructure/assets/.*\\.js|openbb_platform/extensions/charting/openbb_charting/infrastructure/.*\\.html|openbb_agents.notebook_guide.stories..*\\.json",
           ]
     exclude: package.lock.json

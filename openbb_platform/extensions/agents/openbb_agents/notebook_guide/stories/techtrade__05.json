@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "story_id": "techtrade/05",
+  "family": "techtrade/05",
+  "variant": "techtrade",
+  "notebook_path": "notebooks/techtrade/05-tuning-per-sector.ipynb",
+  "source_sha256": "485458f6112d2c55e9451afa1fbc9cd14eb0e9bb682dc50c918264cb0924ecac",
+  "stages": [
+    {
+      "id": "the-question-this-notebook-answers",
+      "title": "The question this notebook answers",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "the-question-this-notebook-answers-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-soft-dep-probe-setup",
+      "title": "1. Soft-dep probe + setup",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3,
+        4
+      ],
+      "depends_on": [
+        "the-question-this-notebook-answers"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-soft-dep-probe-setup-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-the-default-config-baseline",
+      "title": "2. The DEFAULT_CONFIG baseline",
+      "kind": "analysis",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "1-soft-dep-probe-setup"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-the-default-config-baseline-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-which-knobs-are-actually-tunable",
+      "title": "3. Which knobs are actually tunable?",
+      "kind": "job",
+      "cells": [
+        7,
+        8,
+        9
+      ],
+      "depends_on": [
+        "2-the-default-config-baseline"
+      ],
+      "capabilities": [
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-which-knobs-are-actually-tunable-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-the-current-state-of-techtrade-tuned-json",
+      "title": "4. The current state of `techtrade_tuned.json`",
+      "kind": "analysis",
+      "cells": [
+        10,
+        11
+      ],
+      "depends_on": [
+        "3-which-knobs-are-actually-tunable"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-the-current-state-of-techtrade-tuned-json-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-run-obb-techtrade-tune-segment-the-headline-ca",
+      "title": "5. Run `obb.techtrade.tune(segment)` \u2014 the headline call",
+      "kind": "analysis",
+      "cells": [
+        12,
+        13
+      ],
+      "depends_on": [
+        "4-the-current-state-of-techtrade-tuned-json"
+      ],
+      "capabilities": [
+        "platform:techtrade_tune"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-run-obb-techtrade-tune-segment-the-headline-ca-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-read-the-tuningreport",
+      "title": "6. Read the `TuningReport`",
+      "kind": "analysis",
+      "cells": [
+        14,
+        15,
+        16
+      ],
+      "depends_on": [
+        "5-run-obb-techtrade-tune-segment-the-headline-ca"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-read-the-tuningreport-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-what-did-tuneta-actually-propose",
+      "title": "7. What did tuneta actually propose?",
+      "kind": "analysis",
+      "cells": [
+        17,
+        18
+      ],
+      "depends_on": [
+        "6-read-the-tuningreport"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-what-did-tuneta-actually-propose-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-verify-the-persist-and-auto-load-chain-end-to",
+      "title": "8. Verify the persist-and-auto-load chain end-to-end",
+      "kind": "job",
+      "cells": [
+        19,
+        20
+      ],
+      "depends_on": [
+        "7-what-did-tuneta-actually-propose"
+      ],
+      "capabilities": [
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-verify-the-persist-and-auto-load-chain-end-to-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-bypassing-the-auto-load",
+      "title": "9. Bypassing the auto-load",
+      "kind": "analysis",
+      "cells": [
+        21,
+        22,
+        23
+      ],
+      "depends_on": [
+        "8-verify-the-persist-and-auto-load-chain-end-to"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "9-bypassing-the-auto-load-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-tuning-multiple-sectors-the-patient-path",
+      "title": "10. Tuning multiple sectors (the patient path)",
+      "kind": "analysis",
+      "cells": [
+        24,
+        25
+      ],
+      "depends_on": [
+        "9-bypassing-the-auto-load"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "10-tuning-multiple-sectors-the-patient-path-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "11-the-discipline-of-tuning",
+      "title": "11. The discipline of tuning",
+      "kind": "narrative",
+      "cells": [
+        26
+      ],
+      "depends_on": [
+        "10-tuning-multiple-sectors-the-patient-path"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "11-the-discipline-of-tuning-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "12-what-s-next",
+      "title": "12. What's next",
+      "kind": "narrative",
+      "cells": [
+        27
+      ],
+      "depends_on": [
+        "11-the-discipline-of-tuning"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "12-what-s-next-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "techtrade/05:fixture",
+    "techtrade/05:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

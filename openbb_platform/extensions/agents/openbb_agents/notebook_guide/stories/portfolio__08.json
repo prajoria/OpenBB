@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/08",
+  "family": "portfolio/08",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/08-analyst-recommendations-basket.ipynb",
+  "source_sha256": "c4e672eaed679b76dfc8834414906fbdbf9e5f86e5b04644e2efa5df4a21adee",
+  "stages": [
+    {
+      "id": "where-this-notebook-fits",
+      "title": "Where this notebook fits",
+      "kind": "artifact",
+      "cells": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "depends_on": [],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "where-this-notebook-fits-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-why-this-notebook-reader-contract",
+      "title": "1. Why this notebook + reader contract",
+      "kind": "narrative",
+      "cells": [
+        5
+      ],
+      "depends_on": [
+        "where-this-notebook-fits"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "1-why-this-notebook-reader-contract-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-portfolio-construction-the-5-frameworks",
+      "title": "2. Portfolio construction \u2014 the 5 frameworks",
+      "kind": "narrative",
+      "cells": [
+        6
+      ],
+      "depends_on": [
+        "1-why-this-notebook-reader-contract"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "2-portfolio-construction-the-5-frameworks-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-trader-analyst-sources-where-the-pros-look",
+      "title": "3. Trader / analyst sources \u2014 where the pros look",
+      "kind": "narrative",
+      "cells": [
+        7
+      ],
+      "depends_on": [
+        "2-portfolio-construction-the-5-frameworks"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "3-trader-analyst-sources-where-the-pros-look-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-the-15-etf-basket-table-rationale",
+      "title": "4. The 15-ETF basket \u2014 table + rationale",
+      "kind": "analysis",
+      "cells": [
+        8,
+        9
+      ],
+      "depends_on": [
+        "3-trader-analyst-sources-where-the-pros-look"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-the-15-etf-basket-table-rationale-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-basket-x-ray-look-through-via-sec-n-port",
+      "title": "5. Basket X-Ray \u2014 look-through via SEC N-PORT",
+      "kind": "analysis",
+      "cells": [
+        10,
+        11
+      ],
+      "depends_on": [
+        "4-the-15-etf-basket-table-rationale"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-basket-x-ray-look-through-via-sec-n-port-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-risk-metrics-hhi-effective-n-sector-view",
+      "title": "6. Risk metrics \u2014 HHI + effective-N + sector view",
+      "kind": "analysis",
+      "cells": [
+        12,
+        13
+      ],
+      "depends_on": [
+        "5-basket-x-ray-look-through-via-sec-n-port"
+      ],
+      "capabilities": [
+        "platform:equity_profile",
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-risk-metrics-hhi-effective-n-sector-view-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-single-name-spot-check-analysis-7-phase-on-the",
+      "title": "7. Single-name spot-check \u2014 Analysis 7-phase on the largest holding",
+      "kind": "analysis",
+      "cells": [
+        14,
+        15
+      ],
+      "depends_on": [
+        "6-risk-metrics-hhi-effective-n-sector-view"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-single-name-spot-check-analysis-7-phase-on-the-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-backtest-buy-and-hold-on-the-15-etf-universe-v",
+      "title": "8. Backtest \u2014 buy-and-hold on the 15-ETF universe vs SPY",
+      "kind": "job",
+      "cells": [
+        16,
+        17
+      ],
+      "depends_on": [
+        "7-single-name-spot-check-analysis-7-phase-on-the"
+      ],
+      "capabilities": [
+        "platform:backtest_run",
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-backtest-buy-and-hold-on-the-15-etf-universe-v-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-fortress-swap-bring-your-own-reference-basket",
+      "title": "9. Fortress swap \u2014 bring your own reference basket",
+      "kind": "analysis",
+      "cells": [
+        18,
+        19
+      ],
+      "depends_on": [
+        "8-backtest-buy-and-hold-on-the-15-etf-universe-v"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio/07",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "9-fortress-swap-bring-your-own-reference-basket-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-where-i-d-go-from-here-analyst-sources-rebala",
+      "title": "10. Where I'd go from here (analyst sources + rebalance cadence)",
+      "kind": "narrative",
+      "cells": [
+        20
+      ],
+      "depends_on": [
+        "9-fortress-swap-bring-your-own-reference-basket"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "10-where-i-d-go-from-here-analyst-sources-rebala-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10a-the-self-maintained-alternative-five-etfs-on",
+      "title": "10a. The self-maintained alternative \u2014 five ETFs, one rebalance a year",
+      "kind": "analysis",
+      "cells": [
+        21,
+        22
+      ],
+      "depends_on": [
+        "10-where-i-d-go-from-here-analyst-sources-rebala"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "10a-the-self-maintained-alternative-five-etfs-on-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10c-reading-the-head-to-head",
+      "title": "10c. Reading the head-to-head",
+      "kind": "narrative",
+      "cells": [
+        23
+      ],
+      "depends_on": [
+        "10a-the-self-maintained-alternative-five-etfs-on"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "10c-reading-the-head-to-head-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10d-the-one-page-maintenance-runbook",
+      "title": "10d. The one-page maintenance runbook",
+      "kind": "narrative",
+      "cells": [
+        24
+      ],
+      "depends_on": [
+        "10c-reading-the-head-to-head"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "10d-the-one-page-maintenance-runbook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "11-what-is-not-in-this-notebook",
+      "title": "11. What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        25
+      ],
+      "depends_on": [
+        "10d-the-one-page-maintenance-runbook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "11-what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "12-further-reading",
+      "title": "12. \ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        26
+      ],
+      "depends_on": [
+        "11-what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "12-further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/08:fixture",
+    "portfolio/08:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

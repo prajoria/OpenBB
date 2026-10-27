@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio_yfinance/01",
+  "family": "portfolio/01",
+  "variant": "free-provider",
+  "notebook_path": "notebooks/portfolio_yfinance/01-getting-started-and-providers.ipynb",
+  "source_sha256": "04a0b52f38688f156ee1b0ee8b4ba361f8bd536401f8d5443ddeab9dbbd08bdf",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-before-we-run-anything",
+      "title": "0. Before we run anything",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "0-before-we-run-anything-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-5-why-free-only-provider-vocabulary-for-this-n",
+      "title": "0.5 Why free-only? Provider vocabulary for this notebook",
+      "kind": "narrative",
+      "cells": [
+        4
+      ],
+      "depends_on": [
+        "0-before-we-run-anything"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "0-5-why-free-only-provider-vocabulary-for-this-n-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-the-obb-object",
+      "title": "1. The `obb` object",
+      "kind": "analysis",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "0-5-why-free-only-provider-vocabulary-for-this-n"
+      ],
+      "capabilities": [
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-the-obb-object-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-the-three-tier-free-provider-chain",
+      "title": "2. The three-tier free provider chain",
+      "kind": "analysis",
+      "cells": [
+        7,
+        8
+      ],
+      "depends_on": [
+        "1-the-obb-object"
+      ],
+      "capabilities": [
+        "platform:equity_price_quote",
+        "platform:etf_nport_disclosure",
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-the-three-tier-free-provider-chain-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-the-free-authoritative-fetchers-that-will-actu",
+      "title": "3. The free-authoritative fetchers that will actually matter",
+      "kind": "retrieval",
+      "cells": [
+        9,
+        10
+      ],
+      "depends_on": [
+        "2-the-three-tier-free-provider-chain"
+      ],
+      "capabilities": [
+        "platform:derivatives_options_chains",
+        "platform:equity_fundamental_balance",
+        "platform:equity_fundamental_cash",
+        "platform:equity_fundamental_income",
+        "platform:equity_ownership_insider_trading",
+        "platform:equity_price_historical",
+        "platform:equity_price_quote",
+        "platform:etf_nport_disclosure"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-the-free-authoritative-fetchers-that-will-actu-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-the-offline-snapshot-pattern-yfinance-without",
+      "title": "4. The offline-snapshot pattern (yfinance without hitting yfinance)",
+      "kind": "analysis",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "3-the-free-authoritative-fetchers-that-will-actu"
+      ],
+      "capabilities": [
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-the-offline-snapshot-pattern-yfinance-without-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-the-through-line-basket",
+      "title": "5. The through-line basket",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14
+      ],
+      "depends_on": [
+        "4-the-offline-snapshot-pattern-yfinance-without"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-the-through-line-basket-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        15
+      ],
+      "depends_on": [
+        "5-the-through-line-basket"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        16
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio_yfinance/01:fixture",
+    "portfolio_yfinance/01:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

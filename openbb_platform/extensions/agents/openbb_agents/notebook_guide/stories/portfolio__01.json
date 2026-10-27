@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/01",
+  "family": "portfolio/01",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/01-getting-started-and-providers.ipynb",
+  "source_sha256": "d3cadcb42e0eaf4a159be9de30155d407d49bcd2d4ac6fbe827305d639959e24",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-before-we-run-anything",
+      "title": "0. Before we run anything",
+      "kind": "artifact",
+      "cells": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "0-before-we-run-anything-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-the-obb-object",
+      "title": "1. The `obb` object",
+      "kind": "analysis",
+      "cells": [
+        6,
+        7,
+        8
+      ],
+      "depends_on": [
+        "0-before-we-run-anything"
+      ],
+      "capabilities": [
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-the-obb-object-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-the-five-tier-authoritative-provider-chain",
+      "title": "2. The five-tier authoritative provider chain",
+      "kind": "analysis",
+      "cells": [
+        9,
+        10,
+        11
+      ],
+      "depends_on": [
+        "1-the-obb-object"
+      ],
+      "capabilities": [
+        "platform:equity_price_quote",
+        "platform:etf_nport_disclosure",
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-the-five-tier-authoritative-provider-chain-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-the-20-fetchers-that-will-actually-matter",
+      "title": "3. The 20 fetchers that will actually matter",
+      "kind": "retrieval",
+      "cells": [
+        12,
+        13,
+        14
+      ],
+      "depends_on": [
+        "2-the-five-tier-authoritative-provider-chain"
+      ],
+      "capabilities": [
+        "platform:equity_compare_peers",
+        "platform:equity_estimates_consensus",
+        "platform:equity_fundamental_balance",
+        "platform:equity_fundamental_cash",
+        "platform:equity_fundamental_dividends",
+        "platform:equity_fundamental_income",
+        "platform:equity_fundamental_metrics",
+        "platform:equity_fundamental_ratios",
+        "platform:equity_ownership_insider_trading",
+        "platform:equity_ownership_institutional",
+        "platform:equity_price_historical",
+        "platform:equity_price_quote",
+        "platform:equity_profile",
+        "platform:etf_holdings",
+        "platform:etf_nport_disclosure"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-the-20-fetchers-that-will-actually-matter-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-the-offline-snapshot-pattern-yfinance-without",
+      "title": "4. The offline-snapshot pattern (yfinance without hitting yfinance)",
+      "kind": "analysis",
+      "cells": [
+        15,
+        16
+      ],
+      "depends_on": [
+        "3-the-20-fetchers-that-will-actually-matter"
+      ],
+      "capabilities": [
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-the-offline-snapshot-pattern-yfinance-without-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-the-through-line-basket",
+      "title": "5. The through-line basket",
+      "kind": "analysis",
+      "cells": [
+        17,
+        18,
+        19
+      ],
+      "depends_on": [
+        "4-the-offline-snapshot-pattern-yfinance-without"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-the-through-line-basket-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-from-synthetic-basket-to-real-portfolio-option",
+      "title": "6. From synthetic basket to real portfolio (optional bridge)",
+      "kind": "analysis",
+      "cells": [
+        20,
+        21
+      ],
+      "depends_on": [
+        "5-the-through-line-basket"
+      ],
+      "capabilities": [
+        "story:artifacts",
+        "story:binding_review"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-from-synthetic-basket-to-real-portfolio-option-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        22
+      ],
+      "depends_on": [
+        "6-from-synthetic-basket-to-real-portfolio-option"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        23
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/01:fixture",
+    "portfolio/01:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}
