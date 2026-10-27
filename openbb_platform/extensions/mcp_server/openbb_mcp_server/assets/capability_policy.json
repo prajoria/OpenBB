@@ -87,10 +87,14 @@
         "/api/v1/regulators/sec/htm_file",
         "/api/v1/regulators/sec/filing_headers"
       ],
-      "disposition": "restricted",
+      "disposition": "direct",
       "access_class": "provider_read",
-      "admitted_profiles": [],
-      "reason": "Caller-supplied document URLs are SSRF-hardened (#2242); MCP admission is a separate reviewed widening."
+      "admitted_profiles": [
+        "platform-standard",
+        "portfolio-read",
+        "portfolio-ops"
+      ],
+      "reason": "Caller-supplied document URLs pass url_safety SSRF checks (#2242) and are admitted as provider reads (#2290). The rule id is kept for drift-guard evidence continuity."
     },
     {
       "id": "operator-filesystem-writes",
@@ -441,11 +445,11 @@
         "implementation_state": "implemented_product"
       },
       "url-fetch-hardening": {
-        "owner_issues": ["#2242 Harden caller-controlled document URL fetchers"],
-        "rationale": "Caller-controlled document URL fetches pass openbb_core.provider.utils.url_safety (exact host allowlists, https, default port, no credentials, public addresses, per-hop redirect checks). They stay excluded until a reviewed widening changes this mapped policy and its tests.",
+        "owner_issues": ["#2242 Harden caller-controlled document URL fetchers", "#2290 Admit SSRF-hardened document URL fetchers to MCP profiles"],
+        "rationale": "Caller-controlled document URL fetches pass openbb_core.provider.utils.url_safety (exact host allowlists, https, default port, no credentials, public addresses, per-hop redirect checks). They are admitted as provider reads to platform-standard, portfolio-read and portfolio-ops (#2290).",
         "source_evidence": ["openbb_platform/providers/congress_gov", "openbb_platform/providers/government_us", "openbb_platform/providers/sec", "openbb_platform/core/openbb_core/provider/utils/url_safety.py", "openbb_platform/extensions/mcp_server/openbb_mcp_server/assets/capability_policy.json", "openbb_platform/core/tests/provider/utils/test_url_safety.py", "openbb_platform/providers/congress_gov/tests/test_url_hardening.py", "openbb_platform/providers/government_us/tests/test_url_hardening.py", "openbb_platform/providers/sec/tests/test_url_hardening.py", "openbb_platform/extensions/mcp_server/tests/service/test_exposure_policy.py"],
-        "review_triggers": ["URL parser changed", "hostname allowlist changed", "redirect handling changed", "restricted route set changed"],
-        "implementation_state": "approved_exclusion"
+        "review_triggers": ["URL parser changed", "hostname allowlist changed", "redirect handling changed", "admitted route set changed"],
+        "implementation_state": "implemented_product"
       }
     },
     "rule_owners": {
