@@ -110,6 +110,25 @@ _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
         "T1.morning-scan",
         "T1.filter",
         "CX.tt-export-button",
+        # --- Equity Profile widgets served by the live fmp_cached tier (#2094) ---
+        # Each route is @with_chain over a family whose tier A starts with
+        # fmp_cached, so the body is quotes, statements, filings and estimates
+        # as of the run. It moves with market data and differs by environment:
+        # 7 of these drift locally and all 12 in CI, depending on which tier
+        # answers. Re-recording cannot freeze them. The stub fallback bodies
+        # are covered by the widget backend unit tests.
+        "W1.symbol-header",
+        "W2.financials",
+        "CX.equity-financial-charts",
+        "CX.charting",
+        "CX.insider-trading",
+        "CX.dividend-payment",
+        "CX.management-team",
+        "CX.revenue-geography",
+        "CX.revenue-business-line",
+        "CX.price-performance",
+        "CX.peer-multiples",
+        "CX.price-target-history",
     }
 )
 
