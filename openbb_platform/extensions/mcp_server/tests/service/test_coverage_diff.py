@@ -624,3 +624,101 @@ def test_ops_inventory_source_enumerates_jobs_and_specialists(tmp_path):
             "fills_for_session",
         },
     }
+
+
+def _policy_with_new_family(source_evidence: tuple[str, ...]) -> ExposurePolicy:
+    policy = ExposurePolicy.load()
+    template = policy.document.traceability.work_families["fmp-routing-waves"]
+    family = template.model_copy(
+        update={
+            "owner_issues": ("#0 Synthetic new family",),
+            "source_evidence": source_evidence,
+        }
+    )
+    traceability = policy.document.traceability.model_copy(
+        update={
+            "work_families": {
+                **policy.document.traceability.work_families,
+                "synthetic-new-family": family,
+            },
+            "rule_owners": {
+                **policy.document.traceability.rule_owners,
+                "synthetic-new-rule": "synthetic-new-family",
+            },
+        }
+    )
+    return ExposurePolicy(
+        policy.document.model_copy(update={"traceability": traceability}),
+        policy.reviewed_operations,
+    )
+
+
+def _new_family_grant(head_root: Path, base_root: Path, sources) -> AccessGrant:
+    head_policy = _policy_with_new_family(sources)
+    (
+        family,
+        evidence_digest,
+        test_digest,
+        implementation,
+        tests,
+        baseline_implementation,
+        baseline_tests,
+        complete,
+    ) = _family_evidence(
+        head_policy, "synthetic-new-rule", head_root, base_root, ExposurePolicy.load()
+    )
+    return AccessGrant(
+        disposition="direct",
+        access_class="story_state",
+        admitted_profiles=("portfolio-read",),
+        rule_id="synthetic-new-rule",
+        family=family,
+        evidence_digest=evidence_digest,
+        test_evidence_digest=test_digest,
+        implementation_evidence=implementation,
+        test_evidence=tests,
+        baseline_implementation_evidence=baseline_implementation,
+        baseline_test_evidence=baseline_tests,
+        evidence_complete=complete,
+        tests_verified=True,
+    )
+
+
+def _write(root: Path, relative: str, text: str) -> None:
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_new_family_with_newly_added_files_is_changed_evidence(tmp_path):
+    """A brand-new family's new implementation and tests count as changed (#2216)."""
+    from openbb_mcp_server.service.coverage_diff import (  # pylint: disable=import-outside-toplevel
+        _mapped_content_changed,
+    )
+
+    head, base = tmp_path / "head", tmp_path / "base"
+    base.mkdir()
+    _write(head, "pkg/new_adapter.py", "ROUTES = 1\n")
+    _write(head, "pkg/tests/test_new_adapter.py", "def test_routes(): pass\n")
+    grant = _new_family_grant(
+        head, base, ("pkg/new_adapter.py", "pkg/tests/test_new_adapter.py")
+    )
+    assert grant.evidence_complete
+    assert _mapped_content_changed(grant)
+
+
+def test_new_family_over_unchanged_existing_files_is_not_changed(tmp_path):
+    """Pointing a new family at untouched files is not new evidence."""
+    from openbb_mcp_server.service.coverage_diff import (  # pylint: disable=import-outside-toplevel
+        _mapped_content_changed,
+    )
+
+    head, base = tmp_path / "head", tmp_path / "base"
+    for root in (head, base):
+        _write(root, "pkg/old_adapter.py", "ROUTES = 1\n")
+        _write(root, "pkg/tests/test_old_adapter.py", "def test_routes(): pass\n")
+    grant = _new_family_grant(
+        head, base, ("pkg/old_adapter.py", "pkg/tests/test_old_adapter.py")
+    )
+    assert grant.evidence_complete
+    assert not _mapped_content_changed(grant)

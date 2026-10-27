@@ -4,6 +4,7 @@
 
 import asyncio
 import copy
+import hashlib
 import importlib.metadata
 import json
 import os
@@ -747,10 +748,22 @@ def _add_skills_default_prompt(mcp: FastMCP) -> None:
     logger.info("Added default system prompt with skill awareness nudge.")
 
 
+def story_principal_for(credentials: tuple[str, str]) -> str:
+    """Bind story runs to the whole server credential, not the username alone.
+
+    Two servers that share a username but not a secret get different
+    principals; the secret itself never appears in the principal.
+    """
+    username, secret = credentials
+    digest = hashlib.sha256(f"{username}:{secret}".encode()).hexdigest()[:16]
+    return f"{username}#{digest}"
+
+
 def _compose_profile_adapters(
     fastapi_app: FastAPI,
     settings: MCPSettings,
     selected_policy: ExposurePolicy | None,
+    principal: str | None = None,
 ) -> FastAPI:
     """Compose optional profile adapters without mutating the source app."""
     profile = settings.capability_profile
@@ -769,6 +782,13 @@ def _compose_profile_adapters(
                 "Portfolio cache observability requires openbb-fmp-cached"
             ) from exc
         source_app = compose_cache_observability_app(source_app)
+        if principal:
+            # Story runs are scoped to the server's one effective credential.
+            from openbb_mcp_server.story_adapters.registry import (  # pylint: disable=import-outside-toplevel
+                compose_story_registry_app,
+            )
+
+            source_app = compose_story_registry_app(source_app, principal=principal)
     if profile == "portfolio-ops" and settings.enable_maintenance_operations:
         try:
             from openbb_mcp_server.adapters.cache_jobs import (  # pylint: disable=import-outside-toplevel
@@ -878,11 +898,19 @@ def create_mcp_server(
             "pass an AuthProvider or validated server credentials."
         )
     selected_policy = ExposurePolicy.load() if capability_profile else None
+    # Story runs need one verifiable identity. A custom AuthProvider may serve
+    # many users the registry cannot tell apart, so it gets no story routes.
+    story_principal = (
+        story_principal_for(auth_provider.server_auth)
+        if isinstance(auth_provider, TokenAuthProvider) and auth_provider.server_auth
+        else None
+    )
 
     source_app = _compose_profile_adapters(
         fastapi_app,
         settings,
         selected_policy,
+        principal=story_principal,
     )
     composed_app = copy.copy(source_app)
     composed_app.router = copy.copy(source_app.router)

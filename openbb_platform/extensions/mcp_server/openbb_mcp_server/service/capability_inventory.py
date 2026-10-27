@@ -907,6 +907,13 @@ def load_default_sources(
 
             app = compose_portfolio_app(app, settings)
             app = compose_cache_observability_app(app)
+            # Metadata only: the run store is lazy, so enumerating its routes
+            # never creates a database.
+            from openbb_mcp_server.story_adapters.registry import (
+                compose_story_registry_app,
+            )
+
+            app = compose_story_registry_app(app, principal="inventory")
             if profile_name == "portfolio-ops":
                 from openbb_mcp_server.adapters.cache_jobs import (
                     compose_cache_jobs_app,

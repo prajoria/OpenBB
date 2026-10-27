@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "5b154eb79e352bc6366eae9140e8cc34fc5f0c8d9e7239015a40a1b6cad48b50"
+    "sha256": "c22dbc4f354a40b3596ecf8b76170d8e4e1197042f195e2b25ba31209eb59486"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -31,7 +31,8 @@
     "portfolio-read": [
       "public_metadata",
       "provider_read",
-      "private_portfolio_read"
+      "private_portfolio_read",
+      "story_state"
     ],
     "portfolio-ops": [
       "public_metadata",
@@ -40,7 +41,8 @@
       "filesystem_write",
       "cache_maintenance",
       "job_control",
-      "workspace_mutation"
+      "workspace_mutation",
+      "story_state"
     ]
   },
   "rules": [
@@ -123,6 +125,28 @@
       "disposition": "direct",
       "access_class": "job_control",
       "admitted_profiles": ["portfolio-ops"]
+    },
+    {
+      "id": "story-registry-metadata",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": ["/api/v1/story/catalog", "/api/v1/story/describe"],
+      "disposition": "direct",
+      "access_class": "public_metadata",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-run-state",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/runs",
+        "/api/v1/story/runs/{run_id}",
+        "/api/v1/story/runs/{run_id}/checkpoint"
+      ],
+      "disposition": "direct",
+      "access_class": "story_state",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
     },
     {
       "id": "operator-job-control",
@@ -377,6 +401,16 @@
   },
   "traceability": {
     "work_families": {
+      "notebook-story-registry": {
+        "owner_issues": ["#2216 Story catalog, run registry and typed state management tools"],
+        "rationale": "Portfolio profiles list and describe the 25 reviewed notebook stories and keep principal-scoped, version-checked JSON run state; nothing runs a notebook, reads arbitrary files or unpickles state.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/registry.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_registry.py"
+        ],
+        "review_triggers": ["story route added", "run-state schema changed", "principal scoping changed"],
+        "implementation_state": "implemented_product"
+      },
       "fmp-routing-waves": {
         "owner_issues": ["#2162 Typed provider route framework", "#2171 Complete FMP parity gate"],
         "rationale": "Own every FMP Cached registration and routing gap without reducing the denominator.",
@@ -453,6 +487,8 @@
       }
     },
     "rule_owners": {
+      "story-registry-metadata": "notebook-story-registry",
+      "story-run-state": "notebook-story-registry",
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
@@ -482,6 +518,21 @@
       "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
     },
     "reviewed_capability_members": {
+      "platform-story-registry": {
+        "members": [
+          "story_catalog",
+          "story_describe",
+          "story_run_create",
+          "story_run_get",
+          "story_run_checkpoint"
+        ],
+        "rationale": "Notebook story metadata and principal-scoped run state for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/registry.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_registry.py"
+        ]
+      },
       "platform-cache-observability": {
         "members": ["cache_health", "cache_coverage"],
         "rationale": "Sanitized aggregate cache health and exact route/persistence coverage for Portfolio read and ops profiles.",

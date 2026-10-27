@@ -35,6 +35,7 @@ _ACCESS_SENSITIVITY = {
     "cache_maintenance": 3,
     "job_control": 3,
     "workspace_mutation": 3,
+    "story_state": 3,
     "financial_mutation": 3,
 }
 _ASSET_RELATIVE = Path("openbb_platform/extensions/mcp_server/openbb_mcp_server/assets")
@@ -137,6 +138,11 @@ def _policy_assets(repository: Path) -> tuple[ExposurePolicy, Path]:
     return ExposurePolicy.load(assets / "capability_policy.json"), assets
 
 
+# Baseline digest recorded for a file that a new family adds: it is absent
+# from the base checkout, so its content is new and therefore changed (#2216).
+ABSENT_IN_BASELINE = "0" * 64
+
+
 def _family_evidence(
     policy: ExposurePolicy,
     rule_id: str,
@@ -215,8 +221,14 @@ def _family_evidence(
                 implementation_evidence[relative] = content_digest
                 implementation_files += 1
             baseline_path = baseline_repository / relative
+            baseline_digest = None
             if source_ref in baseline_source_refs and baseline_path.is_file():
                 baseline_digest = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
+            elif baseline_family is None and not baseline_path.exists():
+                # A family that is new in this change may only be evidenced by
+                # files that are new too; untouched existing files never count.
+                baseline_digest = ABSENT_IN_BASELINE
+            if baseline_digest is not None:
                 if is_test:
                     baseline_test_evidence[relative] = baseline_digest
                 else:
