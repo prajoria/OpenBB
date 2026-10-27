@@ -782,6 +782,11 @@ def _compose_profile_adapters(
                 "Portfolio cache observability requires openbb-fmp-cached"
             ) from exc
         source_app = compose_cache_observability_app(source_app)
+        from openbb_mcp_server.story_adapters.analytics import (  # pylint: disable=import-outside-toplevel
+            compose_story_analytics_app,
+        )
+
+        source_app = compose_story_analytics_app(source_app)
         if principal:
             # Story runs are scoped to the server's one effective credential.
             from openbb_mcp_server.story_adapters.registry import (  # pylint: disable=import-outside-toplevel

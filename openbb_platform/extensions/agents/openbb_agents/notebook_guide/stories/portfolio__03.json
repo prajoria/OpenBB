@@ -84,7 +84,7 @@
         "2-the-naive-view-sector-pie-without-look-through"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_basket_effective_positions"
       ],
       "inputs": [],
       "outputs": [
@@ -105,7 +105,7 @@
       ],
       "capabilities": [
         "platform:equity_profile",
-        "story:analytics"
+        "platform:story_basket_sector_view"
       ],
       "inputs": [],
       "outputs": [
@@ -125,7 +125,7 @@
         "4-sector-pie-with-look-through-the-pivot"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_concentration"
       ],
       "inputs": [],
       "outputs": [
@@ -166,7 +166,7 @@
         "6-risk-metrics-obb-portfolio-intel-risk-metrics"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_concentration"
       ],
       "inputs": [],
       "outputs": [
@@ -186,7 +186,7 @@
         "7-concentration-obb-portfolio-intel-risk-concent"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_construction_targets"
       ],
       "inputs": [],
       "outputs": [

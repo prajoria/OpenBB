@@ -271,6 +271,42 @@
         "access": "provider_read"
       }
     },
+    "platform:story_basket_effective_positions": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_basket_effective_positions",
+        "schema_sha256": "b52c70ae7c9a3cc8b48e3ce576d142e87f7162b755ee2c620b971867123005e3",
+        "access": "analysis"
+      }
+    },
+    "platform:story_basket_sector_view": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_basket_sector_view",
+        "schema_sha256": "49cf46715b04afa2d16a277f3310f936413c49ce3614f6c5abcb9cce30fee5ee",
+        "access": "analysis"
+      }
+    },
+    "platform:story_concentration": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_concentration",
+        "schema_sha256": "c6697cf75ca8bd8edf0da7b20cb4a1a0ace6bd40ac076f455b5da8925c990730",
+        "access": "analysis"
+      }
+    },
+    "platform:story_construction_targets": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_construction_targets",
+        "schema_sha256": "e70b26b88a8da15134ed7b0943d68eca7139c40f2b369c86a08e95cea336e5d1",
+        "access": "analysis"
+      }
+    },
     "platform:techtrade_about": {
       "status": "available",
       "ref": {

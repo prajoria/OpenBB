@@ -193,3 +193,57 @@ def test_manifests_contain_no_saved_outputs_or_absolute_paths():
         text = path.read_text(encoding="utf-8")
         assert "outputs" not in json.loads(text)
         assert ":\\\\" not in text and "/Users/" not in text and "/home/" not in text
+
+
+def _stage(manifest, prefix):
+    matches = [s for s in manifest.stages if s.id.startswith(prefix)]
+    assert len(matches) == 1, (manifest.story_id, prefix)
+    return matches[0]
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage", "tool"),
+    [
+        ("portfolio/03", "3-", "platform:story_basket_effective_positions"),
+        ("portfolio/03", "4-", "platform:story_basket_sector_view"),
+        ("portfolio/03", "5-", "platform:story_concentration"),
+        ("portfolio/03", "7-", "platform:story_concentration"),
+        ("portfolio/03", "8-", "platform:story_construction_targets"),
+        ("portfolio_yfinance/03", "3-", "platform:story_basket_effective_positions"),
+        ("portfolio/08", "6-", "platform:story_basket_sector_view"),
+        ("portfolio/08", "10a-", "platform:story_basket_effective_positions"),
+    ],
+)
+def test_reviewed_xray_stages_bind_to_story_analytics_tools(
+    manifests, catalog, story_id, stage, tool
+):
+    """N05a (#2313): reviewed x-ray stages run on the server's tools."""
+    bound = _stage(manifests[story_id], stage)
+    assert tool in bound.capabilities
+    assert "story:analytics" not in bound.capabilities
+    assert isinstance(catalog.entries[tool], AvailableCapability)
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage"),
+    [("portfolio_yfinance/03", "4-"), ("portfolio_yfinance/08", "6-")],
+)
+def test_free_tier_sector_maps_stay_planned(manifests, story_id, stage):
+    """The hand-maintained free-tier sector map has no server tool yet."""
+    assert "story:analytics" in _stage(manifests[story_id], stage).capabilities
+
+
+def test_every_reviewed_binding_matches_a_stage():
+    """A renamed notebook section cannot silently drop a reviewed binding."""
+    # pylint: disable=import-outside-toplevel
+    from scripts.build_story_manifests import REVIEWED_BINDINGS, unused_bindings
+
+    sources = inventory_notebooks(REPO_ROOT / "notebooks")
+    previous: dict[str, str] = {}
+    built = []
+    for source in sources:
+        folder = source.story_id.split("/")[0]
+        built.append(build_manifest(source, previous.get(folder)))
+        previous[folder] = source.story_id
+    assert REVIEWED_BINDINGS
+    assert unused_bindings(built) == []

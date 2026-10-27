@@ -109,7 +109,7 @@
         "4-the-15-etf-basket-table-rationale"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_basket_effective_positions"
       ],
       "inputs": [],
       "outputs": [
@@ -130,7 +130,8 @@
       ],
       "capabilities": [
         "platform:equity_profile",
-        "story:analytics"
+        "platform:story_basket_sector_view",
+        "platform:story_concentration"
       ],
       "inputs": [],
       "outputs": [
@@ -234,7 +235,7 @@
         "10-where-i-d-go-from-here-analyst-sources-rebala"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_basket_effective_positions"
       ],
       "inputs": [],
       "outputs": [

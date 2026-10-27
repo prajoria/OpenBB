@@ -119,6 +119,66 @@ IMPORT_CAPABILITIES: dict[str, str] = {
     "portfolio_snapshot_importer": "platform:portfolio_portfolio_snapshots",
 }
 
+_EFFECTIVE = "platform:story_basket_effective_positions"
+_SECTORS = "platform:story_basket_sector_view"
+_CONCENTRATION = "platform:story_concentration"
+_CONSTRUCTION = "platform:story_construction_targets"
+# Reviewed in N05a (#2313): stages whose notebook-local x-ray math the server
+# computes. (story_id, stage_id) -> (tools, residual). ``residual`` keeps
+# story:analytics when part of the stage still has no tool: the free-tier
+# chapters' hand-maintained issuer-to-sector map is not a server tool.
+REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
+    ("portfolio/03", "3-the-x-ray-look-through-via-sec-n-port-obb-etf"): (
+        (_EFFECTIVE,),
+        False,
+    ),
+    ("portfolio/03", "4-sector-pie-with-look-through-the-pivot"): ((_SECTORS,), False),
+    ("portfolio/03", "5-hhi-effective-n-two-numbers-to-quote-from-now"): (
+        (_CONCENTRATION,),
+        False,
+    ),
+    ("portfolio/03", "7-concentration-obb-portfolio-intel-risk-concent"): (
+        (_CONCENTRATION,),
+        False,
+    ),
+    ("portfolio/03", "8-portfolio-construction-turning-the-x-ray-into"): (
+        (_CONSTRUCTION,),
+        False,
+    ),
+    ("portfolio_yfinance/03", "3-the-x-ray-sec-n-port-look-through"): (
+        (_EFFECTIVE,),
+        False,
+    ),
+    ("portfolio_yfinance/03", "5-hhi-effective-n-the-two-numbers-to-quote"): (
+        (_CONCENTRATION,),
+        False,
+    ),
+    ("portfolio_yfinance/03", "7-concentration-top-k-weights-single-name-kill-s"): (
+        (_CONCENTRATION,),
+        False,
+    ),
+    ("portfolio/08", "5-basket-x-ray-look-through-via-sec-n-port"): (
+        (_EFFECTIVE,),
+        False,
+    ),
+    ("portfolio/08", "6-risk-metrics-hhi-effective-n-sector-view"): (
+        (_SECTORS, _CONCENTRATION),
+        False,
+    ),
+    ("portfolio/08", "10a-the-self-maintained-alternative-five-etfs-on"): (
+        (_EFFECTIVE,),
+        False,
+    ),
+    ("portfolio_yfinance/08", "5-basket-x-ray-sec-n-port-look-through"): (
+        (_EFFECTIVE,),
+        False,
+    ),
+    ("portfolio_yfinance/08", "6-risk-metrics-hhi-effective-n-free-tier-sector"): (
+        (_CONCENTRATION,),
+        True,
+    ),
+}
+
 KIND_BY_CAPABILITY = {
     "story:paper": "paper",
     "story:jobs": "job",
@@ -128,7 +188,14 @@ KIND_BY_CAPABILITY = {
 KIND_PRIORITY = ["paper", "job", "analysis", "retrieval", "artifact", "state"]
 STATE_LOADS = re.compile(r"pickle\.loads?\(|\.read_text\(|\.read_bytes\(")
 STATE_NAMES = re.compile(r"notebook_state|basket|\bSTATE\b|\bstate\b")
-ANALYSIS_TOOL_PREFIXES = ("portfolio_intel_", "techtrade_", "backtest_")
+ANALYSIS_TOOL_PREFIXES = (
+    "portfolio_intel_",
+    "techtrade_",
+    "backtest_",
+    "story_basket_",
+    "story_concentration",
+    "story_construction_",
+)
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
 # Imports whose stage is an opt-in personal-data step, never mandatory.
 OPTIONAL_IMPORTS = frozenset({"portfolio_snapshot_importer"})
@@ -234,9 +301,29 @@ def _stage_needs(
         capabilities.add("story:analytics")
     if not capabilities:
         return [], "setup", reads_state
+    return sorted(capabilities), _stage_kind(capabilities), reads_state
+
+
+def _stage_kind(capabilities: set[str]) -> str:
     kinds = {_capability_kind(c) for c in capabilities}
-    kind = next(k for k in KIND_PRIORITY if k in kinds)
-    return sorted(capabilities), kind, reads_state
+    return next(k for k in KIND_PRIORITY if k in kinds)
+
+
+def _apply_binding(story_id: str, stage_id: str, capabilities: list[str]) -> list[str]:
+    binding = REVIEWED_BINDINGS.get((story_id, stage_id))
+    if binding is None:
+        return capabilities
+    tools, residual = binding
+    bound = set(capabilities) | set(tools)
+    if not residual:
+        bound.discard("story:analytics")
+    return sorted(bound)
+
+
+def unused_bindings(manifests: list[dict]) -> list[tuple[str, str]]:
+    """Return reviewed bindings whose stage no longer exists."""
+    present = {(m["story_id"], s["id"]) for m in manifests for s in m["stages"]}
+    return sorted(set(REVIEWED_BINDINGS) - present)
 
 
 def _is_optional(source: NotebookSource, positions: list[int]) -> bool:
@@ -266,6 +353,9 @@ def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
             source, cells, section["positions"], section["numbered"]
         )
         stage_id = _slug(section["title"], used)
+        reviewed = _apply_binding(source.story_id, stage_id, capabilities)
+        if reviewed != capabilities:
+            capabilities, kind = reviewed, _stage_kind(set(reviewed))
         inputs = []
         if reads_state and previous_story is not None:
             inputs.append(
@@ -393,6 +483,9 @@ def main() -> int:
         folder = source.story_id.split("/")[0]
         manifests.append(build_manifest(source, previous.get(folder)))
         previous[folder] = source.story_id
+    stale = unused_bindings(manifests)
+    if stale:
+        raise SystemExit(f"reviewed bindings match no stage: {stale}")
     STORIES_DIR.mkdir(parents=True, exist_ok=True)
     for manifest in manifests:
         path = STORIES_DIR / (manifest["story_id"].replace("/", "__") + ".json")
