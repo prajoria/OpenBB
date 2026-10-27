@@ -289,6 +289,24 @@
         "access": "analysis"
       }
     },
+    "platform:story_brinson_attribution": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_brinson_attribution",
+        "schema_sha256": "e60f64799197121bd17c9e87d972ea9158c56ff17bd1c6b6bb9d8781eceb9c95",
+        "access": "analysis"
+      }
+    },
+    "platform:story_candidate_trades": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_candidate_trades",
+        "schema_sha256": "b70cce0aa0da7c04f6f808d4219809cbeb2ccca250263113fe1be2b1da77bd13",
+        "access": "analysis"
+      }
+    },
     "platform:story_concentration": {
       "status": "available",
       "ref": {
@@ -313,6 +331,15 @@
         "server": "platform",
         "tool": "story_single_name_analysis",
         "schema_sha256": "2dab836a6e6ce98317a94eff49998b00bdce0379c8a8dfbaa34afaf3f055b937",
+        "access": "analysis"
+      }
+    },
+    "platform:story_whatif_diff": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_whatif_diff",
+        "schema_sha256": "8e660482cd91b0d5b12ed484228c8d39085c8484f6bbdff065f2ac446587fe99",
         "access": "analysis"
       }
     },

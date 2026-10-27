@@ -518,3 +518,6 @@ portfolio-venv-core-in-process,POST,/api/v1/story/analytics/basket/sector_view,a
 portfolio-venv-core-in-process,POST,/api/v1/story/analytics/concentration,activatable,story_concentration,False,
 portfolio-venv-core-in-process,POST,/api/v1/story/analytics/construction,activatable,story_construction_targets,False,
 portfolio-venv-core-in-process,POST,/api/v1/story/analytics/single_name,activatable,story_single_name_analysis,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/brinson,activatable,story_brinson_attribution,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/whatif_diff,activatable,story_whatif_diff,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/candidate_trades,activatable,story_candidate_trades,False,

@@ -102,8 +102,7 @@
         "3-events-calendar-obb-portfolio-intel-events"
       ],
       "capabilities": [
-        "platform:portfolio_intel_smart_money_rollup",
-        "story:analytics"
+        "platform:portfolio_intel_smart_money_rollup"
       ],
       "inputs": [],
       "outputs": [
@@ -114,7 +113,7 @@
     {
       "id": "5-reading-a-single-name-signal",
       "title": "5. Reading a single-name signal",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         13,
         14
@@ -122,9 +121,7 @@
       "depends_on": [
         "4-smart-money-rollup-obb-portfolio-intel-smart-m"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "5-reading-a-single-name-signal-result"

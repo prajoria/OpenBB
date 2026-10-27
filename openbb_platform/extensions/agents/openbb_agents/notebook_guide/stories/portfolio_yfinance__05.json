@@ -96,7 +96,7 @@
         "1-load-track-b-state-from-nb01-nb03-nb04"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_candidate_trades"
       ],
       "inputs": [],
       "outputs": [
@@ -107,7 +107,7 @@
     {
       "id": "3-what-if-diff-weight-space-arithmetic-free-only",
       "title": "3. What-if diff \u2014 weight-space arithmetic (free-only)",
-      "kind": "retrieval",
+      "kind": "analysis",
       "cells": [
         9,
         10
@@ -116,7 +116,8 @@
         "2-the-three-candidate-trades-in-english-first"
       ],
       "capabilities": [
-        "platform:equity_price_quote"
+        "platform:equity_price_quote",
+        "platform:story_whatif_diff"
       ],
       "inputs": [],
       "outputs": [
@@ -136,7 +137,7 @@
         "3-what-if-diff-weight-space-arithmetic-free-only"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_brinson_attribution"
       ],
       "inputs": [],
       "outputs": [

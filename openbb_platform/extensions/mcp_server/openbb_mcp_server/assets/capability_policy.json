@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "15c696a161cdacfb9982d48b73808c0173647a477205c7497f7799b981c5290d"
+    "sha256": "5dc382d38872287066c07c1ee3c73c204d8d7a72217f1276d163e245a8e5c620"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -167,6 +167,19 @@
       "priority": 95,
       "scopes": ["portfolio-venv-core-in-process"],
       "paths": ["/api/v1/story/analytics/single_name"],
+      "disposition": "direct",
+      "access_class": "provider_read",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-attribution-whatif",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/analytics/brinson",
+        "/api/v1/story/analytics/whatif_diff",
+        "/api/v1/story/analytics/candidate_trades"
+      ],
       "disposition": "direct",
       "access_class": "provider_read",
       "admitted_profiles": ["portfolio-read", "portfolio-ops"]
@@ -424,6 +437,18 @@
   },
   "traceability": {
     "work_families": {
+      "notebook-story-attribution": {
+        "owner_issues": ["#2315 Event timeline, Brinson attribution and recommendation-basket analytics over MCP"],
+        "rationale": "Portfolio profiles compute the portfolio/05 chapter server-side: Brinson-Fachler attribution through the trusted oracle, weight-space what-if diffs and the conviction-to-trade rule; pure computation over bounded, finite inputs that never guesses a missing price or renormalizes weights.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/attribution.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/analytics/trade_preview.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_attribution.py",
+          "openbb_platform/extensions/portfolio_intel/tests/unit/test_trade_preview.py"
+        ],
+        "review_triggers": ["attribution route added", "what-if math changed", "trade rule changed"],
+        "implementation_state": "implemented_product"
+      },
       "notebook-story-single-name": {
         "owner_issues": ["#2314 Seven-phase single-name analysis pipeline over MCP"],
         "rationale": "Portfolio profiles run the repository's seven-phase Analysis pipeline for one symbol and receive every phase result, gate diagnostics and provenance as bounded strict JSON; the pipeline is loaded, not copied, and concurrent runs are capped.",
@@ -533,6 +558,7 @@
       }
     },
     "rule_owners": {
+      "story-attribution-whatif": "notebook-story-attribution",
       "story-single-name-analysis": "notebook-story-single-name",
       "story-basket-analytics": "notebook-story-analytics",
       "story-registry-metadata": "notebook-story-registry",
@@ -566,6 +592,19 @@
       "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
     },
     "reviewed_capability_members": {
+      "platform-story-attribution": {
+        "members": [
+          "story_brinson_attribution",
+          "story_whatif_diff",
+          "story_candidate_trades"
+        ],
+        "rationale": "Brinson attribution, what-if weight diffs and candidate trades for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/attribution.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_attribution.py"
+        ]
+      },
       "platform-story-single-name": {
         "members": ["story_single_name_analysis"],
         "rationale": "Seven-phase single-name analysis with diagnostics and provenance for Portfolio read and ops profiles.",
