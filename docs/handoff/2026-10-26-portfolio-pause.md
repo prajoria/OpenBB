@@ -1,5 +1,11 @@
 # Portfolio work: pause handoff (2026-10-26)
 
+> **Updated 2026-10-27:** §3, §4 and §6 are superseded by the
+> [2026-10-27 resume state](./2026-10-27-portfolio-resume-state.md). The MCP
+> parity program is closed, the stash documents have landed, and rule 4 below
+> no longer applies, because auto-close now reads PR bodies (#1975). §1 and §5
+> still stand.
+
 Written at the start of a planned multi-month pause, so that work can resume
 from this file alone. Tracking issue: #2284 (Pause handoff record for
 Portfolio MCP work).
