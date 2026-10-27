@@ -311,3 +311,95 @@ def test_instruction_assets_avoid_unsupported_provider_claims():
         "unlimited quota",
     ):
         assert unsupported_claim not in instruction_text
+
+
+def _bundled_prompts() -> list[dict]:
+    path = MCPSettings.get_default_assets_dir() / "server_prompts.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _declared_tools(prompt: dict) -> set[str]:
+    dependencies = prompt["dependencies"]
+    return set(dependencies["required_tools"]) | {
+        tool for group in dependencies["any_tool_groups"] for tool in group
+    }
+
+
+def _package_installed(distribution: str) -> bool:
+    import importlib.metadata  # pylint: disable=import-outside-toplevel
+
+    try:
+        importlib.metadata.distribution(distribution)
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    return True
+
+
+def test_prompt_text_names_only_declared_tools():
+    """Every tool-shaped backticked name in prompt text is a declared dependency."""
+    import re  # pylint: disable=import-outside-toplevel
+
+    prompts = _bundled_prompts()
+    prompt_names = {prompt["name"] for prompt in prompts}
+    # A token is a tool reference when it starts with a tool namespace used by
+    # the catalog; prompt-local variables such as `symbol_list` are not.
+    namespaces = {
+        tool.split("_", 1)[0] for prompt in prompts for tool in _declared_tools(prompt)
+    }
+    undeclared = {}
+    for prompt in prompts:
+        names = {
+            token
+            for token in re.findall(r"`([a-z][a-z0-9]*_[a-z0-9_]+)`", prompt["content"])
+            if token not in prompt_names and token.split("_", 1)[0] in namespaces
+        }
+        if missing := names - _declared_tools(prompt):
+            undeclared[prompt["name"]] = sorted(missing)
+    assert not undeclared
+
+
+@pytest.mark.asyncio
+async def test_every_declared_prompt_tool_is_emitted_by_a_real_profile():
+    """Bundled prompts never require a tool name that no profile emits (#2300).
+
+    A missing tool is acceptable only when the prompt also declares an
+    optional package that is not installed, which keeps its unavailable
+    reason actionable.
+    """
+    # pylint: disable=import-outside-toplevel
+    from openbb_core.api.rest_api import app as platform_app
+    from openbb_mcp_server.app.app import create_mcp_server
+
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile="portfolio-ops",
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    server = create_mcp_server(
+        settings, platform_app, auth=("synthetic-user", "x" * 32)
+    )
+    emitted = {tool.name for tool in await server.list_tools()}
+    unknown = {}
+    for prompt in _bundled_prompts():
+        missing = _declared_tools(prompt) - emitted
+        packages = prompt["dependencies"]["optional_packages"]
+        if missing and not (
+            packages and not all(_package_installed(name) for name in packages)
+        ):
+            unknown[prompt["name"]] = sorted(missing)
+    assert not unknown
+
+
+def test_every_declared_prompt_provider_is_registered():
+    """Bundled prompts never require a provider the platform cannot register."""
+    # pylint: disable=import-outside-toplevel
+    from openbb_core.provider.registry_map import RegistryMap
+
+    known = set(RegistryMap().available_providers)
+    unknown = {
+        prompt["name"]: sorted(set(prompt["dependencies"]["providers"]) - known)
+        for prompt in _bundled_prompts()
+        if set(prompt["dependencies"]["providers"]) - known
+    }
+    assert not unknown
