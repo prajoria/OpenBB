@@ -139,3 +139,40 @@ def test_committed_beads_hooks_never_invoke_bd():
         text = hook.read_text(encoding="utf-8")
         assert "bd " not in text, f"{hook.name} still invokes bd"
         assert "retire_beads_hooks.py" in text, f"{hook.name} lacks the fix hint"
+
+
+def _retired_stub(name: str) -> str:
+    """Return the tracked retired stub for hook ``name``."""
+    return (ROOT / ".beads" / "hooks" / name).read_text(encoding="utf-8")
+
+
+def test_migrate_does_not_copy_retired_stubs(repo):
+    """Stubs in .beads/hooks are Beads-owned: nothing moves to .git/hooks."""
+    (repo / ".beads" / "hooks" / "pre-commit").write_text(
+        _retired_stub("pre-commit"), encoding="utf-8"
+    )
+    retire_beads_hooks.migrate(repo)
+    assert not (_hooks_dir(repo) / "pre-commit").exists()
+    assert retire_beads_hooks.find_problems(repo) == []
+
+
+def test_migrate_removes_retired_stub_copied_into_default_hooks(tmp_path):
+    """A stub already copied into .git/hooks is reported and removed."""
+    _git(tmp_path, "init", "-q")
+    hook = _hooks_dir(tmp_path) / "pre-commit"
+    hook.write_text(_retired_stub("pre-commit"), encoding="utf-8")
+    assert retire_beads_hooks.find_problems(tmp_path) == [
+        "pre-commit: is a retired Beads stub"
+    ]
+    retire_beads_hooks.migrate(tmp_path)
+    assert not hook.exists()
+
+
+def test_migrate_keeps_stub_with_custom_lines(repo):
+    """A stub someone extended is not a stub: its content is preserved."""
+    (repo / ".beads" / "hooks" / "pre-commit").write_text(
+        _retired_stub("pre-commit") + "echo-free-custom-check\n", encoding="utf-8"
+    )
+    retire_beads_hooks.migrate(repo)
+    kept = (_hooks_dir(repo) / "pre-commit").read_text(encoding="utf-8")
+    assert "echo-free-custom-check" in kept
