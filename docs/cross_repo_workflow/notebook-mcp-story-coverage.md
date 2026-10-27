@@ -114,15 +114,15 @@ Gross denominators at this baseline, counting every stage:
 | Stages | 287 |
 | Setup and narrative stages (no capability needed) | 93 |
 | Stages doing financial work | 194 |
-| Of those, runnable on existing MCP tools | 56 |
-| Stages waiting on a planned bridge | 138 |
+| Of those, runnable on existing MCP tools | 66 |
+| Stages waiting on a planned bridge | 128 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
 
 | Owner | Bridge | Needs |
 | --- | --- | ---: |
-| #2215 (N05) | Notebook analytics through owned engine adapters | 81 |
+| #2215 (N05) | Notebook analytics through owned engine adapters | 70 |
 | #2217 (N07) | Chart, table, report and XLSX artifacts | 16 |
 | #2216 (N06) | Typed story state and cross-chapter handoffs | 14 |
 | #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 13 |
@@ -141,6 +141,13 @@ look-through sector view, concentration, and capped construction targets.
 They use the same engine as the notebooks' `_nport_lookthrough` helper. The
 free-tier chapters' hand-maintained issuer-to-sector map has no server tool,
 so those two stages still need N05.
+
+N05b (#2314) added `story_single_name_analysis`, which runs the repository's
+seven-phase `Analysis` pipeline and returns every phase, gate diagnostics and
+provenance. It binds the portfolio chapter 2 walk-through (including the
+regime overlay and the bad-symbol check) and the chapter 8 spot check. The
+TechTrade chapter 1 and Portfolio chapter 7 stages that also do other local
+work bind it too, but still need N05 for the rest.
 
 No story is ready yet, which is the expected state before the N05–N10
 bridges land. These figures are stage outcomes, not an API-count parity

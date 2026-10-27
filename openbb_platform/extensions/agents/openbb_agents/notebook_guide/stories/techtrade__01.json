@@ -87,6 +87,7 @@
       ],
       "capabilities": [
         "platform:equity_price_historical",
+        "platform:story_single_name_analysis",
         "story:analytics"
       ],
       "inputs": [],

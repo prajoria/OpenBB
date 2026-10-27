@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "8a47bbcf50d9d733583d628ace55b387b1688066f0c8e60478f5ae3ef612b18d"
+    "sha256": "15c696a161cdacfb9982d48b73808c0173647a477205c7497f7799b981c5290d"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -158,6 +158,15 @@
         "/api/v1/story/analytics/concentration",
         "/api/v1/story/analytics/construction"
       ],
+      "disposition": "direct",
+      "access_class": "provider_read",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-single-name-analysis",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": ["/api/v1/story/analytics/single_name"],
       "disposition": "direct",
       "access_class": "provider_read",
       "admitted_profiles": ["portfolio-read", "portfolio-ops"]
@@ -415,6 +424,16 @@
   },
   "traceability": {
     "work_families": {
+      "notebook-story-single-name": {
+        "owner_issues": ["#2314 Seven-phase single-name analysis pipeline over MCP"],
+        "rationale": "Portfolio profiles run the repository's seven-phase Analysis pipeline for one symbol and receive every phase result, gate diagnostics and provenance as bounded strict JSON; the pipeline is loaded, not copied, and concurrent runs are capped.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/single_name.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_single_name.py"
+        ],
+        "review_triggers": ["single-name route changed", "phase result fields changed", "pipeline loading changed"],
+        "implementation_state": "implemented_product"
+      },
       "notebook-story-analytics": {
         "owner_issues": ["#2313 Basket look-through, sector roll-up and concentration analytics over MCP"],
         "rationale": "Portfolio profiles compute the portfolio/03 x-ray chapter server-side: N-PORT look-through, sector roll-up, concentration and capped construction targets, through the same engine the notebook calls; bounded inputs, no notebook state or file writes.",
@@ -514,6 +533,7 @@
       }
     },
     "rule_owners": {
+      "story-single-name-analysis": "notebook-story-single-name",
       "story-basket-analytics": "notebook-story-analytics",
       "story-registry-metadata": "notebook-story-registry",
       "story-run-state": "notebook-story-registry",
@@ -546,6 +566,15 @@
       "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
     },
     "reviewed_capability_members": {
+      "platform-story-single-name": {
+        "members": ["story_single_name_analysis"],
+        "rationale": "Seven-phase single-name analysis with diagnostics and provenance for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/single_name.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_single_name.py"
+        ]
+      },
       "platform-story-analytics": {
         "members": [
           "story_basket_effective_positions",

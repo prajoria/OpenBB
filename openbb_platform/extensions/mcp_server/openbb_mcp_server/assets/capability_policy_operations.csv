@@ -517,3 +517,4 @@ portfolio-venv-core-in-process,POST,/api/v1/story/analytics/basket/effective_pos
 portfolio-venv-core-in-process,POST,/api/v1/story/analytics/basket/sector_view,activatable,story_basket_sector_view,False,
 portfolio-venv-core-in-process,POST,/api/v1/story/analytics/concentration,activatable,story_concentration,False,
 portfolio-venv-core-in-process,POST,/api/v1/story/analytics/construction,activatable,story_construction_targets,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/single_name,activatable,story_single_name_analysis,False,

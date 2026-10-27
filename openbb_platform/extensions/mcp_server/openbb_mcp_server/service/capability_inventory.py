@@ -919,6 +919,11 @@ def load_default_sources(
             )
 
             app = compose_story_analytics_app(app)
+            from openbb_mcp_server.story_adapters.single_name import (
+                compose_single_name_app,
+            )
+
+            app = compose_single_name_app(app)
             if profile_name == "portfolio-ops":
                 from openbb_mcp_server.adapters.cache_jobs import (
                     compose_cache_jobs_app,
