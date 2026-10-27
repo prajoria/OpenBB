@@ -24,7 +24,7 @@
     {
       "id": "1-setup-probe-the-soft-dep-check",
       "title": "1. Setup probe + the soft-dep check",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3,
@@ -33,9 +33,7 @@
       "depends_on": [
         "the-question-this-notebook-answers"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "1-setup-probe-the-soft-dep-check-result"
@@ -110,7 +108,7 @@
     {
       "id": "5-look-at-the-individual-folds",
       "title": "5. Look at the individual folds",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         15,
         16,
@@ -119,9 +117,7 @@
       "depends_on": [
         "4-walk-forward-validation-wfo"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "5-look-at-the-individual-folds-result"
@@ -190,7 +186,7 @@
     {
       "id": "9-now-what-the-decision-table",
       "title": "9. Now what? The decision table",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         25,
         26,
@@ -199,9 +195,7 @@
       "depends_on": [
         "8-attaching-the-verdict-to-the-plan"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "9-now-what-the-decision-table-result"

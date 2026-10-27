@@ -119,7 +119,7 @@
         "4-the-morning-scan"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_actionable_plans"
       ],
       "inputs": [],
       "outputs": [
@@ -139,7 +139,7 @@
         "5-quick-look-ranking"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_actionable_plans"
       ],
       "inputs": [],
       "outputs": [
@@ -160,7 +160,7 @@
         "6-filter-to-today-s-actionable-list"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_actionable_plans"
       ],
       "inputs": [],
       "outputs": [
@@ -223,7 +223,7 @@
         "9-variation-try-the-other-two-presets"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_actionable_plans"
       ],
       "inputs": [],
       "outputs": [

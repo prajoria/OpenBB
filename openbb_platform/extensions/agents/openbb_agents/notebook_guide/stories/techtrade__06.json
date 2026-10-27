@@ -24,7 +24,7 @@
     {
       "id": "1-setup-find-a-workbook-to-audit",
       "title": "1. Setup + find a workbook to audit",
-      "kind": "analysis",
+      "kind": "artifact",
       "cells": [
         2,
         3,
@@ -34,7 +34,7 @@
         "the-question-this-notebook-answers"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:artifacts"
       ],
       "inputs": [],
       "outputs": [
@@ -65,7 +65,7 @@
     {
       "id": "3-replay-against-actual-forward-bars",
       "title": "3. Replay against actual forward bars",
-      "kind": "retrieval",
+      "kind": "analysis",
       "cells": [
         7,
         8,
@@ -75,7 +75,8 @@
         "2-load-the-recommendations"
       ],
       "capabilities": [
-        "platform:equity_price_historical"
+        "platform:equity_price_historical",
+        "platform:story_replay_recommendations"
       ],
       "inputs": [],
       "outputs": [
@@ -95,7 +96,7 @@
         "3-replay-against-actual-forward-bars"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_replay_recommendations"
       ],
       "inputs": [],
       "outputs": [
@@ -116,7 +117,7 @@
         "4-summary-statistics"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_replay_recommendations"
       ],
       "inputs": [],
       "outputs": [
@@ -136,7 +137,7 @@
         "5-breakdown-by-conviction"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_replay_recommendations"
       ],
       "inputs": [],
       "outputs": [
@@ -147,7 +148,7 @@
     {
       "id": "7-the-deviation-log-manual",
       "title": "7. The deviation log (manual)",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         17,
         18
@@ -155,9 +156,7 @@
       "depends_on": [
         "6-the-journal-entry"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "7-the-deviation-log-manual-result"

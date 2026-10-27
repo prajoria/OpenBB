@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "5dc382d38872287066c07c1ee3c73c204d8d7a72217f1276d163e245a8e5c620"
+    "sha256": "d87df30563268812db0bf52c048da47c5c5dbd88a487a5c12db2f5f34b3ac8c4"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -179,6 +179,22 @@
         "/api/v1/story/analytics/brinson",
         "/api/v1/story/analytics/whatif_diff",
         "/api/v1/story/analytics/candidate_trades"
+      ],
+      "disposition": "direct",
+      "access_class": "provider_read",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-techtrade-analytics",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/techtrade/market_weather",
+        "/api/v1/story/techtrade/institutional",
+        "/api/v1/story/techtrade/actionable_plans",
+        "/api/v1/story/techtrade/round_trip_pnl",
+        "/api/v1/story/techtrade/replay",
+        "/api/v1/story/techtrade/indicator_config"
       ],
       "disposition": "direct",
       "access_class": "provider_read",
@@ -437,6 +453,18 @@
   },
   "traceability": {
     "work_families": {
+      "notebook-story-techtrade": {
+        "owner_issues": ["#2316 TechTrade validation-gate and indicator analytics over MCP"],
+        "rationale": "Portfolio profiles run the TechTrade notebooks' local calculations server-side through openbb_techtrade.engine.story_analytics: market weather, the local 13F summary, actionable plan review, round-trip P&L, forward-bar replay and indicator-config review; bounded finite inputs, provider failures are errors.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/techtrade_story.py",
+          "openbb_platform/extensions/techtrade/openbb_techtrade/engine/story_analytics.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_techtrade_story.py",
+          "openbb_platform/extensions/techtrade/tests/unit/test_story_analytics.py"
+        ],
+        "review_triggers": ["techtrade story route added", "story analytics math changed", "replay or 13F source changed"],
+        "implementation_state": "implemented_product"
+      },
       "notebook-story-attribution": {
         "owner_issues": ["#2315 Event timeline, Brinson attribution and recommendation-basket analytics over MCP"],
         "rationale": "Portfolio profiles compute the portfolio/05 chapter server-side: Brinson-Fachler attribution through the trusted oracle, weight-space what-if diffs and the conviction-to-trade rule; pure computation over bounded, finite inputs that never guesses a missing price or renormalizes weights.",
@@ -558,6 +586,7 @@
       }
     },
     "rule_owners": {
+      "story-techtrade-analytics": "notebook-story-techtrade",
       "story-attribution-whatif": "notebook-story-attribution",
       "story-single-name-analysis": "notebook-story-single-name",
       "story-basket-analytics": "notebook-story-analytics",
@@ -592,6 +621,22 @@
       "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
     },
     "reviewed_capability_members": {
+      "platform-story-techtrade": {
+        "members": [
+          "story_market_weather",
+          "story_institutional_summary",
+          "story_actionable_plans",
+          "story_round_trip_pnl",
+          "story_replay_recommendations",
+          "story_indicator_config"
+        ],
+        "rationale": "TechTrade notebook calculations for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/techtrade_story.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_techtrade_story.py"
+        ]
+      },
       "platform-story-attribution": {
         "members": [
           "story_brinson_attribution",

@@ -110,20 +110,20 @@ Gross denominators at this baseline, counting every stage:
 
 | Measure | Count |
 | --- | ---: |
-| Stories / ready stories | 25 / 0 |
+| Stories / ready stories | 25 / 1 |
 | Stages | 287 |
-| Setup and narrative stages (no capability needed) | 95 |
-| Stages doing financial work | 192 |
-| Of those, runnable on existing MCP tools | 72 |
-| Stages waiting on a planned bridge | 120 |
+| Setup and narrative stages (no capability needed) | 103 |
+| Stages doing financial work | 184 |
+| Of those, runnable on existing MCP tools | 86 |
+| Stages waiting on a planned bridge | 98 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
 
 | Owner | Bridge | Needs |
 | --- | --- | ---: |
-| #2215 (N05) | Notebook analytics through owned engine adapters | 62 |
-| #2217 (N07) | Chart, table, report and XLSX artifacts | 16 |
+| #2215 (N05) | Notebook analytics through owned engine adapters | 39 |
+| #2217 (N07) | Chart, table, report and XLSX artifacts | 17 |
 | #2216 (N06) | Typed story state and cross-chapter handoffs | 14 |
 | #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 13 |
 | #2218 (N08) | Backtest, tuning and replay jobs | 12 |
@@ -156,7 +156,17 @@ never substitutes a $100 price for a missing quote. Review also reclassified
 two chapter 4 stages that only illustrate a smart-money signal's shape as
 narrative, which is why the financial-stage count fell by two.
 
-No story is ready yet, which is the expected state before the N05–N10
+N05d (#2316) added six `story_*` tools for the TechTrade chapters 1-6:
+market weather, the local 13F institutional summary, actionable-plan review,
+round-trip P&L, forward-bar replay with discipline statistics, and the
+indicator-config review. Their math is `openbb_techtrade.engine.story_analytics`.
+Review reclassified eight more stages that run nothing (dependency probes,
+static decision tables and a code template) and two that only format a
+Platform tool's report. The workbook finder now waits on the artifacts bridge
+(N07) instead of N05. TechTrade chapter 3 is the first story whose every stage
+is runnable on MCP tools.
+
+Only one story is ready, which is the expected state before the N05–N10
 bridges land. These figures are stage outcomes, not an API-count parity
 claim.
 

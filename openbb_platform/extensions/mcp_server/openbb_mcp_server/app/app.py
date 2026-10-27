@@ -797,6 +797,11 @@ def _compose_profile_adapters(
         )
 
         source_app = compose_attribution_app(source_app)
+        from openbb_mcp_server.story_adapters.techtrade_story import (  # pylint: disable=import-outside-toplevel
+            compose_techtrade_story_app,
+        )
+
+        source_app = compose_techtrade_story_app(source_app)
         if principal:
             # Story runs are scoped to the server's one effective credential.
             from openbb_mcp_server.story_adapters.registry import (  # pylint: disable=import-outside-toplevel

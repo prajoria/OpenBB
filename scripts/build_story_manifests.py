@@ -127,6 +127,12 @@ _SINGLE_NAME = "platform:story_single_name_analysis"
 _BRINSON = "platform:story_brinson_attribution"
 _WHATIF = "platform:story_whatif_diff"
 _TRADES = "platform:story_candidate_trades"
+_WEATHER = "platform:story_market_weather"
+_INSTITUTIONAL = "platform:story_institutional_summary"
+_PLANS = "platform:story_actionable_plans"
+_PNL = "platform:story_round_trip_pnl"
+_REPLAY = "platform:story_replay_recommendations"
+_CONFIG = "platform:story_indicator_config"
 # Reviewed in N05a (#2313): stages whose notebook-local x-ray math the server
 # computes. (story_id, stage_id) -> (tools, residual). ``residual`` keeps
 # story:analytics when part of the stage still has no tool: the free-tier
@@ -203,12 +209,7 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
         (_SINGLE_NAME,),
         False,
     ),
-    # These stages also do other local work: the SEC 13F fallback and SPY
-    # regime statistics, and an end-to-end timing run over several engines.
-    ("techtrade/01", "3-fundamentals-the-analysis-7-phase-pipeline"): (
-        (_SINGLE_NAME,),
-        True,
-    ),
+    # This stage also runs an end-to-end timing loop over several engines.
     ("portfolio/07", "5-the-monday-morning-routine-end-to-end"): (
         (_SINGLE_NAME,),
         True,
@@ -261,6 +262,49 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
             ),
         )
     },
+    # Reviewed in N05d (#2316): the TechTrade chapters 1-6. Dependency
+    # probes are setup and static decision tables or code templates are
+    # narrative (no capability); stages that only format a Platform tool's
+    # report (validate, tune) need nothing beyond that tool; the workbook
+    # finder reads exported files, so it needs the artifacts bridge.
+    **{
+        (story, stage): (tools, False)
+        for story, stage, tools in (
+            ("techtrade/01", "1-environment-setup", (_INSTITUTIONAL,)),
+            # The pipeline (N05b) plus the 13F summary and SPY market weather.
+            (
+                "techtrade/01",
+                "3-fundamentals-the-analysis-7-phase-pipeline",
+                (_SINGLE_NAME, _WEATHER, _INSTITUTIONAL),
+            ),
+            ("techtrade/02", "5-quick-look-ranking", (_PLANS,)),
+            ("techtrade/02", "6-filter-to-today-s-actionable-list", (_PLANS,)),
+            (
+                "techtrade/02",
+                "7-why-does-each-setup-look-good-the-audit-trail",
+                (_PLANS,),
+            ),
+            ("techtrade/02", "10-variation-change-the-risk-knob", (_PLANS,)),
+            ("techtrade/03", "1-setup-probe", ()),
+            ("techtrade/03", "6-realized-p-l-on-the-simulated-path", (_PNL,)),
+            ("techtrade/04", "1-setup-probe-the-soft-dep-check", ()),
+            ("techtrade/04", "5-look-at-the-individual-folds", ()),
+            ("techtrade/04", "9-now-what-the-decision-table", ()),
+            ("techtrade/05", "1-soft-dep-probe-setup", ()),
+            ("techtrade/05", "2-the-default-config-baseline", (_CONFIG,)),
+            ("techtrade/05", "4-the-current-state-of-techtrade-tuned-json", (_CONFIG,)),
+            ("techtrade/05", "6-read-the-tuningreport", ()),
+            ("techtrade/05", "7-what-did-tuneta-actually-propose", (_CONFIG,)),
+            ("techtrade/05", "9-bypassing-the-auto-load", (_CONFIG,)),
+            ("techtrade/05", "10-tuning-multiple-sectors-the-patient-path", ()),
+            ("techtrade/06", "1-setup-find-a-workbook-to-audit", ("story:artifacts",)),
+            ("techtrade/06", "3-replay-against-actual-forward-bars", (_REPLAY,)),
+            ("techtrade/06", "4-summary-statistics", (_REPLAY,)),
+            ("techtrade/06", "5-breakdown-by-conviction", (_REPLAY,)),
+            ("techtrade/06", "6-the-journal-entry", (_REPLAY,)),
+            ("techtrade/06", "7-the-deviation-log-manual", ()),
+        )
+    },
 }
 
 KIND_BY_CAPABILITY = {
@@ -283,6 +327,12 @@ ANALYSIS_TOOL_PREFIXES = (
     "story_brinson_",
     "story_whatif_",
     "story_candidate_",
+    "story_market_weather",
+    "story_institutional_",
+    "story_actionable_",
+    "story_round_trip_",
+    "story_replay_",
+    "story_indicator_",
 )
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
 # Imports whose stage is an opt-in personal-data step, never mandatory.

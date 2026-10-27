@@ -293,7 +293,11 @@ def test_corpus_summary_publishes_gross_denominators():
     assert sum(states.values()) == summary["stages"]
     assert states["missing"] == 0
     assert states["forbidden"] == 0
-    assert summary["ready_stories"] == 0, "planned bridges must block every story"
+    # techtrade/03 became the first fully runnable story in N05d (#2316);
+    # every other story still waits on at least one planned bridge.
+    ready = {m.story_id for m in manifests if check_readiness(m, catalog).ready}
+    assert ready == {"techtrade/03"}
+    assert summary["ready_stories"] == len(ready)
     assert set(summary["planned_by_owner"]) == {
         "#2215",
         "#2216",
