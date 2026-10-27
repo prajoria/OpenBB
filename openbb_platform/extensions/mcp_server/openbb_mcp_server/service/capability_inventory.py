@@ -819,9 +819,10 @@ def _reviewed_non_persistent_models() -> frozenset[str]:
     from importlib.resources import files
 
     descriptor = json.loads(
-        files("openbb_fmp_cached")
-        .joinpath("assets", "persistence_descriptors.json")
-        .read_text(encoding="utf-8")
+        (
+            files("openbb_fmp_cached").joinpath("assets")
+            / "persistence_descriptors.json"
+        ).read_text(encoding="utf-8")
     )
     return frozenset(descriptor["non_persistent_fallbacks"])
 
