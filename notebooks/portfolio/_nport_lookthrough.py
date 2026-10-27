@@ -24,13 +24,22 @@ Design notes
   opaque (no look-through possible for physical commodities anyway).
 * Weights sum to ~1.0 per ETF; caller multiplies by the ETF's
   basket-weight to get effective-portfolio weight.
+* The math lives in ``openbb_portfolio_intel.analytics.basket_lookthrough``
+  (#2313) so the MCP story tools and this notebook compute the same
+  numbers. This module only adds the SEC / fmp_cached lookups and caches.
 """
+
+# ``obb`` is imported lazily so the helper loads without a Platform build, and
+# the positional signatures are the notebooks' existing call sites.
+# pylint: disable=import-outside-toplevel,too-many-positional-arguments
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+
+from openbb_portfolio_intel.analytics import basket_lookthrough as _engine
+from openbb_portfolio_intel.analytics.basket_lookthrough import NportUnavailable
 
 # Cache root — every notebook resolves this relative to its own cwd
 # (``notebooks/portfolio/``) via the module-level default. Callers can
@@ -38,18 +47,16 @@ from typing import Optional
 _DEFAULT_CACHE_ROOT = Path(".notebook_state") / "nport_cache"
 
 
-class NportUnavailable(LookupError):
-    """Symbol is not an SEC N-PORT filer (commodity grantor trust,
-    non-'40-Act fund, ADR/foreign, or simply not yet in the fund map)."""
+__all__ = ["NportUnavailable", "effective_positions", "nport_holdings", "sector_rollup"]
 
 
-def _cache_dir(root: Optional[Path] = None) -> Path:
+def _cache_dir(root: Path | None = None) -> Path:
     d = Path(root) if root else _DEFAULT_CACHE_ROOT
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def nport_holdings(symbol: str, cache_root: Optional[Path] = None) -> list[dict]:
+def nport_holdings(symbol: str, cache_root: Path | None = None) -> list[dict]:
     """Return the N-PORT holdings for ``symbol`` as a list of dicts.
 
     Each row: ``{"name", "symbol", "weight", "cusip", "asset_category",
@@ -93,13 +100,13 @@ def nport_holdings(symbol: str, cache_root: Optional[Path] = None) -> list[dict]
     return rows
 
 
-def _resolve_name_to_ticker(name: str, cache: dict) -> Optional[str]:
+def _resolve_name_to_ticker(name: str, cache: dict) -> str | None:
     """Best-effort SEC EDGAR search of issuer name → US-listed ticker."""
     if name in cache:
         return cache[name]
     from openbb import obb
 
-    ticker: Optional[str] = None
+    ticker: str | None = None
     # Try the name as-is; if that fails, strip common suffixes.
     for query in (name, _strip_corp_suffix(name)):
         if not query:
@@ -115,25 +122,14 @@ def _resolve_name_to_ticker(name: str, cache: dict) -> Optional[str]:
     return ticker
 
 
-_SUFFIXES = (
-    ", Inc.", ", Inc", " Inc.", " Inc", " Corp.", " Corp", " Corporation",
-    " Co.", " Co", " Ltd.", " Ltd", " PLC", " plc", " LLC", " N.V.", " NV",
-    " S.A.", " SA", " AG", " AB", " SE", " KGaA",
-)
-
-
-def _strip_corp_suffix(name: str) -> str:
-    for suf in _SUFFIXES:
-        if name.endswith(suf):
-            return name[: -len(suf)].strip()
-    return name
+_strip_corp_suffix = _engine.strip_corp_suffix
 
 
 def sector_rollup(
     holdings: list[dict],
     weight_scale: float = 1.0,
     top_n_resolve: int = 60,
-    cache_root: Optional[Path] = None,
+    cache_root: Path | None = None,
 ) -> tuple[dict[str, float], dict[str, int]]:
     """Bucket N-PORT holdings into a sector-weight dict.
 
@@ -149,58 +145,34 @@ def sector_rollup(
     from openbb import obb
 
     cache_path = _cache_dir(cache_root) / "name_to_ticker.json"
-    name_cache: dict[str, Optional[str]] = (
+    name_cache: dict[str, str | None] = (
         json.loads(cache_path.read_text(encoding="utf-8"))
         if cache_path.exists()
         else {}
     )
-
-    sector_weights: dict[str, float] = {}
-    counts: dict[str, int] = {}
     profile_cache: dict[str, str] = {}
 
-    sorted_holdings = sorted(holdings, key=lambda r: -(r.get("weight") or 0.0))
+    def _sector_for_name(name: str) -> str | None:
+        ticker = _resolve_name_to_ticker(name, name_cache)
+        if not ticker:
+            return None
+        if ticker not in profile_cache:
+            try:
+                prof = obb.equity.profile(symbol=ticker, provider="fmp_cached").results
+                sector = getattr(prof[0], "sector", None) if prof else None
+            except Exception:
+                sector = None
+            profile_cache[ticker] = sector or "Unknown"
+        return profile_cache[ticker]
 
-    for idx, h in enumerate(sorted_holdings):
-        w = (h.get("weight") or 0.0) * weight_scale
-        if w <= 0:
-            continue
-
-        # Fixed-income rows (bond ETFs) — bucket by category, no resolve
-        asset_cat = h.get("asset_category") or ""
-        if asset_cat in ("DBT", "ABS-APCP", "ABS-CBDO", "ABS-MBS", "ABS-O",
-                         "ABS-CDO", "ABS-CMBS", "ABS-RMBS", "LOAN"):
-            bucket = "Fixed Income"
-        elif asset_cat == "STIV":
-            bucket = "Short-Term / Cash"
-        elif asset_cat == "RE":
-            bucket = "Real Estate (direct)"
-        elif asset_cat == "COMM":
-            bucket = "Commodity"
-        elif idx < top_n_resolve and h.get("name"):
-            ticker = _resolve_name_to_ticker(h["name"], name_cache)
-            sector: Optional[str] = None
-            if ticker:
-                if ticker in profile_cache:
-                    sector = profile_cache[ticker]
-                else:
-                    try:
-                        prof = obb.equity.profile(
-                            symbol=ticker, provider="fmp_cached"
-                        ).results
-                        sector = getattr(prof[0], "sector", None) if prof else None
-                    except Exception:
-                        sector = None
-                    profile_cache[ticker] = sector or "Unknown"
-            bucket = sector or "Unknown"
-        else:
-            bucket = "Other (small)"
-
-        sector_weights[bucket] = sector_weights.get(bucket, 0.0) + w
-        counts[bucket] = counts.get(bucket, 0) + 1
-
+    result = _engine.sector_rollup(
+        holdings,
+        _sector_for_name,
+        weight_scale=weight_scale,
+        top_n_resolve=top_n_resolve,
+    )
     cache_path.write_text(json.dumps(name_cache, indent=1), encoding="utf-8")
-    return sector_weights, counts
+    return result
 
 
 def effective_positions(
@@ -209,7 +181,7 @@ def effective_positions(
     bond_etfs: set[str],
     commodity_trusts: set[str],
     top_n_per_etf: int = 100,
-    cache_root: Optional[Path] = None,
+    cache_root: Path | None = None,
 ) -> tuple[dict[str, float], list[str], list[tuple[str, str]]]:
     """Flatten a basket into effective positions via N-PORT.
 
@@ -226,50 +198,12 @@ def effective_positions(
     top-N by weight — the tail (typically <0.05% each) collapses into
     a single ``TAIL_<ETF>`` row to keep HHI / effective-N honest.
     """
-    effective: dict[str, float] = {}
-    non_nport: list[str] = []
-    opaque: list[tuple[str, str]] = []
-
-    for pos in basket:
-        sym = pos.get("symbol") or pos.get("ticker")
-        w = float(pos.get("weight") or 0.0)
-        if sym in commodity_trusts:
-            effective[sym] = effective.get(sym, 0.0) + w
-            opaque.append((sym, "commodity trust — no look-through"))
-            continue
-
-        if sym in equity_etfs or sym in bond_etfs:
-            try:
-                rows = nport_holdings(sym, cache_root=cache_root)
-            except NportUnavailable as exc:
-                non_nport.append(sym)
-                effective[sym] = effective.get(sym, 0.0) + w
-                opaque.append((sym, str(exc)))
-                continue
-
-            # Sort by weight desc, keep top-N, collapse tail
-            rows_sorted = sorted(rows, key=lambda r: -(r.get("weight") or 0.0))
-            top = rows_sorted[:top_n_per_etf]
-            tail = rows_sorted[top_n_per_etf:]
-
-            for r in top:
-                rw = (r.get("weight") or 0.0)
-                if rw <= 0:
-                    continue
-                if sym in bond_etfs:
-                    # Bond ETFs — keep as one opaque bond bucket per ETF
-                    key = f"BOND_{sym}"
-                else:
-                    key = r.get("name") or r.get("cusip") or f"UNK_{sym}"
-                effective[key] = effective.get(key, 0.0) + w * rw
-
-            tail_w = sum((r.get("weight") or 0.0) for r in tail)
-            if tail_w > 0:
-                key = f"TAIL_{sym}"
-                effective[key] = effective.get(key, 0.0) + w * tail_w
-            continue
-
-        # Not an ETF — pass through as-is (single-name equity)
-        effective[sym] = effective.get(sym, 0.0) + w
-
-    return effective, non_nport, opaque
+    result = _engine.effective_positions(
+        basket,
+        lambda symbol: nport_holdings(symbol, cache_root=cache_root),
+        equity_etfs=equity_etfs,
+        bond_etfs=bond_etfs,
+        commodity_trusts=commodity_trusts,
+        top_n_per_etf=top_n_per_etf,
+    )
+    return result.effective, result.non_nport, result.opaque

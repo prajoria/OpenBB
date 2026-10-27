@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "c22dbc4f354a40b3596ecf8b76170d8e4e1197042f195e2b25ba31209eb59486"
+    "sha256": "8a47bbcf50d9d733583d628ace55b387b1688066f0c8e60478f5ae3ef612b18d"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -146,6 +146,20 @@
       ],
       "disposition": "direct",
       "access_class": "story_state",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-basket-analytics",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/analytics/basket/effective_positions",
+        "/api/v1/story/analytics/basket/sector_view",
+        "/api/v1/story/analytics/concentration",
+        "/api/v1/story/analytics/construction"
+      ],
+      "disposition": "direct",
+      "access_class": "provider_read",
       "admitted_profiles": ["portfolio-read", "portfolio-ops"]
     },
     {
@@ -401,6 +415,19 @@
   },
   "traceability": {
     "work_families": {
+      "notebook-story-analytics": {
+        "owner_issues": ["#2313 Basket look-through, sector roll-up and concentration analytics over MCP"],
+        "rationale": "Portfolio profiles compute the portfolio/03 x-ray chapter server-side: N-PORT look-through, sector roll-up, concentration and capped construction targets, through the same engine the notebook calls; bounded inputs, no notebook state or file writes.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/analytics.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/analytics/basket_lookthrough.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_analytics.py",
+          "openbb_platform/extensions/portfolio_intel/tests/unit/test_basket_lookthrough.py",
+          "openbb_platform/extensions/portfolio_intel/tests/unit/test_basket_lookthrough_parity.py"
+        ],
+        "review_triggers": ["story analytics route added", "look-through math changed", "provider lookup changed"],
+        "implementation_state": "implemented_product"
+      },
       "notebook-story-registry": {
         "owner_issues": ["#2216 Story catalog, run registry and typed state management tools"],
         "rationale": "Portfolio profiles list and describe the 25 reviewed notebook stories and keep principal-scoped, version-checked JSON run state; nothing runs a notebook, reads arbitrary files or unpickles state.",
@@ -487,6 +514,7 @@
       }
     },
     "rule_owners": {
+      "story-basket-analytics": "notebook-story-analytics",
       "story-registry-metadata": "notebook-story-registry",
       "story-run-state": "notebook-story-registry",
       "deny-execution-actions": "execution-controls",
@@ -518,6 +546,20 @@
       "daytrade": ["quote_batch", "market_movers", "company_news", "session_status", "journal_summary", "fills_for_session"]
     },
     "reviewed_capability_members": {
+      "platform-story-analytics": {
+        "members": [
+          "story_basket_effective_positions",
+          "story_basket_sector_view",
+          "story_concentration",
+          "story_construction_targets"
+        ],
+        "rationale": "Server-side basket look-through, sector roll-up, concentration and construction for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/analytics.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_analytics.py"
+        ]
+      },
       "platform-story-registry": {
         "members": [
           "story_catalog",

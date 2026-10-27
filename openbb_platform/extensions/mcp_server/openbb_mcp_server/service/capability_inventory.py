@@ -914,6 +914,11 @@ def load_default_sources(
             )
 
             app = compose_story_registry_app(app, principal="inventory")
+            from openbb_mcp_server.story_adapters.analytics import (
+                compose_story_analytics_app,
+            )
+
+            app = compose_story_analytics_app(app)
             if profile_name == "portfolio-ops":
                 from openbb_mcp_server.adapters.cache_jobs import (
                     compose_cache_jobs_app,

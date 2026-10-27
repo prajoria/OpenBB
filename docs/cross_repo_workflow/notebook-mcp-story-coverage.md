@@ -114,15 +114,15 @@ Gross denominators at this baseline, counting every stage:
 | Stages | 287 |
 | Setup and narrative stages (no capability needed) | 93 |
 | Stages doing financial work | 194 |
-| Of those, runnable on existing MCP tools | 44 |
-| Stages waiting on a planned bridge | 150 |
+| Of those, runnable on existing MCP tools | 56 |
+| Stages waiting on a planned bridge | 138 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
 
 | Owner | Bridge | Needs |
 | --- | --- | ---: |
-| #2215 (N05) | Notebook analytics through owned engine adapters | 93 |
+| #2215 (N05) | Notebook analytics through owned engine adapters | 81 |
 | #2217 (N07) | Chart, table, report and XLSX artifacts | 16 |
 | #2216 (N06) | Typed story state and cross-chapter handoffs | 14 |
 | #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 13 |
@@ -134,6 +134,13 @@ cell 7 narrative needs no capability. The Portfolio chapter 1 preview of the
 operator's local positions database is an optional stage bound only to the
 Portfolio adapter's sanitized `portfolio_portfolio_snapshots` read, under a
 new `private_read` access class that public profiles never grant.
+
+N05a (#2313) moved 12 x-ray stages in the Portfolio chapters 3 and 8, in
+both provider variants, onto four `story_*` tools: N-PORT look-through,
+look-through sector view, concentration, and capped construction targets.
+They use the same engine as the notebooks' `_nport_lookthrough` helper. The
+free-tier chapters' hand-maintained issuer-to-sector map has no server tool,
+so those two stages still need N05.
 
 No story is ready yet, which is the expected state before the N05–N10
 bridges land. These figures are stage outcomes, not an API-count parity

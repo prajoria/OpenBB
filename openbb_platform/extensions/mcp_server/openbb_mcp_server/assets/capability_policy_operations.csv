@@ -513,3 +513,7 @@ portfolio-venv-core-in-process,GET,/api/v1/story/describe,activatable,story_desc
 portfolio-venv-core-in-process,POST,/api/v1/story/runs,activatable,story_run_create,False,
 portfolio-venv-core-in-process,GET,/api/v1/story/runs/{run_id},activatable,story_run_get,False,
 portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/checkpoint,activatable,story_run_checkpoint,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/basket/effective_positions,activatable,story_basket_effective_positions,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/basket/sector_view,activatable,story_basket_sector_view,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/concentration,activatable,story_concentration,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/analytics/construction,activatable,story_construction_targets,False,

@@ -142,7 +142,7 @@
         "4-the-16-etf-variant-a-basket-table-rationale"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_basket_effective_positions"
       ],
       "inputs": [],
       "outputs": [
@@ -162,6 +162,7 @@
         "5-basket-x-ray-sec-n-port-look-through"
       ],
       "capabilities": [
+        "platform:story_concentration",
         "story:analytics"
       ],
       "inputs": [],

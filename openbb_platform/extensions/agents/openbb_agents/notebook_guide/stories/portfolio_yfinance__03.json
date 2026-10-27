@@ -116,7 +116,7 @@
         "2-naive-sector-view-free-tier-no-look-through"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_basket_effective_positions"
       ],
       "inputs": [],
       "outputs": [
@@ -156,7 +156,7 @@
         "4-sector-view-with-look-through-the-free-tier-pi"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_concentration"
       ],
       "inputs": [],
       "outputs": [
@@ -196,7 +196,7 @@
         "6-risk-metrics-via-cboe-eod-prices"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_concentration"
       ],
       "inputs": [],
       "outputs": [

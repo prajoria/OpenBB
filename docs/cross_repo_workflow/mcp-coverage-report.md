@@ -24,6 +24,7 @@ health check. For a connected Platform session, read
 | Platform | Cache observability (`cache_health`, `cache_coverage`) | Indirect sanitized adapter | Policy-owned members and tests | Portfolio profiles; database health is reported, not assumed |
 | Platform | Five durable cache-job tools | Indirect guarded adapter | Policy-owned members and tests | `portfolio-ops`, effective auth, explicit maintenance opt-in |
 | Platform | Notebook story catalog and run registry (five tools) | Direct story adapter | Policy-owned members and tests (#2216) | Portfolio profiles; runs scoped to the server's effective credential, version-checked JSON state |
+| Platform | Basket look-through, sector view, concentration and construction (four `story_*` tools) | Direct story adapter over the notebook engine | Policy-owned members, engine, notebook-parity and adapter tests (#2313) | Portfolio profiles; bounded inputs, finite non-negative weights, provider failures are errors |
 | Workspace | Browser, dashboard, widget, app, backend, and agent control | Direct Workspace handlers | Source/protocol tests | Separate session; always `not_probed` from Platform |
 | Agents | `get_positions`, `get_sector_exposure` | Direct explicit registry | Real stdio tests | Separate session; always `not_probed` from Platform |
 | Daytrade | Six reviewed read-only market/session tools | Direct dispatch registry | Real stdio tests | Separate session; always `not_probed` from Platform |
