@@ -55,8 +55,7 @@
         "1-setup-probe"
       ],
       "capabilities": [
-        "platform:techtrade_segments",
-        "story:binding_review"
+        "platform:techtrade_segments"
       ],
       "inputs": [],
       "outputs": [
@@ -256,6 +255,6 @@
   ],
   "limitations": [
     "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
-    "Source diagnostics are routed to story:binding_review: cell 7 (narrative-in-code)"
+    "Source diagnostics (classified ones need no capability): cell 7 (narrative-in-code)"
   ]
 }

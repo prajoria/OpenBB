@@ -112,7 +112,11 @@ IMPORT_CAPABILITIES: dict[str, str] = {
     "openbb_fmp_cached": "story:provider_modes",
     "openbb_fmp": "story:provider_modes",
     "yfinance": "story:provider_modes",
-    "portfolio_snapshot_importer": "story:binding_review",
+    # Reviewed in N04 (#2214): the notebook previews the operator's local
+    # positions DB. The agent may only use the Portfolio adapter's sanitized
+    # snapshot read, and the stage is optional because the notebook skips it
+    # when the importer is not installed.
+    "portfolio_snapshot_importer": "platform:portfolio_portfolio_snapshots",
 }
 
 KIND_BY_CAPABILITY = {
@@ -125,6 +129,9 @@ KIND_PRIORITY = ["paper", "job", "analysis", "retrieval", "artifact", "state"]
 STATE_LOADS = re.compile(r"pickle\.loads?\(|\.read_text\(|\.read_bytes\(")
 STATE_NAMES = re.compile(r"notebook_state|basket|\bSTATE\b|\bstate\b")
 ANALYSIS_TOOL_PREFIXES = ("portfolio_intel_", "techtrade_", "backtest_")
+PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
+# Imports whose stage is an opt-in personal-data step, never mandatory.
+OPTIONAL_IMPORTS = frozenset({"portfolio_snapshot_importer"})
 _HEADING = re.compile(r"^##\s+(.+?)\s*$")
 
 
@@ -214,7 +221,12 @@ def _stage_needs(
         )
         if STATE_LOADS.search(text) and STATE_NAMES.search(text):
             reads_state = True
-        if any(d.position == position for d in source.diagnostics):
+        # Classified defects are reviewed (narrative-in-code needs nothing);
+        # only an unclassified parse failure still needs a binding decision.
+        if any(
+            d.position == position and d.classification is None
+            for d in source.diagnostics
+        ):
             capabilities.add("story:binding_review")
     if not has_code:
         return [], "narrative", False
@@ -225,6 +237,16 @@ def _stage_needs(
     kinds = {_capability_kind(c) for c in capabilities}
     kind = next(k for k in KIND_PRIORITY if k in kinds)
     return sorted(capabilities), kind, reads_state
+
+
+def _is_optional(source: NotebookSource, positions: list[int]) -> bool:
+    wanted = set(positions)
+    return any(
+        module.split(".")[0] in OPTIONAL_IMPORTS
+        for cell in source.cells
+        if cell.position in wanted
+        for module in cell.imports
+    )
 
 
 def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
@@ -266,7 +288,7 @@ def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
                 "capabilities": capabilities,
                 "inputs": inputs,
                 "outputs": outputs,
-                "optional": False,
+                "optional": _is_optional(source, section["positions"]),
             }
         )
     if any(stage["inputs"] for stage in stages):
@@ -276,7 +298,7 @@ def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
         )
     if source.diagnostics:
         limitations.append(
-            "Source diagnostics are routed to story:binding_review: "
+            "Source diagnostics (classified ones need no capability): "
             + ", ".join(
                 f"cell {d.position} ({d.classification or d.kind})"
                 for d in source.diagnostics
@@ -336,9 +358,12 @@ def build_catalog(manifests: list[dict]) -> dict:
     schemas = asyncio.run(_tool_schemas(tools))
     entries: dict[str, dict] = {}
     for tool in sorted(tools):
-        access = (
-            "analysis" if tool.startswith(ANALYSIS_TOOL_PREFIXES) else "provider_read"
-        )
+        if tool.startswith(ANALYSIS_TOOL_PREFIXES):
+            access = "analysis"
+        elif tool.startswith(PRIVATE_TOOL_PREFIXES):
+            access = "private_read"
+        else:
+            access = "provider_read"
         entries[f"platform:{tool}"] = {
             "status": "available",
             "ref": {

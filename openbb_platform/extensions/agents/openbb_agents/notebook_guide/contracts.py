@@ -19,7 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Sha256 = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 Identifier = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.:/-]*$")]
-Access = Literal["metadata", "provider_read", "analysis", "artifact", "paper"]
+# ``private_read`` covers sanitized reads of the operator's own portfolio
+# through the Portfolio adapter; profiles without it can never see them.
+Access = Literal[
+    "metadata", "provider_read", "private_read", "analysis", "artifact", "paper"
+]
 StageKind = Literal[
     "setup",
     "narrative",

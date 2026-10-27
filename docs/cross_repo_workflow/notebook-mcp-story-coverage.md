@@ -98,6 +98,47 @@ the cell position and error kind, never the cell text. Reviewing a change means
 updating the story inventory row (and, for a defect, the registry) in the same
 pull request.
 
+### Stage readiness (N04, #2214)
+
+The 25 manifests under `notebook_guide/stories/` map every notebook cell to a
+stage, and every stage capability to the reviewed catalog. Each capability is
+either a real Platform tool pinned by input-schema hash or a planned bridge
+with its owning issue. `notebook_guide.readiness.check_readiness` evaluates a
+story without any network, provider, job, browser or paper call.
+
+Gross denominators at this baseline, counting every stage:
+
+| Measure | Count |
+| --- | ---: |
+| Stories / ready stories | 25 / 0 |
+| Stages | 287 |
+| Setup and narrative stages (no capability needed) | 93 |
+| Stages doing financial work | 194 |
+| Of those, runnable on existing MCP tools | 44 |
+| Stages waiting on a planned bridge | 150 |
+| Missing, forbidden or browser-unavailable stages | 0 |
+
+Planned capability needs by owning task (a stage can need more than one):
+
+| Owner | Bridge | Needs |
+| --- | --- | ---: |
+| #2215 (N05) | Notebook analytics through owned engine adapters | 93 |
+| #2217 (N07) | Chart, table, report and XLSX artifacts | 16 |
+| #2216 (N06) | Typed story state and cross-chapter handoffs | 14 |
+| #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 13 |
+| #2218 (N08) | Backtest, tuning and replay jobs | 12 |
+| #2220 (N10) | Provider variants and recording | 9 |
+
+N04 reviewed the two bindings the generator could not decide. The morning-scan
+cell 7 narrative needs no capability. The Portfolio chapter 1 preview of the
+operator's local positions database is an optional stage bound only to the
+Portfolio adapter's sanitized `portfolio_portfolio_snapshots` read, under a
+new `private_read` access class that public profiles never grant.
+
+No story is ready yet, which is the expected state before the N05–N10
+bridges land. These figures are stage outcomes, not an API-count parity
+claim.
+
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
 was preserved byte-for-byte. Its current working-copy pipeline is authoritative
