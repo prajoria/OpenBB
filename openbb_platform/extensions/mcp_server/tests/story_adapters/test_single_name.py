@@ -399,7 +399,25 @@ async def test_single_name_over_mcp(pipeline):
     assert sorted(result.structured_content["phases"]) == PHASES
 
 
+def _has_fmp_cached_key() -> bool:
+    """Return whether a fmp_cached key is configured where the Platform looks."""
+    if os.getenv("OPENBB_FMP_CACHED_API_KEY") or os.getenv("FMP_API_KEY"):
+        return True
+    settings = Path.home() / ".openbb_platform" / "user_settings.json"
+    try:
+        credentials = json.loads(settings.read_text(encoding="utf-8")).get(
+            "credentials", {}
+        )
+    except (OSError, ValueError):
+        return False
+    return bool(credentials.get("fmp_cached_api_key"))
+
+
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not _has_fmp_cached_key(),
+    reason="live run needs a fmp_cached_api_key (environment or user_settings.json)",
+)
 def test_live_single_name_run(monkeypatch):
     """One honest live run through fmp_cached (needs keys and network)."""
     monkeypatch.setenv(single_name.ANALYSIS_DIR_ENV, str(ANALYSIS_DIR))
