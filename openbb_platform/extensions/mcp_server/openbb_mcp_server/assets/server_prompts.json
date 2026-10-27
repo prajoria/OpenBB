@@ -2,7 +2,7 @@
   {
     "name": "equity_deep_dive",
     "description": "Comprehensive single-stock analysis covering price history, fundamentals, valuation, analyst estimates, and news sentiment.",
-    "content": "Perform a comprehensive deep-dive analysis on {symbol}.\n\nStep 1: Fetch historical price data using `equity_price_historical` with symbol={symbol}, provider={provider}, and at least 1 year of data.\nStep 2: Get fundamental data via `equity_fundamental_metrics` with symbol={symbol}, provider={provider}, then `equity_fundamental_ratios` with symbol={symbol}, provider={provider}, for key metrics (P/E, EV/EBITDA, revenue, margins).\nStep 3: Retrieve income statement and balance sheet via `equity_fundamental_income` with symbol={symbol}, provider={provider}, and `equity_fundamental_balance` with symbol={symbol}, provider={provider}.\nStep 4: Get analyst price targets and ratings using `equity_estimates_price_target` with symbol={symbol}, provider={provider}, and `equity_estimates_analyst_search` with symbol={symbol}, provider={provider}.\nStep 5: Check recent earnings via `equity_calendar_earnings` with symbol={symbol}, provider={provider}, and compare to estimates.\nStep 6: Fetch recent company news via `equity_news` with symbol={symbol}, provider={provider}, for the past 30 days.\nStep 7: Get peer comparison using `equity_compare_peers` with symbol={symbol}, provider={provider}.\nStep 8: Synthesize all findings into a structured report with sections: Price Performance, Fundamentals, Valuation vs Peers, Analyst Consensus, Recent News & Catalysts, and Investment Thesis.",
+    "content": "Perform a comprehensive deep-dive analysis on {symbol}.\n\nStep 1: Fetch historical price data using `equity_price_historical` with symbol={symbol}, provider={provider}, and at least 1 year of data.\nStep 2: Get fundamental data via `equity_fundamental_metrics` with symbol={symbol}, provider={provider}, then `equity_fundamental_ratios` with symbol={symbol}, provider={provider}, for key metrics (P/E, EV/EBITDA, revenue, margins).\nStep 3: Retrieve income statement and balance sheet via `equity_fundamental_income` with symbol={symbol}, provider={provider}, and `equity_fundamental_balance` with symbol={symbol}, provider={provider}.\nStep 4: Get analyst price targets and ratings using `equity_estimates_price_target` with symbol={symbol}, provider={provider}, and `equity_estimates_analyst_search` with symbol={symbol}, provider={provider}.\nStep 5: Check recent earnings via `equity_calendar_earnings` with symbol={symbol}, provider={provider}, and compare to estimates.\nStep 6: Fetch recent company news via `news_company` with symbol={symbol}, provider={provider}, for the past 30 days.\nStep 7: Get peer comparison using `equity_compare_peers` with symbol={symbol}, provider={provider}.\nStep 8: Synthesize all findings into a structured report with sections: Price Performance, Fundamentals, Valuation vs Peers, Analyst Consensus, Recent News & Catalysts, and Investment Thesis.",
     "arguments": [
       {
         "name": "symbol",
@@ -31,8 +31,8 @@
         "equity_fundamental_income",
         "equity_fundamental_metrics",
         "equity_fundamental_ratios",
-        "equity_news",
-        "equity_price_historical"
+        "equity_price_historical",
+        "news_company"
       ],
       "any_tool_groups": [],
       "providers": [
@@ -147,7 +147,7 @@
   {
     "name": "equity_sector_rotation",
     "description": "Analyze sector performance trends to identify rotation opportunities and which sectors are gaining or losing momentum.",
-    "content": "Analyze current sector rotation trends in the {market} market.\n\nStep 1: Get sector performance data using `equity_compare_sectors` for the past {period}.\nStep 2: Fetch sector ETF price performance (XLK, XLV, XLF, XLY, XLP, XLE, XLI, XLB, XLU, XLRE) via `etf_price_historical`.\nStep 3: Get macro data — check `economy_indicators` for GDP, inflation, and interest rate environment.\nStep 4: Identify the top 3 outperforming sectors and bottom 3 underperforming sectors.\nStep 5: Cross-reference sector performance with the economic cycle phase.\nStep 6: Note any unusual volume or flow patterns suggesting institutional rotation.\nStep 7: Produce a Sector Rotation Report with: Current Leaders, Laggards, Macro Context, and Rotation Signals.",
+    "content": "Analyze current sector rotation trends in the {market} market.\n\nStep 1: Confirm each sector ETF's sector composition using `etf_sectors`.\nStep 2: Fetch sector ETF price history (XLK, XLV, XLF, XLY, XLP, XLE, XLI, XLB, XLU, XLRE) via `etf_historical` for the past {period} and compute each sector's return.\nStep 3: Get macro data — check `economy_indicators` for GDP, inflation, and interest rate environment.\nStep 4: Identify the top 3 outperforming sectors and bottom 3 underperforming sectors.\nStep 5: Cross-reference sector performance with the economic cycle phase.\nStep 6: Note any unusual volume or flow patterns suggesting institutional rotation.\nStep 7: Produce a Sector Rotation Report with: Current Leaders, Laggards, Macro Context, and Rotation Signals.",
     "arguments": [
       {
         "name": "market",
@@ -170,8 +170,8 @@
     "dependencies": {
       "required_tools": [
         "economy_indicators",
-        "equity_compare_sectors",
-        "etf_price_historical"
+        "etf_historical",
+        "etf_sectors"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -213,7 +213,7 @@
   {
     "name": "corporate_bond_spread_analysis",
     "description": "Analyze investment grade and high yield corporate bond spreads versus Treasuries, including historical context and credit risk assessment.",
-    "content": "Analyze corporate bond credit spreads for {rating} rated bonds.\n\nStep 1: Fetch current corporate bond spreads using `fixedincome_corporate_spot_rates` and `fixedincome_spreads_corporate`.\nStep 2: Get investment grade (IG) and high yield (HY) spread data via FRED: series BAMLC0A0CM (IG) and BAMLH0A0HYM2 (HY).\nStep 3: Compare current spreads to 1-year average, 5-year average, and 2008/2020 crisis peaks.\nStep 4: Fetch Treasury yield data as the baseline via `fixedincome_government_treasury_rates`.\nStep 5: Analyze spread compression or widening trend over past 90 days.\nStep 6: Check equity volatility (VIX) as a risk-off/risk-on signal.\nStep 7: Review recent corporate bond issuance activity as a market health indicator.\nStep 8: Report: Current Spread Levels, Historical Context, Trend Direction, and Credit Market Outlook.",
+    "content": "Analyze corporate bond credit spreads for {rating} rated bonds.\n\nStep 1: Fetch corporate bond spot rates using `fixedincome_corporate_spot_rates` and matching-maturity Treasury rates using `fixedincome_government_treasury_rates`; compute each spread as the corporate rate minus the Treasury rate.\nStep 2: Get investment grade (IG) and high yield (HY) spread data via FRED: series BAMLC0A0CM (IG) and BAMLH0A0HYM2 (HY).\nStep 3: Compare current spreads to 1-year average, 5-year average, and 2008/2020 crisis peaks.\nStep 4: Fetch Treasury yield data as the baseline via `fixedincome_government_treasury_rates`.\nStep 5: Analyze spread compression or widening trend over past 90 days.\nStep 6: Check equity volatility (VIX) as a risk-off/risk-on signal.\nStep 7: Review recent corporate bond issuance activity as a market health indicator.\nStep 8: Report: Current Spread Levels, Historical Context, Trend Direction, and Credit Market Outlook.",
     "arguments": [
       {
         "name": "rating",
@@ -230,8 +230,7 @@
     "dependencies": {
       "required_tools": [
         "fixedincome_corporate_spot_rates",
-        "fixedincome_government_treasury_rates",
-        "fixedincome_spreads_corporate"
+        "fixedincome_government_treasury_rates"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -328,7 +327,7 @@
   {
     "name": "crypto_market_overview",
     "description": "Get a broad overview of the cryptocurrency market including top coins by market cap, dominance, and recent performance.",
-    "content": "Generate a comprehensive crypto market overview.\n\nStep 1: Fetch the top 20 cryptocurrencies by market cap using `crypto_price_historical` or `crypto_market_info`.\nStep 2: Get BTC dominance and ETH dominance trends.\nStep 3: Fetch recent price performance for BTC, ETH, and the top 5 altcoins over 7d, 30d, 90d.\nStep 4: Check total crypto market cap trend over past 90 days.\nStep 5: Get recent high-volume trading coins and notable gainers/losers.\nStep 6: Fetch crypto news via `news_crypto` for the past 7 days.\nStep 7: Analyze market sentiment — are we in Fear or Greed? (use any available sentiment indicator).\nStep 8: Report: Market Cap Overview, BTC/ETH Dominance, Top Performers, Recent News, and Market Sentiment.",
+    "content": "Generate a comprehensive crypto market overview.\n\nStep 1: Fetch price history for the major cryptocurrencies (for example BTC, ETH, SOL, XRP, ADA) using `crypto_price_historical`. Market-cap rankings are not available from these tools; state that rather than estimating them.\nStep 2: Get BTC dominance and ETH dominance trends.\nStep 3: Fetch recent price performance for BTC, ETH, and the top 5 altcoins over 7d, 30d, 90d.\nStep 4: Check total crypto market cap trend over past 90 days.\nStep 5: Get recent high-volume trading coins and notable gainers/losers.\nStep 6: Fetch market news via `news_world` for the past 7 days and keep the crypto-relevant items.\nStep 7: Analyze market sentiment — are we in Fear or Greed? (use any available sentiment indicator).\nStep 8: Report: Market Cap Overview, BTC/ETH Dominance, Top Performers, Recent News, and Market Sentiment.",
     "arguments": [
       {
         "name": "provider",
@@ -344,14 +343,11 @@
     ],
     "dependencies": {
       "required_tools": [
-        "crypto_market_info",
         "crypto_price_historical",
-        "news_crypto"
+        "news_world"
       ],
       "any_tool_groups": [],
-      "providers": [
-        "coinbase"
-      ],
+      "providers": [],
       "optional_packages": [],
       "resources": []
     }
@@ -359,7 +355,7 @@
   {
     "name": "crypto_coin_analysis",
     "description": "Deep dive into a single cryptocurrency covering price history, on-chain metrics, correlations, and fundamental token analysis.",
-    "content": "Perform a deep analysis of {symbol} cryptocurrency.\n\nStep 1: Fetch historical price data for {symbol} over the past {period} using `crypto_price_historical`.\nStep 2: Get current quote including market cap, 24h volume, and circulating supply via `crypto_price_quote`.\nStep 3: Analyze price correlation with BTC and ETH over 90 days.\nStep 4: Fetch on-chain metrics if available (active addresses, transaction volume, holder distribution).\nStep 5: Get tokenomics: total supply, max supply, inflation schedule, token unlock events.\nStep 6: Review recent news for {symbol} via `news_crypto` filtered by coin.\nStep 7: Check historical volatility and compare to BTC as a risk gauge.\nStep 8: Identify key support/resistance levels from price history.\nStep 9: Report: Price Performance, Market Position, On-Chain Health, Tokenomics, News, and Risk Assessment.",
+    "content": "Perform a deep analysis of {symbol} cryptocurrency.\n\nStep 1: Fetch historical price data for {symbol} over the past {period} using `crypto_price_historical`.\nStep 2: Take the latest close and 24h volume from the most recent `crypto_price_historical` bar. Market cap and circulating supply are not available from these tools; say so instead of estimating them.\nStep 3: Analyze price correlation with BTC and ETH over 90 days.\nStep 4: Fetch on-chain metrics if available (active addresses, transaction volume, holder distribution).\nStep 5: Get tokenomics: total supply, max supply, inflation schedule, token unlock events.\nStep 6: Review recent market news via `news_world` and keep items about {symbol}.\nStep 7: Check historical volatility and compare to BTC as a risk gauge.\nStep 8: Identify key support/resistance levels from price history.\nStep 9: Report: Price Performance, Market Position, On-Chain Health, Tokenomics, News, and Risk Assessment.",
     "arguments": [
       {
         "name": "symbol",
@@ -381,8 +377,7 @@
     "dependencies": {
       "required_tools": [
         "crypto_price_historical",
-        "crypto_price_quote",
-        "news_crypto"
+        "news_world"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -393,7 +388,7 @@
   {
     "name": "crypto_defi_analysis",
     "description": "Analyze DeFi protocols including TVL, yield opportunities, and risks.",
-    "content": "Analyze the DeFi ecosystem with focus on {protocol}.\n\nStep 1: Fetch overall DeFi market data including total TVL trends.\nStep 2: Get data for {protocol} including TVL, revenue, and token price via `crypto_price_historical`.\nStep 3: Compare {protocol} TVL and market share versus top competitors.\nStep 4: Check yield rates available on the protocol for major assets.\nStep 5: Fetch {protocol} token price history and correlate with TVL movements.\nStep 6: Review recent news and governance proposals via `news_crypto`.\nStep 7: Assess smart contract risk indicators and audit status.\nStep 8: Report: Protocol Overview, TVL Position, Revenue Model, Yield Opportunities, Risks, and Token Valuation.",
+    "content": "Analyze the DeFi ecosystem with focus on {protocol}.\n\nStep 1: Fetch overall DeFi market data including total TVL trends.\nStep 2: Get data for {protocol} including TVL, revenue, and token price via `crypto_price_historical`.\nStep 3: Compare {protocol} TVL and market share versus top competitors.\nStep 4: Check yield rates available on the protocol for major assets.\nStep 5: Fetch {protocol} token price history and correlate with TVL movements.\nStep 6: Review recent market news via `news_world` and keep items about the protocol and its governance.\nStep 7: Assess smart contract risk indicators and audit status.\nStep 8: Report: Protocol Overview, TVL Position, Revenue Model, Yield Opportunities, Risks, and Token Valuation.",
     "arguments": [
       {
         "name": "protocol",
@@ -410,7 +405,7 @@
     "dependencies": {
       "required_tools": [
         "crypto_price_historical",
-        "news_crypto"
+        "news_world"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -421,7 +416,7 @@
   {
     "name": "market_news_brief",
     "description": "Curated morning market news brief covering major market-moving headlines across equities, rates, forex, and commodities.",
-    "content": "Generate a morning market news brief for {date}.\n\nStep 1: Fetch the latest global market news using `news_world` for the past 24 hours.\nStep 2: Get US equity market news via `news_company` for major indices (SPY, QQQ, DIA, IWM).\nStep 3: Fetch overnight futures performance data if available.\nStep 4: Get bond market news — especially any Fed-related headlines.\nStep 5: Fetch forex major pairs news via `currency_news` or `news_world` filtered for FX.\nStep 6: Check commodity news for oil and gold.\nStep 7: Identify the top 3-5 market-moving stories.\nStep 8: Organize the brief: (a) Overnight Summary, (b) Top Stories, (c) Earnings Today, (d) Economic Data Due Today, (e) What to Watch.",
+    "content": "Generate a morning market news brief for {date}.\n\nStep 1: Fetch the latest global market news using `news_world` for the past 24 hours.\nStep 2: Get US equity market news via `news_company` for major indices (SPY, QQQ, DIA, IWM).\nStep 3: Fetch overnight futures performance data if available.\nStep 4: Get bond market news — especially any Fed-related headlines.\nStep 5: Fetch forex major pairs news via `news_world` filtered for FX.\nStep 6: Check commodity news for oil and gold.\nStep 7: Identify the top 3-5 market-moving stories.\nStep 8: Organize the brief: (a) Overnight Summary, (b) Top Stories, (c) Earnings Today, (d) Economic Data Due Today, (e) What to Watch.",
     "arguments": [
       {
         "name": "date",
@@ -437,7 +432,6 @@
     ],
     "dependencies": {
       "required_tools": [
-        "currency_news",
         "news_company",
         "news_world"
       ],
@@ -450,7 +444,7 @@
   {
     "name": "company_news_sentiment",
     "description": "Analyze news sentiment for a specific company across multiple sources, identify key themes, and assess overall tone.",
-    "content": "Analyze news sentiment for {symbol} over the past {days} days.\n\nStep 1: Fetch company news via `equity_news` for {symbol} over the past {days} days.\nStep 2: Also fetch global news filtered by company name via `news_world`.\nStep 3: Categorize articles by theme: earnings/guidance, product launches, regulatory/legal, leadership changes, partnerships, macro headwinds.\nStep 4: Assess sentiment of each article: positive, neutral, or negative.\nStep 5: Calculate overall sentiment score and trend (improving, stable, deteriorating).\nStep 6: Identify the top 3 most impactful positive and negative stories.\nStep 7: Cross-reference news timeline with stock price movement to find news-driven price reactions.\nStep 8: Report: News Volume, Sentiment Score, Theme Breakdown, Key Stories, and Sentiment Trend.",
+    "content": "Analyze news sentiment for {symbol} over the past {days} days.\n\nStep 1: Fetch company news via `news_company` for {symbol} over the past {days} days.\nStep 2: Also fetch global news filtered by company name via `news_world`.\nStep 3: Categorize articles by theme: earnings/guidance, product launches, regulatory/legal, leadership changes, partnerships, macro headwinds.\nStep 4: Assess sentiment of each article: positive, neutral, or negative.\nStep 5: Calculate overall sentiment score and trend (improving, stable, deteriorating).\nStep 6: Identify the top 3 most impactful positive and negative stories.\nStep 7: Cross-reference news timeline with stock price movement to find news-driven price reactions.\nStep 8: Report: News Volume, Sentiment Score, Theme Breakdown, Key Stories, and Sentiment Trend.",
     "arguments": [
       {
         "name": "symbol",
@@ -471,8 +465,8 @@
     ],
     "dependencies": {
       "required_tools": [
-        "equity_news",
-        "news_world"
+        "news_world",
+        "news_company"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -511,7 +505,7 @@
   {
     "name": "etf_holdings_analysis",
     "description": "Deep dive into an ETF's holdings, concentration risk, sector/geographic exposure, and factor tilts.",
-    "content": "Analyze the holdings and structure of {symbol} ETF.\n\nStep 1: Fetch ETF profile and overview using `etf_info` for {symbol}.\nStep 2: Get the full holdings list via `etf_holdings` — identify top 10 positions and their weights.\nStep 3: Analyze sector allocation using `etf_sectors` to see concentration.\nStep 4: Get country/geographic exposure via `etf_countries` if applicable.\nStep 5: Check expense ratio, AUM, average daily volume, and liquidity metrics.\nStep 6: Fetch 1Y, 3Y, 5Y price performance via `etf_price_historical`.\nStep 7: Compare performance versus the benchmark index and category peers.\nStep 8: Identify any concentration risk (single stock >10%, sector >40%).\nStep 9: Report: ETF Overview, Top Holdings, Sector Breakdown, Geographic Exposure, Performance vs Benchmark, and Risk Flags.",
+    "content": "Analyze the holdings and structure of {symbol} ETF.\n\nStep 1: Fetch ETF profile and overview using `etf_info` for {symbol}.\nStep 2: Get the full holdings list via `etf_holdings` — identify top 10 positions and their weights.\nStep 3: Analyze sector allocation using `etf_sectors` to see concentration.\nStep 4: Get country/geographic exposure via `etf_countries` if applicable.\nStep 5: Check expense ratio, AUM, average daily volume, and liquidity metrics.\nStep 6: Fetch 1Y, 3Y, 5Y price performance via `etf_historical`.\nStep 7: Compare performance versus the benchmark index and category peers.\nStep 8: Identify any concentration risk (single stock >10%, sector >40%).\nStep 9: Report: ETF Overview, Top Holdings, Sector Breakdown, Geographic Exposure, Performance vs Benchmark, and Risk Flags.",
     "arguments": [
       {
         "name": "symbol",
@@ -535,8 +529,8 @@
         "etf_countries",
         "etf_holdings",
         "etf_info",
-        "etf_price_historical",
-        "etf_sectors"
+        "etf_sectors",
+        "etf_historical"
       ],
       "any_tool_groups": [],
       "providers": [
@@ -549,7 +543,7 @@
   {
     "name": "etf_comparison",
     "description": "Compare two or more ETFs head-to-head across holdings overlap, performance, cost, and risk metrics.",
-    "content": "Compare the following ETFs head-to-head: {symbols}.\n\nStep 1: Fetch ETF profiles for each ETF in {symbols} using `etf_info`.\nStep 2: Get holdings for each ETF via `etf_holdings` and calculate overlap percentage between the top 50 holdings.\nStep 3: Compare expense ratios, AUM, and liquidity (average daily volume).\nStep 4: Fetch 1Y, 3Y, 5Y performance for each ETF via `etf_price_historical`.\nStep 5: Get sector allocations via `etf_sectors` for each ETF.\nStep 6: Calculate risk metrics: annualized volatility, max drawdown, Sharpe ratio.\nStep 7: Compare dividend yield if applicable.\nStep 8: Report: Side-by-Side Comparison Table, Holdings Overlap, Performance Winner, Cost Analysis, and Recommendation.",
+    "content": "Compare the following ETFs head-to-head: {symbols}.\n\nStep 1: Fetch ETF profiles for each ETF in {symbols} using `etf_info`.\nStep 2: Get holdings for each ETF via `etf_holdings` and calculate overlap percentage between the top 50 holdings.\nStep 3: Compare expense ratios, AUM, and liquidity (average daily volume).\nStep 4: Fetch 1Y, 3Y, 5Y performance for each ETF via `etf_historical`.\nStep 5: Get sector allocations via `etf_sectors` for each ETF.\nStep 6: Calculate risk metrics: annualized volatility, max drawdown, Sharpe ratio.\nStep 7: Compare dividend yield if applicable.\nStep 8: Report: Side-by-Side Comparison Table, Holdings Overlap, Performance Winner, Cost Analysis, and Recommendation.",
     "arguments": [
       {
         "name": "symbols",
@@ -566,8 +560,8 @@
       "required_tools": [
         "etf_holdings",
         "etf_info",
-        "etf_price_historical",
-        "etf_sectors"
+        "etf_sectors",
+        "etf_historical"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -692,7 +686,7 @@
   {
     "name": "market_index_performance",
     "description": "Track and compare major market index performance globally, including attribution by sector and market cap.",
-    "content": "Analyze performance of major market indices.\n\nStep 1: Fetch price history for major US indices (SPY, QQQ, DIA, IWM) via `equity_price_historical` for the past {period}.\nStep 2: Fetch international indices (EFA for international developed, EEM for emerging markets).\nStep 3: Calculate total return, annualized return, and max drawdown for each index.\nStep 4: Get sector performance breakdown using `equity_compare_sectors`.\nStep 5: Identify the factor driving outperformance: large vs small cap, growth vs value.\nStep 6: Fetch the VIX volatility index for risk environment context.\nStep 7: Compare current valuations (P/E ratios) across indices.\nStep 8: Report: Index Performance Table, Factor Attribution, Sector Leaders, Global Comparison, and Valuation Context.",
+    "content": "Analyze performance of major market indices.\n\nStep 1: Fetch price history for major US indices (SPY, QQQ, DIA, IWM) via `equity_price_historical` for the past {period}.\nStep 2: Fetch international indices (EFA for international developed, EEM for emerging markets).\nStep 3: Calculate total return, annualized return, and max drawdown for each index.\nStep 4: Get a sector performance breakdown from sector ETF (XLK, XLV, XLF, XLY, XLP, XLE, XLI, XLB, XLU, XLRE) price history via `etf_historical`.\nStep 5: Identify the factor driving outperformance: large vs small cap, growth vs value.\nStep 6: Fetch the VIX volatility index for risk environment context.\nStep 7: Compare current valuations (P/E ratios) across indices.\nStep 8: Report: Index Performance Table, Factor Attribution, Sector Leaders, Global Comparison, and Valuation Context.",
     "arguments": [
       {
         "name": "period",
@@ -708,8 +702,8 @@
     ],
     "dependencies": {
       "required_tools": [
-        "equity_compare_sectors",
-        "equity_price_historical"
+        "equity_price_historical",
+        "etf_historical"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -790,7 +784,7 @@
   {
     "name": "commodity_price_trend",
     "description": "Analyze commodity price trends including supply/demand drivers, seasonal patterns, and macro correlations.",
-    "content": "Analyze price trends for {commodity}.\n\nStep 1: Fetch historical price data for {commodity} using `commodity_price_historical` or appropriate ETF proxy for the past {period}.\nStep 2: Identify the current trend direction and key price levels (support/resistance).\nStep 3: Fetch any available supply/demand data (inventories, production, consumption).\nStep 4: Check seasonal patterns — does this commodity exhibit consistent seasonal trends?\nStep 5: Analyze correlation with USD strength (DXY) since most commodities are dollar-denominated.\nStep 6: Fetch macro context: global growth expectations affect industrial commodities; inflation expectations affect precious metals.\nStep 7: Review recent news for supply disruptions, geopolitical events, or demand shifts.\nStep 8: Get futures term structure (contango or backwardation) if available.\nStep 9: Report: Price Trend, Key Levels, Supply/Demand Balance, Seasonal Patterns, Macro Drivers, and Outlook.",
+    "content": "Analyze price trends for {commodity}.\n\nStep 1: Fetch historical spot prices for {commodity} using `commodity_price_spot` (or an appropriate ETF proxy) for the past {period}.\nStep 2: Identify the current trend direction and key price levels (support/resistance).\nStep 3: Fetch any available supply/demand data (inventories, production, consumption).\nStep 4: Check seasonal patterns — does this commodity exhibit consistent seasonal trends?\nStep 5: Analyze correlation with USD strength (DXY) since most commodities are dollar-denominated.\nStep 6: Fetch macro context: global growth expectations affect industrial commodities; inflation expectations affect precious metals.\nStep 7: Review recent news for supply disruptions, geopolitical events, or demand shifts.\nStep 8: Get futures term structure (contango or backwardation) if available.\nStep 9: Report: Price Trend, Key Levels, Supply/Demand Balance, Seasonal Patterns, Macro Drivers, and Outlook.",
     "arguments": [
       {
         "name": "commodity",
@@ -811,7 +805,7 @@
     ],
     "dependencies": {
       "required_tools": [
-        "commodity_price_historical"
+        "commodity_price_spot"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -822,7 +816,7 @@
   {
     "name": "commodity_energy_analysis",
     "description": "Comprehensive energy complex analysis covering crude oil, natural gas, refined products, and energy equities.",
-    "content": "Analyze the energy commodity complex.\n\nStep 1: Fetch crude oil prices (WTI and Brent) from `commodity_price_historical` and calculate the Brent-WTI spread.\nStep 2: Get natural gas prices and LNG data.\nStep 3: Fetch EIA inventory data (crude oil, gasoline, distillate) via `economy_fred_series` or direct sources.\nStep 4: Check OPEC production levels and spare capacity estimates.\nStep 5: Fetch energy sector equity performance (XLE ETF) via `etf_price_historical`.\nStep 6: Review recent energy news via `news_world` for geopolitical and supply disruption risks.\nStep 7: Analyze the energy term structure (contango/backwardation) from futures prices.\nStep 8: Correlate oil price with USD and global growth expectations.\nStep 9: Report: Energy Complex Overview, Inventory Status, OPEC Situation, Equity Performance, and Price Outlook.",
+    "content": "Analyze the energy commodity complex.\n\nStep 1: Fetch crude oil spot prices (WTI and Brent) from `commodity_price_spot` and calculate the Brent-WTI spread.\nStep 2: Get natural gas prices and LNG data.\nStep 3: Fetch EIA inventory data (crude oil, gasoline, distillate) via `economy_fred_series` or direct sources.\nStep 4: Check OPEC production levels and spare capacity estimates.\nStep 5: Fetch energy sector equity performance (XLE ETF) via `etf_historical`.\nStep 6: Review recent energy news via `news_world` for geopolitical and supply disruption risks.\nStep 7: Analyze the energy term structure (contango/backwardation) from futures prices.\nStep 8: Correlate oil price with USD and global growth expectations.\nStep 9: Report: Energy Complex Overview, Inventory Status, OPEC Situation, Equity Performance, and Price Outlook.",
     "arguments": [],
     "tags": [
       "commodity",
@@ -831,10 +825,10 @@
     ],
     "dependencies": {
       "required_tools": [
-        "commodity_price_historical",
         "economy_fred_series",
-        "etf_price_historical",
-        "news_world"
+        "news_world",
+        "commodity_price_spot",
+        "etf_historical"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -900,8 +894,8 @@
   },
   {
     "name": "short_interest_analysis",
-    "description": "Analyze short interest data for a stock including squeeze potential, borrow costs, and sentiment.",
-    "content": "Analyze short interest dynamics for {symbol}.\n\nStep 1: Fetch current short interest data using `equity_short_interest` for {symbol}.\nStep 2: Get short interest history to identify the trend (increasing or decreasing short interest).\nStep 3: Calculate days-to-cover ratio (short interest / average daily volume).\nStep 4: Assess short squeeze potential: high short interest + catalyst = squeeze risk.\nStep 5: Get borrow rate if available (high borrow rate = crowded short).\nStep 6: Compare current short interest to historical range (is it near highs or lows?).\nStep 7: Fetch recent news that might trigger short covering.\nStep 8: Check stock performance — is it moving against shorts (potential squeeze in progress)?\nStep 9: Report: Short Interest Level, Days-to-Cover, Squeeze Risk Score, Historical Context, and Recent Catalysts.",
+    "description": "Analyze short-side settlement pressure for a stock using SEC fails-to-deliver data as a proxy; reported short interest and borrow rates are not available from these tools.",
+    "content": "Analyze short-side settlement pressure for {symbol}.\n\nReported short interest, days-to-cover, and borrow rates are not available through these tools. This analysis uses SEC fails-to-deliver (FTD) data as a proxy and must say so in the report.\n\nStep 1: Fetch fails-to-deliver records for {symbol} using `equity_shorts_fails_to_deliver`.\nStep 2: Identify the FTD trend across the available settlement dates (rising or falling).\nStep 3: Flag persistent FTDs (several consecutive settlement dates) as settlement pressure.\nStep 4: Fetch recent price history via `equity_price_historical` and compare FTD spikes with price moves.\nStep 5: Fetch recent company news via `news_company` for possible catalysts.\nStep 6: Report: FTD Trend, Persistence, Price Context, Recent Catalysts, and an explicit note that short interest and borrow rates were not measured.",
     "arguments": [
       {
         "name": "symbol",
@@ -916,7 +910,9 @@
     ],
     "dependencies": {
       "required_tools": [
-        "equity_short_interest"
+        "equity_price_historical",
+        "equity_shorts_fails_to_deliver",
+        "news_company"
       ],
       "any_tool_groups": [],
       "providers": [],
@@ -1070,7 +1066,7 @@
   {
     "name": "merger_arbitrage_analysis",
     "description": "Analyze announced M&A deals for arbitrage spread, deal probability, and risk/reward.",
-    "content": "Analyze the merger arbitrage opportunity for {target} acquiring/acquired by {acquirer}.\n\nStep 1: Get current stock prices for both {target} and {acquirer} via `equity_price_quote`.\nStep 2: Calculate the current deal spread: (deal price - current price) / current price.\nStep 3: Fetch deal announcement details and timeline from news via `equity_news` and `news_world`.\nStep 4: Identify deal type: cash, stock, or mixed. Calculate exchange ratio for stock deals.\nStep 5: Assess regulatory risk: antitrust concerns, CFIUS review, political sensitivity.\nStep 6: Check historical precedent for similar deals in the sector.\nStep 7: Estimate annualized return if deal closes on schedule.\nStep 8: Estimate downside if deal breaks: revert to pre-announcement price.\nStep 9: Report: Deal Terms, Current Spread, Annualized Return, Key Risks, Deal Break Scenario, and Go/No-Go Assessment.",
+    "content": "Analyze the merger arbitrage opportunity for {target} acquiring/acquired by {acquirer}.\n\nStep 1: Get current stock prices for both {target} and {acquirer} via `equity_price_quote`.\nStep 2: Calculate the current deal spread: (deal price - current price) / current price.\nStep 3: Fetch deal announcement details and timeline from news via `news_company` and `news_world`.\nStep 4: Identify deal type: cash, stock, or mixed. Calculate exchange ratio for stock deals.\nStep 5: Assess regulatory risk: antitrust concerns, CFIUS review, political sensitivity.\nStep 6: Check historical precedent for similar deals in the sector.\nStep 7: Estimate annualized return if deal closes on schedule.\nStep 8: Estimate downside if deal breaks: revert to pre-announcement price.\nStep 9: Report: Deal Terms, Current Spread, Annualized Return, Key Risks, Deal Break Scenario, and Go/No-Go Assessment.",
     "arguments": [
       {
         "name": "target",
@@ -1090,9 +1086,9 @@
     ],
     "dependencies": {
       "required_tools": [
-        "equity_news",
         "equity_price_quote",
-        "news_world"
+        "news_world",
+        "news_company"
       ],
       "any_tool_groups": [],
       "providers": [],
