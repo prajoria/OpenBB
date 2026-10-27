@@ -55,7 +55,7 @@
         "1-why-offline"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:provider_modes"
       ],
       "inputs": [],
       "outputs": [
@@ -113,11 +113,11 @@
       ],
       "capabilities": [
         "platform:backtest_run",
+        "platform:story_run_checkpoint",
+        "platform:story_run_get",
         "platform:story_single_name_analysis",
-        "story:analytics",
         "story:artifacts",
-        "story:jobs",
-        "story:state"
+        "story:jobs"
       ],
       "inputs": [
         {

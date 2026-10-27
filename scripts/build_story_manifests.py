@@ -133,6 +133,9 @@ _PLANS = "platform:story_actionable_plans"
 _PNL = "platform:story_round_trip_pnl"
 _REPLAY = "platform:story_replay_recommendations"
 _CONFIG = "platform:story_indicator_config"
+_STATE = "story:state"
+_MODES = "story:provider_modes"
+_PAPER = "story:paper"
 # Reviewed in N05a (#2313): stages whose notebook-local x-ray math the server
 # computes. (story_id, stage_id) -> (tools, residual). ``residual`` keeps
 # story:analytics when part of the stage still has no tool: the free-tier
@@ -183,9 +186,10 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
         (_EFFECTIVE,),
         False,
     ),
+    # The free-tier sector map half of this stage is a provider mode (N10).
     ("portfolio_yfinance/08", "6-risk-metrics-hhi-effective-n-free-tier-sector"): (
-        (_CONCENTRATION,),
-        True,
+        (_CONCENTRATION, "story:provider_modes"),
+        False,
     ),
     # Reviewed in N05b (#2314): the seven-phase pipeline. portfolio/02 runs it
     # and renders each phase; the regime overlay and the bad-symbol
@@ -208,11 +212,6 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
     ("portfolio/08", "7-single-name-spot-check-analysis-7-phase-on-the"): (
         (_SINGLE_NAME,),
         False,
-    ),
-    # This stage also runs an end-to-end timing loop over several engines.
-    ("portfolio/07", "5-the-monday-morning-routine-end-to-end"): (
-        (_SINGLE_NAME,),
-        True,
     ),
     # Reviewed in N05c (#2315): the what-if and attribution chapter in both
     # provider variants.
@@ -305,6 +304,108 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
             ("techtrade/06", "7-the-deviation-log-manual", ()),
         )
     },
+    # Reviewed in N05e (#2321): what was left under story:analytics needs no
+    # new analytics adapter. Environment probes and illustrations run
+    # nothing; baskets are run state; recording and free-tier sector maps are
+    # provider modes (N10); the paper engine's fills are paper (N09); the
+    # exported CSV is an artifact (N07); the timing loops only orchestrate
+    # tools their stages already bind.
+    **{
+        (story, stage): (tools, False)
+        for story, stage, tools in (
+            *(
+                (f"portfolio_yfinance/0{chapter}", "0-before-we-run-anything", ())
+                for chapter in range(1, 9)
+            ),
+            ("portfolio/02", "11-reproducibility-discipline", ()),
+            (
+                "portfolio_yfinance/03",
+                "8-silent-failure-guard-reader-facing-example",
+                (),
+            ),
+            ("techtrade/09", "1-the-validated-plan-from-t4", ()),
+            ("portfolio/01", "5-the-through-line-basket", (_STATE,)),
+            ("portfolio_yfinance/01", "5-the-through-line-basket", (_STATE,)),
+            ("portfolio/03", "1-load-the-basket", (_STATE,)),
+            ("portfolio_yfinance/03", "1-load-the-basket", (_STATE,)),
+            ("portfolio/04", "2-load-the-basket", (_STATE,)),
+            ("portfolio_yfinance/04", "1-load-the-basket", (_STATE,)),
+            ("portfolio/08", "4-the-15-etf-basket-table-rationale", (_STATE,)),
+            (
+                "portfolio_yfinance/08",
+                "4-the-16-etf-variant-a-basket-table-rationale",
+                (_STATE,),
+            ),
+            (
+                "portfolio/08",
+                "9-fortress-swap-bring-your-own-reference-basket",
+                (_STATE,),
+            ),
+            (
+                "portfolio_yfinance/08",
+                "9-fortress-swap-bring-your-own-reference-basket",
+                (_STATE,),
+            ),
+            ("portfolio/07", "2-scrape-record-the-framework", (_MODES,)),
+            (
+                "portfolio_yfinance/07",
+                "1-scrape-record-freshness-spot-check-optional",
+                (_MODES,),
+            ),
+            (
+                "portfolio_yfinance/03",
+                "2-naive-sector-view-free-tier-no-look-through",
+                (_MODES,),
+            ),
+            (
+                "portfolio_yfinance/03",
+                "4-sector-view-with-look-through-the-free-tier-pi",
+                (_MODES,),
+            ),
+            (
+                "techtrade/07",
+                "5-inspecting-the-csv-fidelity-basket-trading-for",
+                ("story:artifacts",),
+            ),
+            *(
+                ("techtrade/08", stage, (_PAPER,))
+                for stage in (
+                    "4-record-a-full-fill-on-order-1-filled",
+                    "5-partial-fill-on-order-2-partial-then-filled",
+                    "7-fifo-realized-p-l-a-two-lot-close",
+                    "8-loud-rejection-matrix",
+                    "9-persistence-across-process-restart",
+                )
+            ),
+            *(
+                ("techtrade/09", stage, (_PAPER,))
+                for stage in (
+                    "4-print-the-operator-s-type-this-at-fidelity-che",
+                    "6-simulate-the-operator-s-fidelity-workflow",
+                    "7-position-p-l-after-the-fills",
+                    "8-partial-close-scenario-take-profit-on-msft",
+                    "9-end-of-day-review",
+                )
+            ),
+            # It runs the single-name pipeline among the tools it times.
+            (
+                "portfolio/07",
+                "5-the-monday-morning-routine-end-to-end",
+                (_SINGLE_NAME,),
+            ),
+            (
+                "portfolio_yfinance/07",
+                "3-timed-end-to-end-run-optional-how-long-does-tr",
+                (),
+            ),
+        )
+    },
+}
+
+# Planned capabilities whose bridge has shipped, and the tools that serve
+# them. Run state (N06, #2216) is the story registry's run tools.
+DELIVERED: dict[str, tuple[str, ...]] = {
+    "story:state": ("platform:story_run_get", "platform:story_run_checkpoint"),
 }
 
 KIND_BY_CAPABILITY = {
@@ -333,6 +434,7 @@ ANALYSIS_TOOL_PREFIXES = (
     "story_round_trip_",
     "story_replay_",
     "story_indicator_",
+    "story_run_",
 )
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
 # Imports whose stage is an opt-in personal-data step, never mandatory.
@@ -460,6 +562,13 @@ def _apply_binding(story_id: str, stage_id: str, capabilities: list[str]) -> lis
     return sorted(bound)
 
 
+def _resolve_delivered(capabilities: list[str]) -> list[str]:
+    resolved: set[str] = set()
+    for name in capabilities:
+        resolved.update(DELIVERED.get(name, (name,)))
+    return sorted(resolved)
+
+
 def unused_bindings(manifests: list[dict]) -> list[tuple[str, str]]:
     """Return reviewed bindings whose stage no longer exists."""
     present = {(m["story_id"], s["id"]) for m in manifests for s in m["stages"]}
@@ -508,6 +617,7 @@ def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
         outputs = (
             ["story_state"] if "story:state" in capabilities else [f"{stage_id}-result"]
         )
+        capabilities = _resolve_delivered(capabilities)
         stages.append(
             {
                 "id": stage_id,

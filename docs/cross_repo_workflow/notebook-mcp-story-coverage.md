@@ -112,22 +112,20 @@ Gross denominators at this baseline, counting every stage:
 | --- | ---: |
 | Stories / ready stories | 25 / 1 |
 | Stages | 287 |
-| Setup and narrative stages (no capability needed) | 103 |
-| Stages doing financial work | 184 |
-| Of those, runnable on existing MCP tools | 86 |
-| Stages waiting on a planned bridge | 98 |
+| Setup and narrative stages (no capability needed) | 114 |
+| Stages doing financial work | 173 |
+| Of those, runnable on existing MCP tools | 108 |
+| Stages waiting on a planned bridge | 65 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
 
 | Owner | Bridge | Needs |
 | --- | --- | ---: |
-| #2215 (N05) | Notebook analytics through owned engine adapters | 39 |
-| #2217 (N07) | Chart, table, report and XLSX artifacts | 17 |
-| #2216 (N06) | Typed story state and cross-chapter handoffs | 14 |
-| #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 13 |
+| #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 23 |
+| #2217 (N07) | Chart, table, report and XLSX artifacts | 18 |
+| #2220 (N10) | Provider variants and recording | 14 |
 | #2218 (N08) | Backtest, tuning and replay jobs | 12 |
-| #2220 (N10) | Provider variants and recording | 9 |
 
 N04 reviewed the two bindings the generator could not decide. The morning-scan
 cell 7 narrative needs no capability. The Portfolio chapter 1 preview of the
@@ -165,6 +163,15 @@ static decision tables and a code template) and two that only format a
 Platform tool's report. The workbook finder now waits on the artifacts bridge
 (N07) instead of N05. TechTrade chapter 3 is the first story whose every stage
 is runnable on MCP tools.
+
+N05e (#2321) closed out N05 and N06. Review of the last 39 `story:analytics`
+needs found no further analytics adapter to build: they were environment
+probes and illustrations (no capability), basket definitions and loads (run
+state), recording and free-tier sector maps (N10), paper-engine fills (N09),
+an exported CSV (N07) and timing loops that only orchestrate tools their
+stages already bind. Cross-chapter run state now binds to the delivered N06
+tools `story_run_get` and `story_run_checkpoint` instead of waiting on a
+planned bridge. Nothing waits on N05 or N06.
 
 Only one story is ready, which is the expected state before the N05–N10
 bridges land. These figures are stage outcomes, not an API-count parity

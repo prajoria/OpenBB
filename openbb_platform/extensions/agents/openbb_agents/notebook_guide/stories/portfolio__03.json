@@ -29,7 +29,7 @@
     {
       "id": "1-load-the-basket",
       "title": "1. Load the basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         5,
         6
@@ -38,7 +38,8 @@
         "where-we-are-in-sam-s-story"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -48,7 +49,7 @@
         }
       ],
       "outputs": [
-        "1-load-the-basket-result"
+        "story_state"
       ],
       "optional": false
     },
@@ -243,7 +244,8 @@
         "10-reading-the-numbers"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [

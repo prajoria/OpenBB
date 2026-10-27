@@ -24,7 +24,7 @@
     {
       "id": "1-the-validated-plan-from-t4",
       "title": "1. The validated plan (from T4)",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3
@@ -32,9 +32,7 @@
       "depends_on": [
         "the-full-t5-flow"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "1-the-validated-plan-from-t4-result"
@@ -87,7 +85,7 @@
     {
       "id": "4-print-the-operator-s-type-this-at-fidelity-che",
       "title": "4. Print the operator's \"type this at Fidelity\" cheat sheet",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         10,
         11
@@ -96,7 +94,7 @@
         "3-write-the-artifact"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -127,7 +125,7 @@
     {
       "id": "6-simulate-the-operator-s-fidelity-workflow",
       "title": "6. Simulate the operator's Fidelity workflow",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         14,
         15
@@ -136,7 +134,7 @@
         "5-submit-the-batch-to-the-paper-engine"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -147,7 +145,7 @@
     {
       "id": "7-position-p-l-after-the-fills",
       "title": "7. Position + P&L after the fills",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         16,
         17
@@ -156,7 +154,7 @@
         "6-simulate-the-operator-s-fidelity-workflow"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -167,7 +165,7 @@
     {
       "id": "8-partial-close-scenario-take-profit-on-msft",
       "title": "8. Partial-close scenario \u2014 take profit on MSFT",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         18,
         19
@@ -176,7 +174,7 @@
         "7-position-p-l-after-the-fills"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -187,7 +185,7 @@
     {
       "id": "9-end-of-day-review",
       "title": "9. End-of-day review",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         20,
         21
@@ -196,7 +194,7 @@
         "8-partial-close-scenario-take-profit-on-msft"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [

@@ -24,7 +24,7 @@
     {
       "id": "0-before-we-run-anything",
       "title": "0. Before we run anything",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3
@@ -32,9 +32,7 @@
       "depends_on": [
         "where-we-are-in-sam-s-story"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "0-before-we-run-anything-result"
@@ -222,7 +220,8 @@
         "7-bundle-reproducibility-freeze-under-cboe"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [

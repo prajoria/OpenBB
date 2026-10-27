@@ -242,9 +242,9 @@ def test_reviewed_xray_stages_bind_to_story_analytics_tools(
     ("story_id", "stage"),
     [("portfolio_yfinance/03", "4-"), ("portfolio_yfinance/08", "6-")],
 )
-def test_free_tier_sector_maps_stay_planned(manifests, story_id, stage):
-    """The hand-maintained free-tier sector map has no server tool yet."""
-    assert "story:analytics" in _stage(manifests[story_id], stage).capabilities
+def test_free_tier_sector_maps_wait_on_provider_modes(manifests, story_id, stage):
+    """The hand-maintained free-tier sector map is a provider mode (N10)."""
+    assert "story:provider_modes" in _stage(manifests[story_id], stage).capabilities
 
 
 def test_every_reviewed_binding_matches_a_stage():
@@ -263,15 +263,11 @@ def test_every_reviewed_binding_matches_a_stage():
     assert unused_bindings(built) == []
 
 
-@pytest.mark.parametrize(
-    ("story_id", "stage"),
-    [("portfolio/07", "5-")],
-)
-def test_mixed_single_name_stages_keep_their_residual(manifests, story_id, stage):
-    """Stages that do more than the pipeline still need N05 for the rest."""
-    bound = _stage(manifests[story_id], stage)
+def test_timing_loops_bind_the_tools_they_time(manifests):
+    """The chapter 7 routine binds the pipeline it times, with no residual."""
+    bound = _stage(manifests["portfolio/07"], "5-")
     assert "platform:story_single_name_analysis" in bound.capabilities
-    assert "story:analytics" in bound.capabilities
+    assert "story:analytics" not in bound.capabilities
 
 
 @pytest.mark.parametrize(
@@ -337,3 +333,64 @@ def test_reviewed_binding_keys_are_unique():
     ]
     duplicated = sorted({k for k in keys if keys.count(k) > 1})
     assert not duplicated, duplicated
+
+
+def test_no_stage_waits_on_story_analytics_or_story_state(manifests):
+    """N05e (#2321): N05 is drained and run state is a delivered tool."""
+    waiting = [
+        (story_id, stage.id, name)
+        for story_id, manifest in manifests.items()
+        for stage in manifest.stages
+        for name in stage.capabilities
+        if name in {"story:analytics", "story:state"}
+    ]
+    assert waiting == []
+
+
+def test_state_handoffs_bind_to_the_run_registry(manifests, catalog):
+    """Stages that hand state between chapters use the N06 run tools."""
+    state_stages = [
+        stage
+        for manifest in manifests.values()
+        for stage in manifest.stages
+        if "story_state" in stage.outputs
+    ]
+    assert state_stages
+    for stage in state_stages:
+        assert {"platform:story_run_get", "platform:story_run_checkpoint"} <= set(
+            stage.capabilities
+        ), stage.id
+    for tool in ("platform:story_run_get", "platform:story_run_checkpoint"):
+        assert isinstance(catalog.entries[tool], AvailableCapability)
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage", "capability"),
+    [
+        ("techtrade/08", "7-", "story:paper"),
+        ("techtrade/09", "9-", "story:paper"),
+        ("techtrade/07", "5-", "story:artifacts"),
+        ("portfolio_yfinance/03", "4-", "story:provider_modes"),
+        ("portfolio/07", "2-", "story:provider_modes"),
+        ("portfolio/03", "1-", "platform:story_run_get"),
+    ],
+)
+def test_remaining_stages_moved_to_their_owning_bridge(
+    manifests, story_id, stage, capability
+):
+    """Paper, artifact, provider-mode and state work waits on its own bridge."""
+    assert capability in _stage(manifests[story_id], stage).capabilities
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage"),
+    [
+        ("portfolio_yfinance/01", "0-before"),
+        ("portfolio/02", "11-"),
+        ("portfolio_yfinance/03", "8-"),
+        ("techtrade/09", "1-"),
+    ],
+)
+def test_probes_and_illustrations_need_nothing(manifests, story_id, stage):
+    """Environment probes and illustrations run no capability."""
+    assert _stage(manifests[story_id], stage).capabilities == []

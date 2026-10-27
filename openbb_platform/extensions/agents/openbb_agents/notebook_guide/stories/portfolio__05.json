@@ -38,7 +38,8 @@
         "where-we-are-in-sam-s-story"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -185,7 +186,8 @@
         "7-low-bp-alert-deliberately-trigger-one"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [

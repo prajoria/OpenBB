@@ -24,7 +24,7 @@
     {
       "id": "0-before-we-run-anything",
       "title": "0. Before we run anything",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3
@@ -32,9 +32,7 @@
       "depends_on": [
         "where-we-are-in-sam-s-story"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "0-before-we-run-anything-result"
@@ -70,7 +68,8 @@
         "0-5-why-free-only-nb05-looks-different-from-trac"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -198,7 +197,8 @@
         "6-low-bp-alert-deliberately-trigger-one"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [

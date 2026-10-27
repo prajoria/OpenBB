@@ -24,7 +24,7 @@
     {
       "id": "0-before-we-run-anything",
       "title": "0. Before we run anything",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3
@@ -32,9 +32,7 @@
       "depends_on": [
         "where-we-are-in-sam-s-story"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "0-before-we-run-anything-result"
@@ -150,7 +148,7 @@
     {
       "id": "5-the-through-line-basket",
       "title": "5. The through-line basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         13,
         14
@@ -159,11 +157,12 @@
         "4-the-offline-snapshot-pattern-yfinance-without"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [
-        "5-the-through-line-basket-result"
+        "story_state"
       ],
       "optional": false
     },

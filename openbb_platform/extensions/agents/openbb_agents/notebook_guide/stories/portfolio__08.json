@@ -80,7 +80,7 @@
     {
       "id": "4-the-15-etf-basket-table-rationale",
       "title": "4. The 15-ETF basket \u2014 table + rationale",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         8,
         9
@@ -89,11 +89,12 @@
         "3-trader-analyst-sources-where-the-pros-look"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [
-        "4-the-15-etf-basket-table-rationale-result"
+        "story_state"
       ],
       "optional": false
     },
@@ -183,7 +184,7 @@
     {
       "id": "9-fortress-swap-bring-your-own-reference-basket",
       "title": "9. Fortress swap \u2014 bring your own reference basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         18,
         19
@@ -192,7 +193,8 @@
         "8-backtest-buy-and-hold-on-the-15-etf-universe-v"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -202,7 +204,7 @@
         }
       ],
       "outputs": [
-        "9-fortress-swap-bring-your-own-reference-basket-result"
+        "story_state"
       ],
       "optional": false
     },

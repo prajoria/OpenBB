@@ -24,7 +24,7 @@
     {
       "id": "0-before-we-run-anything",
       "title": "0. Before we run anything",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3
@@ -32,9 +32,7 @@
       "depends_on": [
         "where-this-notebook-fits-track-b"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "0-before-we-run-anything-result"
@@ -113,7 +111,7 @@
     {
       "id": "4-the-16-etf-variant-a-basket-table-rationale",
       "title": "4. The 16-ETF Variant A basket \u2014 table + rationale",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         9,
         10
@@ -122,11 +120,12 @@
         "3-trader-analyst-sources-where-the-pros-look-and"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [
-        "4-the-16-etf-variant-a-basket-table-rationale-result"
+        "story_state"
       ],
       "optional": false
     },
@@ -163,7 +162,7 @@
       ],
       "capabilities": [
         "platform:story_concentration",
-        "story:analytics"
+        "story:provider_modes"
       ],
       "inputs": [],
       "outputs": [
@@ -212,7 +211,7 @@
     {
       "id": "9-fortress-swap-bring-your-own-reference-basket",
       "title": "9. Fortress swap \u2014 bring your own reference basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         18,
         19
@@ -221,7 +220,8 @@
         "8-backtest-buy-and-hold-on-the-16-etf-universe-v"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -231,7 +231,7 @@
         }
       ],
       "outputs": [
-        "9-fortress-swap-bring-your-own-reference-basket-result"
+        "story_state"
       ],
       "optional": false
     },

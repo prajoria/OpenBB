@@ -207,7 +207,8 @@
         "8-data-bundle-reproducibility"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [
