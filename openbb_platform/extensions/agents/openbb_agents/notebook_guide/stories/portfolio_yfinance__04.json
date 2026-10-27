@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio_yfinance/04",
+  "family": "portfolio/04",
+  "variant": "free-provider",
+  "notebook_path": "notebooks/portfolio_yfinance/04-events-and-smart-money.ipynb",
+  "source_sha256": "98816d11c8afd40409e0596bdf9d48244c6e4cc49812a2ea245c06c3d945d0e2",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-before-we-run-anything",
+      "title": "0. Before we run anything",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "0-before-we-run-anything-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-5-why-free-only-nb04-looks-different-from-trac",
+      "title": "0.5 Why free-only NB04 looks different from Track A",
+      "kind": "narrative",
+      "cells": [
+        4
+      ],
+      "depends_on": [
+        "0-before-we-run-anything"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "0-5-why-free-only-nb04-looks-different-from-trac-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-load-the-basket",
+      "title": "1. Load the basket",
+      "kind": "analysis",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "0-5-why-free-only-nb04-looks-different-from-trac"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio_yfinance/03",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "1-load-the-basket-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-events-calendar-yfinance-recorded-earnings-per",
+      "title": "2. Events calendar \u2014 yfinance recorded earnings per basket name",
+      "kind": "analysis",
+      "cells": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "depends_on": [
+        "1-load-the-basket"
+      ],
+      "capabilities": [
+        "platform:equity_fundamental_dividends",
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-events-calendar-yfinance-recorded-earnings-per-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-smart-money-rollup-13f-path-sec-edgar",
+      "title": "3. Smart-money rollup \u2014 13F path (SEC EDGAR)",
+      "kind": "retrieval",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "2-events-calendar-yfinance-recorded-earnings-per"
+      ],
+      "capabilities": [
+        "platform:equity_ownership_form_13f"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-smart-money-rollup-13f-path-sec-edgar-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-smart-money-rollup-insider-path-sec-form-4",
+      "title": "4. Smart-money rollup \u2014 insider path (SEC Form 4)",
+      "kind": "retrieval",
+      "cells": [
+        13,
+        14
+      ],
+      "depends_on": [
+        "3-smart-money-rollup-13f-path-sec-edgar"
+      ],
+      "capabilities": [
+        "platform:equity_ownership_insider_trading"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-smart-money-rollup-insider-path-sec-form-4-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-news-sentiment-skipped-honestly",
+      "title": "5. News sentiment \u2014 skipped honestly",
+      "kind": "narrative",
+      "cells": [
+        15
+      ],
+      "depends_on": [
+        "4-smart-money-rollup-insider-path-sec-form-4"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "5-news-sentiment-skipped-honestly-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-composite-smart-money-reading-fixture-per-stor",
+      "title": "6. Composite smart-money reading \u2014 fixture per STORY_BIBLE \u00a73",
+      "kind": "analysis",
+      "cells": [
+        16,
+        17
+      ],
+      "depends_on": [
+        "5-news-sentiment-skipped-honestly"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-composite-smart-money-reading-fixture-per-stor-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-save-state-for-nb05-track-b",
+      "title": "7. Save state for NB05 (Track B)",
+      "kind": "state",
+      "cells": [
+        18,
+        19
+      ],
+      "depends_on": [
+        "6-composite-smart-money-reading-fixture-per-stor"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        20
+      ],
+      "depends_on": [
+        "7-save-state-for-nb05-track-b"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio_yfinance/04:fixture",
+    "portfolio_yfinance/04:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

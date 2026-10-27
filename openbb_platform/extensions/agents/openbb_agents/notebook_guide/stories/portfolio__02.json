@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/02",
+  "family": "portfolio/02",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+  "source_sha256": "b21477fd232fb7eed525e7663c78ac6c3a16394cb6e2ef4bf8339da1de03c0bf",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-why-start-with-one-name",
+      "title": "0. Why start with one name",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:analytics",
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "0-why-start-with-one-name-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "reading-the-7-phase-map-the-whole-thesis-before",
+      "title": "Reading the 7-phase map \u2014 the whole thesis before we zoom in",
+      "kind": "narrative",
+      "cells": [
+        8,
+        9
+      ],
+      "depends_on": [
+        "0-why-start-with-one-name"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "reading-the-7-phase-map-the-whole-thesis-before-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-phase-1-company",
+      "title": "1. Phase 1 \u2014 Company",
+      "kind": "analysis",
+      "cells": [
+        10,
+        11,
+        12
+      ],
+      "depends_on": [
+        "reading-the-7-phase-map-the-whole-thesis-before"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-phase-1-company-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-phase-2-fundamentals",
+      "title": "2. Phase 2 \u2014 Fundamentals",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14,
+        15
+      ],
+      "depends_on": [
+        "1-phase-1-company"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-phase-2-fundamentals-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-phase-3-technicals",
+      "title": "3. Phase 3 \u2014 Technicals",
+      "kind": "analysis",
+      "cells": [
+        16,
+        17,
+        18
+      ],
+      "depends_on": [
+        "2-phase-2-fundamentals"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-phase-3-technicals-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-phase-4-valuation",
+      "title": "4. Phase 4 \u2014 Valuation",
+      "kind": "analysis",
+      "cells": [
+        19,
+        20,
+        21
+      ],
+      "depends_on": [
+        "3-phase-3-technicals"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-phase-4-valuation-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-phase-5-risk",
+      "title": "5. Phase 5 \u2014 Risk",
+      "kind": "analysis",
+      "cells": [
+        22,
+        23,
+        24
+      ],
+      "depends_on": [
+        "4-phase-4-valuation"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-phase-5-risk-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-phase-6-peer-relative",
+      "title": "6. Phase 6 \u2014 Peer-relative",
+      "kind": "analysis",
+      "cells": [
+        25,
+        26
+      ],
+      "depends_on": [
+        "5-phase-5-risk"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-phase-6-peer-relative-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-phase-7-composite-decision",
+      "title": "7. Phase 7 \u2014 Composite decision",
+      "kind": "analysis",
+      "cells": [
+        27,
+        28,
+        29
+      ],
+      "depends_on": [
+        "6-phase-6-peer-relative"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-phase-7-composite-decision-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-regime-overlay-same-symbol-hostile-regime",
+      "title": "8. Regime overlay \u2014 same {SYMBOL}, hostile regime",
+      "kind": "analysis",
+      "cells": [
+        30,
+        31,
+        32
+      ],
+      "depends_on": [
+        "7-phase-7-composite-decision"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-regime-overlay-same-symbol-hostile-regime-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-what-the-pipeline-hands-to-nb05",
+      "title": "9. What the pipeline hands to NB05",
+      "kind": "state",
+      "cells": [
+        33,
+        34
+      ],
+      "depends_on": [
+        "8-regime-overlay-same-symbol-hostile-regime"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-which-fetchers-ran-under-the-hood",
+      "title": "10. Which fetchers ran under the hood",
+      "kind": "analysis",
+      "cells": [
+        35,
+        36
+      ],
+      "depends_on": [
+        "9-what-the-pipeline-hands-to-nb05"
+      ],
+      "capabilities": [
+        "story:provider_modes"
+      ],
+      "inputs": [],
+      "outputs": [
+        "10-which-fetchers-ran-under-the-hood-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "11-reproducibility-discipline",
+      "title": "11. Reproducibility discipline",
+      "kind": "analysis",
+      "cells": [
+        37,
+        38
+      ],
+      "depends_on": [
+        "10-which-fetchers-ran-under-the-hood"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "11-reproducibility-discipline-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "12-loud-empty-demonstration",
+      "title": "12. Loud-empty demonstration",
+      "kind": "analysis",
+      "cells": [
+        39,
+        40
+      ],
+      "depends_on": [
+        "11-reproducibility-discipline"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "12-loud-empty-demonstration-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        41
+      ],
+      "depends_on": [
+        "12-loud-empty-demonstration"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        42,
+        43
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/02:fixture",
+    "portfolio/02:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

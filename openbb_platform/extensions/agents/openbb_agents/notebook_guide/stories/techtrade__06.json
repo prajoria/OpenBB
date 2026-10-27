@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "story_id": "techtrade/06",
+  "family": "techtrade/06",
+  "variant": "techtrade",
+  "notebook_path": "notebooks/techtrade/06-audit-and-replay.ipynb",
+  "source_sha256": "02a38e0bb8a67a8e697b55afb3e3a2f8b4ee204b62b6193405d1205a7f445fa4",
+  "stages": [
+    {
+      "id": "the-question-this-notebook-answers",
+      "title": "The question this notebook answers",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "the-question-this-notebook-answers-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-setup-find-a-workbook-to-audit",
+      "title": "1. Setup + find a workbook to audit",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3,
+        4
+      ],
+      "depends_on": [
+        "the-question-this-notebook-answers"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-setup-find-a-workbook-to-audit-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-load-the-recommendations",
+      "title": "2. Load the recommendations",
+      "kind": "artifact",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "1-setup-find-a-workbook-to-audit"
+      ],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-load-the-recommendations-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-replay-against-actual-forward-bars",
+      "title": "3. Replay against actual forward bars",
+      "kind": "retrieval",
+      "cells": [
+        7,
+        8,
+        9
+      ],
+      "depends_on": [
+        "2-load-the-recommendations"
+      ],
+      "capabilities": [
+        "platform:equity_price_historical"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-replay-against-actual-forward-bars-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-summary-statistics",
+      "title": "4. Summary statistics",
+      "kind": "analysis",
+      "cells": [
+        10,
+        11
+      ],
+      "depends_on": [
+        "3-replay-against-actual-forward-bars"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-summary-statistics-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-breakdown-by-conviction",
+      "title": "5. Breakdown by conviction",
+      "kind": "analysis",
+      "cells": [
+        12,
+        13,
+        14
+      ],
+      "depends_on": [
+        "4-summary-statistics"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-breakdown-by-conviction-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-the-journal-entry",
+      "title": "6. The journal entry",
+      "kind": "analysis",
+      "cells": [
+        15,
+        16
+      ],
+      "depends_on": [
+        "5-breakdown-by-conviction"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-the-journal-entry-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-the-deviation-log-manual",
+      "title": "7. The deviation log (manual)",
+      "kind": "analysis",
+      "cells": [
+        17,
+        18
+      ],
+      "depends_on": [
+        "6-the-journal-entry"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-the-deviation-log-manual-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-the-closing-question",
+      "title": "8. The closing question",
+      "kind": "narrative",
+      "cells": [
+        19
+      ],
+      "depends_on": [
+        "7-the-deviation-log-manual"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "8-the-closing-question-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "techtrade/06:fixture",
+    "techtrade/06:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

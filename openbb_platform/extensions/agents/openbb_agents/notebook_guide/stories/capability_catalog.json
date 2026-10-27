@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "entries": {
+    "platform:backtest_bundle_ingest": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "backtest_bundle_ingest",
+        "schema_sha256": "1d104ec8e749faee0d365e894d53cb2f590aebfd5089ef2492ad72fe087b4f6e",
+        "access": "analysis"
+      }
+    },
+    "platform:backtest_factor_eval": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "backtest_factor_eval",
+        "schema_sha256": "de1e0ab57286dd16d22d6cc125a4498b12990eeb469b8170b4dbcc6940c2798f",
+        "access": "analysis"
+      }
+    },
+    "platform:backtest_run": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "backtest_run",
+        "schema_sha256": "8bb0a53c820064bed8e22d34325b81eecf88670b269e8b5818d5b48e2a25504c",
+        "access": "analysis"
+      }
+    },
+    "platform:backtest_sweep": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "backtest_sweep",
+        "schema_sha256": "10c078f31dd87cd4bc67be554ed6a590ebdaf74042143c951c88ab85e667c795",
+        "access": "analysis"
+      }
+    },
+    "platform:backtest_tearsheet": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "backtest_tearsheet",
+        "schema_sha256": "bd8055942b0bcb871e9e82a2e33fe78a9ba319c60881434cd31b696c2c26b038",
+        "access": "analysis"
+      }
+    },
+    "platform:backtest_validate": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "backtest_validate",
+        "schema_sha256": "bd44ef61e97b29389fe9c771c7bea86b91093ca11cd2d40a254aacfc74442fe3",
+        "access": "analysis"
+      }
+    },
+    "platform:derivatives_options_chains": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "derivatives_options_chains",
+        "schema_sha256": "18e0fec427da4e27032e2b3052cd93bf09a89f6871504d8e70c46afd164cd69b",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_compare_peers": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_compare_peers",
+        "schema_sha256": "bccde023bffb72fbb2b7e775bf63862bcee19abb923d1e7cd92a6ef6a3772a7f",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_estimates_consensus": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_estimates_consensus",
+        "schema_sha256": "a53ed22fa66e4f78de1f6384a5cabc55e9dc823d590b7e06038901446a5e8c5b",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_balance": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_balance",
+        "schema_sha256": "75047daab2adca8d310ba54edeee2a2249bad8bb2434ff1568b56d129871afee",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_cash": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_cash",
+        "schema_sha256": "67744d9d6a0f7832ed6a2e045fd4c4db4cdedcfa9931ca31955d4cbe6649f3fd",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_dividends": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_dividends",
+        "schema_sha256": "ba45083cef294e6df1bac0e6fad5638b3f67ccc874f4cdf3e7017bfac0e0ab6f",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_filings": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_filings",
+        "schema_sha256": "4c0a4f9149f54b9138a3152b17e6b55678d7fee9ee01a8103f0565bd9c9d6f24",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_income": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_income",
+        "schema_sha256": "a30cd4e7a1a5092725081da7bb66a6646930ea4f370f8731a58df300f407b05a",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_metrics": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_metrics",
+        "schema_sha256": "397b85cd12aa8e802a57c23cf9f8275f34e646a1d1187dbd0527d74ac02183e6",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_fundamental_ratios": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_fundamental_ratios",
+        "schema_sha256": "9ca607fe0ed28c5ea13a9aa17b692d2606b3ed2cff1776a47a5b6ffc921a50b0",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_ownership_form_13f": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_ownership_form_13f",
+        "schema_sha256": "5d18b0d854e54981088e08cb8036e2420cf817667c63e51e57a2f6517569bcd2",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_ownership_insider_trading": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_ownership_insider_trading",
+        "schema_sha256": "0f53496ffe39faac0c244bcf5dcc71f4e0ce6b1acd17184562e267bea83ddbb1",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_ownership_institutional": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_ownership_institutional",
+        "schema_sha256": "badad6ba784ea167eacb3b2e07e6f9b74634d5cfe0202480c38acf3cc08e1877",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_price_historical": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_price_historical",
+        "schema_sha256": "74c13f3b4791c2e2a2ad6317259a489a92721dd09b2a4b37beeef80d372fd0ad",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_price_quote": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_price_quote",
+        "schema_sha256": "3588252a1c2805a0d6f2dc630a6d1ca23714a98384d90be1ebe8f8b26ceccdbc",
+        "access": "provider_read"
+      }
+    },
+    "platform:equity_profile": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "equity_profile",
+        "schema_sha256": "795bd5980ba7a79ff636a1e0fa80d9554d0a79355061eb3ba886b492e34f3432",
+        "access": "provider_read"
+      }
+    },
+    "platform:etf_holdings": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "etf_holdings",
+        "schema_sha256": "f4f0091d6cc7163065b38685b8b49a2e15af90fd75fccdaba4227a6170a2804a",
+        "access": "provider_read"
+      }
+    },
+    "platform:etf_nport_disclosure": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "etf_nport_disclosure",
+        "schema_sha256": "42ff1467077f0927fa375c8493db5ca6e1d8253fe3840ac4e5d68f20c03bba8d",
+        "access": "provider_read"
+      }
+    },
+    "platform:news_company": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "news_company",
+        "schema_sha256": "9fa32b663e5a8c1899d3f3df278df00f2fdda991690ec9fce4d39f4f791222ce",
+        "access": "provider_read"
+      }
+    },
+    "platform:portfolio_intel_events_timeline": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "portfolio_intel_events_timeline",
+        "schema_sha256": "0d888046d26d5d9b3b3a51cbf306dfa0ff1cf9fcfae586bd7a52e125041c9e4f",
+        "access": "analysis"
+      }
+    },
+    "platform:portfolio_intel_risk_metrics": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "portfolio_intel_risk_metrics",
+        "schema_sha256": "e7ec555efc995b7eb521aff089404068d6fb634caced7f663b04da51edfeb941",
+        "access": "analysis"
+      }
+    },
+    "platform:portfolio_intel_smart_money_rollup": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "portfolio_intel_smart_money_rollup",
+        "schema_sha256": "5a5a1da82c8c4960a215cb0750c135a6cbcddea306cf434cbf872f219cd2614d",
+        "access": "analysis"
+      }
+    },
+    "platform:regulators_sec_institutions_search": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "regulators_sec_institutions_search",
+        "schema_sha256": "59b2779e1be358f092eea14663fe9d606fc12e4bd7158f12177455814c0695dd",
+        "access": "provider_read"
+      }
+    },
+    "platform:techtrade_about": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_about",
+        "schema_sha256": "c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_export": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_export",
+        "schema_sha256": "8979fe42b059854bea76aa313bf97c9fee66ea913f020a4fcef53e27202ee89a",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_movers": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_movers",
+        "schema_sha256": "5dd17556edbca2885ca5610985e66468ee6f7cdd0cb4aa1c2db9f3308e8db207",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_orders": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_orders",
+        "schema_sha256": "072f145b0b5f7e80d7c402fcdec19112d3ab201f0d88529f0945f8bd8d6a137e",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_plan": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_plan",
+        "schema_sha256": "87f6ed3dde5af97f1b8a1b42262c462af1709cd92e6ac1f1fa0575cecdbf11bf",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_scan": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_scan",
+        "schema_sha256": "7dcb0d7dc18fd867bcc2aa915c05381cb5b2f60551f0cde6e033c1ae4574921e",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_segments": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_segments",
+        "schema_sha256": "e7cb7df644a695270eac09343d94b8607b709e42f4c2f49ccfc7801cbd8e1b22",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_signals": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_signals",
+        "schema_sha256": "89ef34d24a77ab1f679bad2a99f976ad954975f3d906c83a1363582e6ae9d95e",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_simulate": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_simulate",
+        "schema_sha256": "268cbba6964ab6648d792a36ab3ee37759bd0ab4da6d7e34bd5d129d0dd0aba4",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_tune": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_tune",
+        "schema_sha256": "17a2ffb6df6edb1f6b00fced948985535aee83b9ba6c775dd8ee909f6bf99950",
+        "access": "analysis"
+      }
+    },
+    "platform:techtrade_validate": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "techtrade_validate",
+        "schema_sha256": "e405ebe4da6fb57a63d3595d3c7c59fd4936d376e64c025e3882994d13b7f6dd",
+        "access": "analysis"
+      }
+    },
+    "story:analytics": {
+      "status": "planned",
+      "access": "analysis",
+      "owner_issue": 2215,
+      "summary": "Notebook-local calculations and engines exposed through owned adapters (N05)."
+    },
+    "story:artifacts": {
+      "status": "planned",
+      "access": "artifact",
+      "owner_issue": 2217,
+      "summary": "Bounded chart, table, report and XLSX artifacts (N07)."
+    },
+    "story:binding_review": {
+      "status": "planned",
+      "access": "analysis",
+      "owner_issue": 2214,
+      "summary": "Behaviour whose MCP binding must be decided during readiness review (N04)."
+    },
+    "story:jobs": {
+      "status": "planned",
+      "access": "analysis",
+      "owner_issue": 2218,
+      "summary": "Backtest, tuning and replay through existing durable jobs (N08)."
+    },
+    "story:paper": {
+      "status": "planned",
+      "access": "paper",
+      "owner_issue": 2219,
+      "summary": "Portfolio and TechTrade paper actions in an approved sandbox (N09)."
+    },
+    "story:provider_modes": {
+      "status": "planned",
+      "access": "provider_read",
+      "owner_issue": 2220,
+      "summary": "Provider variants, recording and truthful cache semantics (N10)."
+    },
+    "story:state": {
+      "status": "planned",
+      "access": "analysis",
+      "owner_issue": 2216,
+      "summary": "Typed story state and cross-chapter handoffs instead of pickle files (N06)."
+    }
+  }
+}

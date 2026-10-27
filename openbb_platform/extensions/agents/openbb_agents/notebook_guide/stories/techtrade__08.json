@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "story_id": "techtrade/08",
+  "family": "techtrade/08",
+  "variant": "techtrade",
+  "notebook_path": "notebooks/techtrade/08-t5-paper-trading-engine-walkthrough.ipynb",
+  "source_sha256": "544626a9891f564da525b98ae443412a7d05ba16bea126937ea1531981394603",
+  "stages": [
+    {
+      "id": "what-this-notebook-covers",
+      "title": "What this notebook covers",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-this-notebook-covers-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-motivation",
+      "title": "1. Motivation",
+      "kind": "narrative",
+      "cells": [
+        2
+      ],
+      "depends_on": [
+        "what-this-notebook-covers"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "1-motivation-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-opening-the-engine",
+      "title": "2. Opening the engine",
+      "kind": "paper",
+      "cells": [
+        3,
+        4
+      ],
+      "depends_on": [
+        "1-motivation"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-opening-the-engine-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-submit-a-batch-pending-orders",
+      "title": "3. Submit a batch \u2192 PENDING orders",
+      "kind": "paper",
+      "cells": [
+        5,
+        6,
+        7
+      ],
+      "depends_on": [
+        "2-opening-the-engine"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-submit-a-batch-pending-orders-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-record-a-full-fill-on-order-1-filled",
+      "title": "4. Record a full fill on order 1 \u2192 FILLED",
+      "kind": "analysis",
+      "cells": [
+        8,
+        9
+      ],
+      "depends_on": [
+        "3-submit-a-batch-pending-orders"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-record-a-full-fill-on-order-1-filled-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-partial-fill-on-order-2-partial-then-filled",
+      "title": "5. Partial fill on order 2 \u2192 PARTIAL, then FILLED",
+      "kind": "analysis",
+      "cells": [
+        10,
+        11
+      ],
+      "depends_on": [
+        "4-record-a-full-fill-on-order-1-filled"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-partial-fill-on-order-2-partial-then-filled-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-cancel-order-3-cancelled-then-idempotent",
+      "title": "6. Cancel order 3 \u2192 CANCELLED, then idempotent",
+      "kind": "paper",
+      "cells": [
+        12,
+        13
+      ],
+      "depends_on": [
+        "5-partial-fill-on-order-2-partial-then-filled"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-cancel-order-3-cancelled-then-idempotent-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-fifo-realized-p-l-a-two-lot-close",
+      "title": "7. FIFO realized P&L \u2014 a two-lot close",
+      "kind": "analysis",
+      "cells": [
+        14,
+        15
+      ],
+      "depends_on": [
+        "6-cancel-order-3-cancelled-then-idempotent"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-fifo-realized-p-l-a-two-lot-close-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-loud-rejection-matrix",
+      "title": "8. Loud rejection matrix",
+      "kind": "analysis",
+      "cells": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "depends_on": [
+        "7-fifo-realized-p-l-a-two-lot-close"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-loud-rejection-matrix-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-persistence-across-process-restart",
+      "title": "9. Persistence across process restart",
+      "kind": "analysis",
+      "cells": [
+        23,
+        24
+      ],
+      "depends_on": [
+        "8-loud-rejection-matrix"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "9-persistence-across-process-restart-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-what-s-next",
+      "title": "10. What's next",
+      "kind": "narrative",
+      "cells": [
+        25
+      ],
+      "depends_on": [
+        "9-persistence-across-process-restart"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "10-what-s-next-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "techtrade/08:fixture",
+    "techtrade/08:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

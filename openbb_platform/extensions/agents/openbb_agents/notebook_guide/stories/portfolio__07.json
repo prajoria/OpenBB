@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/07",
+  "family": "portfolio/07",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/07-offline-recording-and-end-to-end.ipynb",
+  "source_sha256": "982cf597d77ae9aa9ae40b0a46263b48ab0cf58434d2ca4a2aad0e2671e7df49",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "artifact",
+      "cells": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "depends_on": [],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-why-offline",
+      "title": "1. Why offline",
+      "kind": "narrative",
+      "cells": [
+        5
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "1-why-offline-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-scrape-record-the-framework",
+      "title": "2. `scrape_record` \u2014 the framework",
+      "kind": "analysis",
+      "cells": [
+        6,
+        7
+      ],
+      "depends_on": [
+        "1-why-offline"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-scrape-record-the-framework-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-path-traversal-defense-a-security-aside",
+      "title": "3. Path-traversal defense \u2014 a security aside",
+      "kind": "narrative",
+      "cells": [
+        8
+      ],
+      "depends_on": [
+        "2-scrape-record-the-framework"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "3-path-traversal-defense-a-security-aside-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-portfolio-export-the-sibling-tool",
+      "title": "4. `portfolio_export` \u2014 the sibling tool",
+      "kind": "narrative",
+      "cells": [
+        9
+      ],
+      "depends_on": [
+        "3-path-traversal-defense-a-security-aside"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "4-portfolio-export-the-sibling-tool-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-the-monday-morning-routine-end-to-end",
+      "title": "5. The Monday-morning routine \u2014 end to end",
+      "kind": "job",
+      "cells": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "depends_on": [
+        "4-portfolio-export-the-sibling-tool"
+      ],
+      "capabilities": [
+        "platform:backtest_run",
+        "story:analytics",
+        "story:artifacts",
+        "story:jobs",
+        "story:state"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio/06",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-the-widget-map",
+      "title": "6. The widget map",
+      "kind": "narrative",
+      "cells": [
+        15
+      ],
+      "depends_on": [
+        "5-the-monday-morning-routine-end-to-end"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "6-the-widget-map-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-where-to-go-next",
+      "title": "7. Where to go next",
+      "kind": "narrative",
+      "cells": [
+        16
+      ],
+      "depends_on": [
+        "6-the-widget-map"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "7-where-to-go-next-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-what-sam-thinks-now-closing",
+      "title": "8. What Sam thinks now (closing)",
+      "kind": "narrative",
+      "cells": [
+        17
+      ],
+      "depends_on": [
+        "7-where-to-go-next"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "8-what-sam-thinks-now-closing-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        18
+      ],
+      "depends_on": [
+        "8-what-sam-thinks-now-closing"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        19
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/07:fixture",
+    "portfolio/07:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

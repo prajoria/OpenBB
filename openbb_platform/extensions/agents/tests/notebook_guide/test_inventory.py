@@ -1,5 +1,7 @@
 """Source-only notebook story inventory contracts (#2211, N01)."""
 
+# pylint: disable=redefined-outer-name,wrong-import-position
+
 import csv
 import json
 import re
@@ -35,7 +37,7 @@ def _write_notebook(path: Path, cells: list[dict]) -> None:
 
 @pytest.fixture
 def notebook_factory(tmp_path):
-    """Write one synthetic notebook whose outputs and metadata vary freely."""
+    """Return a factory writing one notebook whose outputs and metadata vary."""
 
     def factory(
         output: str = "saved-output",
