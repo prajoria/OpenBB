@@ -326,28 +326,25 @@ def _declared_tools(prompt: dict) -> set[str]:
 
 
 def _platform_reference() -> dict:
-    """Return the committed Platform command reference (all extensions)."""
+    """Return the full-Platform command snapshot.
+
+    ``openbb.build()`` rewrites ``core/openbb/assets/reference.json`` for the
+    installed extensions only, so CI's minimal install would hide real tools.
+    The fixture keeps the committed full reference's names.
+    """
     # pylint: disable=import-outside-toplevel
     from pathlib import Path
 
-    path = Path(__file__).parents[4] / "core" / "openbb" / "assets" / "reference.json"
+    path = Path(__file__).parents[1] / "fixtures" / "platform_command_reference.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _reference_tools() -> set[str]:
-    return {
-        path.strip("/").replace("/", "_") for path in _platform_reference()["paths"]
-    }
+    return set(_platform_reference()["tools"])
 
 
 def _reference_providers() -> set[str]:
-    providers = set()
-    for command in _platform_reference()["paths"].values():
-        for section in ("parameters", "data"):
-            providers.update(
-                name for name in command.get(section, {}) if name != "standard"
-            )
-    return providers
+    return set(_platform_reference()["providers"])
 
 
 def _package_installed(distribution: str) -> bool:
