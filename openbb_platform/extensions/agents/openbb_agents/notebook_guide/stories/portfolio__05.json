@@ -64,7 +64,7 @@
         "1-load-state-from-nb03-nb04"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_candidate_trades"
       ],
       "inputs": [],
       "outputs": [
@@ -75,7 +75,7 @@
     {
       "id": "3-what-if-diff-pr-905-https-github-com-prajoria",
       "title": "3. What-if diff \u2014 PR [#905](https://github.com/prajoria/OpenBB/issues/905)",
-      "kind": "retrieval",
+      "kind": "analysis",
       "cells": [
         9,
         10
@@ -84,7 +84,8 @@
         "2-the-three-candidate-trades-in-english-first"
       ],
       "capabilities": [
-        "platform:equity_price_quote"
+        "platform:equity_price_quote",
+        "platform:story_whatif_diff"
       ],
       "inputs": [],
       "outputs": [
@@ -104,7 +105,7 @@
         "3-what-if-diff-pr-905-https-github-com-prajoria"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_whatif_diff"
       ],
       "inputs": [],
       "outputs": [
@@ -124,7 +125,7 @@
         "4-reading-a-what-if"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_brinson_attribution"
       ],
       "inputs": [],
       "outputs": [

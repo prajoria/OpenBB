@@ -112,17 +112,17 @@ Gross denominators at this baseline, counting every stage:
 | --- | ---: |
 | Stories / ready stories | 25 / 0 |
 | Stages | 287 |
-| Setup and narrative stages (no capability needed) | 93 |
-| Stages doing financial work | 194 |
-| Of those, runnable on existing MCP tools | 66 |
-| Stages waiting on a planned bridge | 128 |
+| Setup and narrative stages (no capability needed) | 95 |
+| Stages doing financial work | 192 |
+| Of those, runnable on existing MCP tools | 72 |
+| Stages waiting on a planned bridge | 120 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
 
 | Owner | Bridge | Needs |
 | --- | --- | ---: |
-| #2215 (N05) | Notebook analytics through owned engine adapters | 70 |
+| #2215 (N05) | Notebook analytics through owned engine adapters | 62 |
 | #2217 (N07) | Chart, table, report and XLSX artifacts | 16 |
 | #2216 (N06) | Typed story state and cross-chapter handoffs | 14 |
 | #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 13 |
@@ -148,6 +148,13 @@ provenance. It binds the portfolio chapter 2 walk-through (including the
 regime overlay and the bad-symbol check) and the chapter 8 spot check. The
 TechTrade chapter 1 and Portfolio chapter 7 stages that also do other local
 work bind it too, but still need N05 for the rest.
+
+N05c (#2315) added `story_brinson_attribution`, `story_whatif_diff` and
+`story_candidate_trades` for the Portfolio chapter 5 what-if and attribution
+walk-through in both provider variants. Unlike the notebook, the what-if diff
+never substitutes a $100 price for a missing quote. Review also reclassified
+two chapter 4 stages that only illustrate a smart-money signal's shape as
+narrative, which is why the financial-stage count fell by two.
 
 No story is ready yet, which is the expected state before the N05–N10
 bridges land. These figures are stage outcomes, not an API-count parity

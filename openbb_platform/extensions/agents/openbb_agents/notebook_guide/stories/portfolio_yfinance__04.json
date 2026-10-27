@@ -167,7 +167,7 @@
     {
       "id": "6-composite-smart-money-reading-fixture-per-stor",
       "title": "6. Composite smart-money reading \u2014 fixture per STORY_BIBLE \u00a73",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         16,
         17
@@ -175,9 +175,7 @@
       "depends_on": [
         "5-news-sentiment-skipped-honestly"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "6-composite-smart-money-reading-fixture-per-stor-result"

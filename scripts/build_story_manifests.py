@@ -124,6 +124,9 @@ _SECTORS = "platform:story_basket_sector_view"
 _CONCENTRATION = "platform:story_concentration"
 _CONSTRUCTION = "platform:story_construction_targets"
 _SINGLE_NAME = "platform:story_single_name_analysis"
+_BRINSON = "platform:story_brinson_attribution"
+_WHATIF = "platform:story_whatif_diff"
+_TRADES = "platform:story_candidate_trades"
 # Reviewed in N05a (#2313): stages whose notebook-local x-ray math the server
 # computes. (story_id, stage_id) -> (tools, residual). ``residual`` keeps
 # story:analytics when part of the stage still has no tool: the free-tier
@@ -210,6 +213,54 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
         (_SINGLE_NAME,),
         True,
     ),
+    # Reviewed in N05c (#2315): the what-if and attribution chapter in both
+    # provider variants.
+    **{
+        (story, stage): (tools, False)
+        for story, stage, tools in (
+            (
+                "portfolio/05",
+                "2-the-three-candidate-trades-in-english-first",
+                (_TRADES,),
+            ),
+            (
+                "portfolio/05",
+                "3-what-if-diff-pr-905-https-github-com-prajoria",
+                (_WHATIF,),
+            ),
+            ("portfolio/05", "4-reading-a-what-if", (_WHATIF,)),
+            (
+                "portfolio/05",
+                "5-brinson-attribution-where-did-my-returns-come",
+                (_BRINSON,),
+            ),
+            (
+                "portfolio_yfinance/05",
+                "2-the-three-candidate-trades-in-english-first",
+                (_TRADES,),
+            ),
+            (
+                "portfolio_yfinance/05",
+                "3-what-if-diff-weight-space-arithmetic-free-only",
+                (_WHATIF,),
+            ),
+            (
+                "portfolio_yfinance/05",
+                "4-brinson-fachler-attribution-synthetic-referenc",
+                (_BRINSON,),
+            ),
+            # The smart-money rollup is already a Platform tool; its labelled
+            # fixture fallback and the worked examples only illustrate the
+            # signal's shape, so they need no capability.
+            ("portfolio/04", "4-smart-money-rollup-obb-portfolio-intel-smart-m", ()),
+            ("portfolio/04", "5-reading-a-single-name-signal", ()),
+            (
+                "portfolio_yfinance/04",
+                "6-composite-smart-money-reading-fixture-per-stor",
+                (),
+            ),
+        )
+    },
 }
 
 KIND_BY_CAPABILITY = {
@@ -229,6 +280,9 @@ ANALYSIS_TOOL_PREFIXES = (
     "story_concentration",
     "story_construction_",
     "story_single_name_",
+    "story_brinson_",
+    "story_whatif_",
+    "story_candidate_",
 )
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
 # Imports whose stage is an opt-in personal-data step, never mandatory.
@@ -339,6 +393,8 @@ def _stage_needs(
 
 
 def _stage_kind(capabilities: set[str]) -> str:
+    if not capabilities:
+        return "narrative"
     kinds = {_capability_kind(c) for c in capabilities}
     return next(k for k in KIND_PRIORITY if k in kinds)
 

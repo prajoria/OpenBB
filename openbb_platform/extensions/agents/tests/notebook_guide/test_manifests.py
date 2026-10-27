@@ -216,6 +216,11 @@ def _stage(manifest, prefix):
         ("portfolio/02", "7-", "platform:story_single_name_analysis"),
         ("portfolio/02", "8-", "platform:story_single_name_analysis"),
         ("portfolio/08", "7-", "platform:story_single_name_analysis"),
+        ("portfolio/05", "2-", "platform:story_candidate_trades"),
+        ("portfolio/05", "4-", "platform:story_whatif_diff"),
+        ("portfolio/05", "5-", "platform:story_brinson_attribution"),
+        ("portfolio_yfinance/05", "2-", "platform:story_candidate_trades"),
+        ("portfolio_yfinance/05", "4-", "platform:story_brinson_attribution"),
     ],
 )
 def test_reviewed_xray_stages_bind_to_story_analytics_tools(
@@ -262,3 +267,22 @@ def test_mixed_single_name_stages_keep_their_residual(manifests, story_id, stage
     bound = _stage(manifests[story_id], stage)
     assert "platform:story_single_name_analysis" in bound.capabilities
     assert "story:analytics" in bound.capabilities
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage"),
+    [("portfolio/04", "5-"), ("portfolio_yfinance/04", "6-")],
+)
+def test_illustrative_fixture_stages_need_no_capability(manifests, story_id, stage):
+    """Worked examples of a signal's shape are narrative, not analytics."""
+    bound = _stage(manifests[story_id], stage)
+    assert bound.capabilities == []
+    assert bound.kind == "narrative"
+
+
+def test_the_what_if_stage_binds_its_arithmetic(manifests):
+    """The what-if diff stage was bound only to quotes; its math is a tool now."""
+    bound = _stage(manifests["portfolio/05"], "3-")
+    assert {"platform:equity_price_quote", "platform:story_whatif_diff"} <= set(
+        bound.capabilities
+    )

@@ -792,6 +792,11 @@ def _compose_profile_adapters(
         )
 
         source_app = compose_single_name_app(source_app)
+        from openbb_mcp_server.story_adapters.attribution import (  # pylint: disable=import-outside-toplevel
+            compose_attribution_app,
+        )
+
+        source_app = compose_attribution_app(source_app)
         if principal:
             # Story runs are scoped to the server's one effective credential.
             from openbb_mcp_server.story_adapters.registry import (  # pylint: disable=import-outside-toplevel
