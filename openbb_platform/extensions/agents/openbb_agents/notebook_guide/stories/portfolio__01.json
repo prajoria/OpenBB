@@ -145,7 +145,7 @@
     {
       "id": "5-the-through-line-basket",
       "title": "5. The through-line basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         17,
         18,
@@ -155,11 +155,12 @@
         "4-the-offline-snapshot-pattern-yfinance-without"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [
-        "5-the-through-line-basket-result"
+        "story_state"
       ],
       "optional": false
     },

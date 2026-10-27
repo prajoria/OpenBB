@@ -82,7 +82,7 @@
     {
       "id": "4-record-a-full-fill-on-order-1-filled",
       "title": "4. Record a full fill on order 1 \u2192 FILLED",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         8,
         9
@@ -91,7 +91,7 @@
         "3-submit-a-batch-pending-orders"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -102,7 +102,7 @@
     {
       "id": "5-partial-fill-on-order-2-partial-then-filled",
       "title": "5. Partial fill on order 2 \u2192 PARTIAL, then FILLED",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         10,
         11
@@ -111,7 +111,7 @@
         "4-record-a-full-fill-on-order-1-filled"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -142,7 +142,7 @@
     {
       "id": "7-fifo-realized-p-l-a-two-lot-close",
       "title": "7. FIFO realized P&L \u2014 a two-lot close",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         14,
         15
@@ -151,7 +151,7 @@
         "6-cancel-order-3-cancelled-then-idempotent"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -162,7 +162,7 @@
     {
       "id": "8-loud-rejection-matrix",
       "title": "8. Loud rejection matrix",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         16,
         17,
@@ -176,7 +176,7 @@
         "7-fifo-realized-p-l-a-two-lot-close"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [
@@ -187,7 +187,7 @@
     {
       "id": "9-persistence-across-process-restart",
       "title": "9. Persistence across process restart",
-      "kind": "analysis",
+      "kind": "paper",
       "cells": [
         23,
         24
@@ -196,7 +196,7 @@
         "8-loud-rejection-matrix"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:paper"
       ],
       "inputs": [],
       "outputs": [

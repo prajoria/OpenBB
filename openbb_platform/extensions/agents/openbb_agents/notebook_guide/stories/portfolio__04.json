@@ -46,7 +46,7 @@
     {
       "id": "2-load-the-basket",
       "title": "2. Load the basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         6,
         7
@@ -55,7 +55,8 @@
         "1-why-events-smart-money-share-one-notebook"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -65,7 +66,7 @@
         }
       ],
       "outputs": [
-        "2-load-the-basket-result"
+        "story_state"
       ],
       "optional": false
     },
@@ -160,7 +161,8 @@
         "6-news-sentiment-overlay"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [

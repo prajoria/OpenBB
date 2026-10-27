@@ -243,7 +243,8 @@
         "8-regime-overlay-same-symbol-hostile-regime"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [
@@ -274,7 +275,7 @@
     {
       "id": "11-reproducibility-discipline",
       "title": "11. Reproducibility discipline",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         37,
         38
@@ -282,9 +283,7 @@
       "depends_on": [
         "10-which-fetchers-ran-under-the-hood"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "11-reproducibility-discipline-result"

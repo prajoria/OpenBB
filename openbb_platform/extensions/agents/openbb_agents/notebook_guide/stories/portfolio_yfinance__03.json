@@ -24,7 +24,7 @@
     {
       "id": "0-before-we-run-anything",
       "title": "0. Before we run anything",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         2,
         3
@@ -32,9 +32,7 @@
       "depends_on": [
         "where-we-are-in-sam-s-story"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "0-before-we-run-anything-result"
@@ -61,7 +59,7 @@
     {
       "id": "1-load-the-basket",
       "title": "1. Load the basket",
-      "kind": "analysis",
+      "kind": "state",
       "cells": [
         5,
         6
@@ -70,7 +68,8 @@
         "0-5-why-free-only-nb03-looks-different-from-trac"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -80,7 +79,7 @@
         }
       ],
       "outputs": [
-        "1-load-the-basket-result"
+        "story_state"
       ],
       "optional": false
     },
@@ -96,7 +95,7 @@
         "1-load-the-basket"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:provider_modes"
       ],
       "inputs": [],
       "outputs": [
@@ -136,7 +135,7 @@
         "3-the-x-ray-sec-n-port-look-through"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:provider_modes"
       ],
       "inputs": [],
       "outputs": [
@@ -207,7 +206,7 @@
     {
       "id": "8-silent-failure-guard-reader-facing-example",
       "title": "8. Silent-failure guard \u2014 reader-facing example",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         19,
         20
@@ -215,9 +214,7 @@
       "depends_on": [
         "7-concentration-top-k-weights-single-name-kill-s"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "8-silent-failure-guard-reader-facing-example-result"
@@ -236,7 +233,8 @@
         "8-silent-failure-guard-reader-facing-example"
       ],
       "capabilities": [
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [],
       "outputs": [

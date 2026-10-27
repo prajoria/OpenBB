@@ -25,7 +25,7 @@
     {
       "id": "0-before-we-run-anything",
       "title": "0. Before we run anything",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         3,
         4
@@ -33,9 +33,7 @@
       "depends_on": [
         "where-we-are-in-sam-s-story"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "0-before-we-run-anything-result"
@@ -71,7 +69,7 @@
         "0-5-why-free-only-nb07-looks-different-from-trac"
       ],
       "capabilities": [
-        "story:analytics"
+        "story:provider_modes"
       ],
       "inputs": [],
       "outputs": [
@@ -91,8 +89,9 @@
         "1-scrape-record-freshness-spot-check-optional"
       ],
       "capabilities": [
-        "story:artifacts",
-        "story:state"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get",
+        "story:artifacts"
       ],
       "inputs": [
         {
@@ -120,7 +119,6 @@
       "capabilities": [
         "platform:backtest_run",
         "platform:equity_price_quote",
-        "story:analytics",
         "story:jobs"
       ],
       "inputs": [],

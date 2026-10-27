@@ -379,6 +379,24 @@
         "access": "analysis"
       }
     },
+    "platform:story_run_checkpoint": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_run_checkpoint",
+        "schema_sha256": "f4788a8a81d670ab781587bb0fc37650b31b2fe43a7dd8e5e71664104a8ae46c",
+        "access": "analysis"
+      }
+    },
+    "platform:story_run_get": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_run_get",
+        "schema_sha256": "f42cab437be1dec517e3866869434365019de79211a3088cb114a54c6cdfc2f6",
+        "access": "analysis"
+      }
+    },
     "platform:story_single_name_analysis": {
       "status": "available",
       "ref": {
@@ -496,12 +514,6 @@
         "access": "analysis"
       }
     },
-    "story:analytics": {
-      "status": "planned",
-      "access": "analysis",
-      "owner_issue": 2215,
-      "summary": "Notebook-local calculations and engines exposed through owned adapters (N05)."
-    },
     "story:artifacts": {
       "status": "planned",
       "access": "artifact",
@@ -525,12 +537,6 @@
       "access": "provider_read",
       "owner_issue": 2220,
       "summary": "Provider variants, recording and truthful cache semantics (N10)."
-    },
-    "story:state": {
-      "status": "planned",
-      "access": "analysis",
-      "owner_issue": 2216,
-      "summary": "Typed story state and cross-chapter handoffs instead of pickle files (N06)."
     }
   }
 }

@@ -298,11 +298,6 @@ def test_corpus_summary_publishes_gross_denominators():
     ready = {m.story_id for m in manifests if check_readiness(m, catalog).ready}
     assert ready == {"techtrade/03"}
     assert summary["ready_stories"] == len(ready)
-    assert set(summary["planned_by_owner"]) == {
-        "#2215",
-        "#2216",
-        "#2217",
-        "#2218",
-        "#2219",
-        "#2220",
-    }
+    # N05 (#2215) and N06 (#2216) are drained: their stages are bound to
+    # delivered tools or reviewed onto the bridge that owns them (#2321).
+    assert set(summary["planned_by_owner"]) == {"#2217", "#2218", "#2219", "#2220"}
