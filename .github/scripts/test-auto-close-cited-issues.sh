@@ -80,6 +80,14 @@ case "$err" in
   *) check "10: failed PR lookup warns loudly" "warned" "silent: $err" ;;
 esac
 
+# GitHub keeps one pending run per concurrency group and cancels older
+# pending runs, so a ref-only group drops back-to-back merges (#2292).
+group=$(grep -E '^[[:space:]]+group:' "$SCRIPT_DIR/../workflows/portfolio-intel-auto-close-on-merge.yml")
+case "$group" in
+  *github.sha*) check "11: each push gets its own concurrency group" "per-sha" "per-sha" ;;
+  *) check "11: each push gets its own concurrency group" "per-sha" "$group" ;;
+esac
+
 echo
 echo "Results: $PASS passed, $FAIL failed"
 if [ "$FAIL" -gt 0 ]; then

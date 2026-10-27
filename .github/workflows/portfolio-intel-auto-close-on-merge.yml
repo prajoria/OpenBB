@@ -24,8 +24,12 @@ on:
       - portfolio
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false  # queue rather than cancel — each merge is its own auto-close
+  # One group per pushed commit (#2292). GitHub keeps only one pending run
+  # per group and cancels older pending ones, so a per-ref group drops the
+  # auto-close of back-to-back merges. Parallel runs are safe: each skips
+  # issues that are already closed.
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   auto-close-cited-issues:
