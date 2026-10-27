@@ -7,8 +7,12 @@ gate diagnostics and the provenance of the run. It never reduces the
 analysis to a single composite score.
 
 The pipeline is not copied. ``Analysis/`` is not a packaged distribution, so
-it is loaded from ``OPENBB_ANALYSIS_DIR`` or, by default, from the
-repository checkout this server runs from; without it the tool answers 503.
+it is loaded from ``OPENBB_ANALYSIS_DIR`` or, only when this server runs from
+a git checkout, from that checkout's ``Analysis/``. An installed server has
+no default. A module of the same name loaded from anywhere else is never
+reused, and on POSIX a group- or world-writable location is refused, so the
+server never executes code another user could have written. Without a
+usable pipeline the tool answers 503.
 Results are made strict JSON: frames return their columns, true row count
 and latest ``max_frame_rows`` rows (10 by default, at most 50; a full MSFT
 run with 50 is about 150 KiB), and NaN or infinity become ``null``. At most
@@ -26,6 +30,7 @@ import importlib.util
 import logging
 import math
 import os
+import stat
 import sys
 import threading
 from pathlib import Path
@@ -61,31 +66,76 @@ _SYMBOL = Annotated[
 _load_lock = threading.Lock()
 
 
-def default_analysis_dir() -> Path:
-    """Return ``OPENBB_ANALYSIS_DIR`` or the checkout's ``Analysis/``."""
+class PipelineUnavailable(RuntimeError):
+    """The Analysis pipeline cannot be loaded safely."""
+
+
+def default_analysis_dir(module_file: Path | None = None) -> Path | None:
+    """Return ``OPENBB_ANALYSIS_DIR``, else the git checkout's ``Analysis/``.
+
+    The fallback applies only when this module sits in a git checkout of the
+    repository; an installed server has no default location.
+    """
     configured = os.getenv(ANALYSIS_DIR_ENV)
     if configured:
         return Path(configured)
+    here = (module_file or Path(__file__)).resolve()
     # story_adapters -> openbb_mcp_server -> mcp_server -> extensions
     # -> openbb_platform -> repository root
-    return Path(__file__).resolve().parents[5] / "Analysis"
+    root = here.parents[5]
+    expected = (
+        root
+        / "openbb_platform"
+        / "extensions"
+        / "mcp_server"
+        / "openbb_mcp_server"
+        / "story_adapters"
+        / here.name
+    )
+    if (root / ".git").exists() and expected.resolve() == here:
+        return root / "Analysis"
+    return None
+
+
+def _check_not_writable_by_others(path: Path) -> None:
+    if os.name != "posix":
+        return
+    for target in (path.parent, path):
+        if target.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            raise PipelineUnavailable(
+                f"{target.name} is group- or world-writable; refusing to load it"
+            )
 
 
 def load_pipeline() -> ModuleType:
     """Return the ``stock_analysis`` module, loading it once if needed.
 
-    Raises :class:`FileNotFoundError` when the pipeline is not present.
+    Raises :class:`PipelineUnavailable` when the pipeline is absent, is
+    writable by other users, or a different module of that name is loaded.
     """
     with _load_lock:
+        directory = default_analysis_dir()
+        if directory is None:
+            raise PipelineUnavailable(
+                f"no Analysis pipeline location; set {ANALYSIS_DIR_ENV}"
+            )
+        path = (directory / f"{MODULE_NAME}.py").resolve()
         loaded = sys.modules.get(MODULE_NAME)
-        if loaded is not None and hasattr(loaded, "run_full_analysis"):
-            return loaded
-        path = default_analysis_dir() / f"{MODULE_NAME}.py"
+        if loaded is not None:
+            source = getattr(loaded, "__file__", None)
+            if source and Path(source).resolve() == path:
+                return loaded
+            raise PipelineUnavailable(
+                f"a different {MODULE_NAME} module is already loaded"
+            )
         if not path.is_file():
-            raise FileNotFoundError(path)
+            raise PipelineUnavailable(
+                f"{path.name} not found in the Analysis directory"
+            )
+        _check_not_writable_by_others(path)
         spec = importlib.util.spec_from_file_location(MODULE_NAME, path)
         if spec is None or spec.loader is None:
-            raise FileNotFoundError(path)
+            raise PipelineUnavailable(f"{path.name} cannot be imported")
         module = importlib.util.module_from_spec(spec)
         # Registered under the name the pipeline's own tests and notebooks
         # use, so there is one module identity and one logger.
@@ -230,11 +280,11 @@ class SingleNameResponse(BaseModel):
 def _run(request: SingleNameRequest) -> SingleNameResponse:
     try:
         module = load_pipeline()
-    except FileNotFoundError as exc:
+    except PipelineUnavailable as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "The Analysis pipeline (Analysis/stock_analysis.py) is not available "
-            f"to this server; set {ANALYSIS_DIR_ENV} to its directory.",
+            f"to this server: {exc}. Set {ANALYSIS_DIR_ENV} to its directory.",
         ) from exc
     flags = module.AnalysisFeatureFlags(**request.feature_flags)
     cfg = module.AnalysisConfig(

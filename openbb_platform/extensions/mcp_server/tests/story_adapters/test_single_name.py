@@ -12,8 +12,11 @@ import dataclasses
 import hashlib
 import json
 import math
+import os
+import sys
 import typing
 from pathlib import Path
+from types import ModuleType
 
 import pandas as pd
 import pytest
@@ -260,12 +263,71 @@ def test_a_stopped_pipeline_says_where(client, pipeline, monkeypatch):
 def test_a_missing_pipeline_is_unavailable(tmp_path, monkeypatch):
     """Without Analysis/ the tool says so instead of failing obscurely."""
     monkeypatch.setenv(single_name.ANALYSIS_DIR_ENV, str(tmp_path))
-    monkeypatch.delitem(__import__("sys").modules, "stock_analysis", raising=False)
+    monkeypatch.delitem(sys.modules, "stock_analysis", raising=False)
     response = TestClient(compose_single_name_app(FastAPI())).post(
         ROUTE, json={"symbol": "MSFT"}
     )
     assert response.status_code == 503
     assert "Analysis" in response.json()["detail"]
+
+
+def _fake_install(root: Path, *, git: bool) -> Path:
+    """Lay out ``root`` like a checkout (or an install) of this server."""
+    module = (
+        root
+        / "openbb_platform"
+        / "extensions"
+        / "mcp_server"
+        / "openbb_mcp_server"
+        / "story_adapters"
+        / "single_name.py"
+    )
+    module.parent.mkdir(parents=True)
+    module.write_text("", encoding="utf-8")
+    (root / "Analysis").mkdir()
+    (root / "Analysis" / "stock_analysis.py").write_text("", encoding="utf-8")
+    if git:
+        (root / ".git").mkdir()
+    return module
+
+
+def test_the_default_location_must_be_a_checkout(tmp_path, monkeypatch):
+    """Outside a verified checkout there is no default pipeline location."""
+    monkeypatch.delenv(single_name.ANALYSIS_DIR_ENV, raising=False)
+    installed = _fake_install(tmp_path / "site", git=False)
+    checkout = _fake_install(tmp_path / "repo", git=True)
+    assert single_name.default_analysis_dir(installed) is None
+    assert single_name.default_analysis_dir(checkout) == tmp_path / "repo" / "Analysis"
+
+
+def test_a_foreign_stock_analysis_module_is_refused(tmp_path, monkeypatch):
+    """A module of the same name loaded from elsewhere is never reused."""
+    impostor = ModuleType("stock_analysis")
+    impostor.__file__ = str(tmp_path / "stock_analysis.py")
+    impostor.run_full_analysis = lambda cfg, *, regime=None: {}
+    monkeypatch.setenv(single_name.ANALYSIS_DIR_ENV, str(ANALYSIS_DIR))
+    monkeypatch.setitem(sys.modules, "stock_analysis", impostor)
+    with pytest.raises(single_name.PipelineUnavailable, match="different"):
+        single_name.load_pipeline()
+    response = TestClient(compose_single_name_app(FastAPI())).post(
+        ROUTE, json={"symbol": "MSFT"}
+    )
+    assert response.status_code == 503
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits")
+@pytest.mark.parametrize("target", ["dir", "file"])
+def test_a_writable_pipeline_location_is_refused(tmp_path, monkeypatch, target):
+    """Code another user could have written is not executed."""
+    root = tmp_path / "Analysis"
+    root.mkdir()
+    source = root / "stock_analysis.py"
+    source.write_text("def run_full_analysis(cfg, *, regime=None):\n    return {}\n")
+    (root if target == "dir" else source).chmod(0o777 if target == "dir" else 0o666)
+    monkeypatch.setenv(single_name.ANALYSIS_DIR_ENV, str(root))
+    monkeypatch.delitem(sys.modules, "stock_analysis", raising=False)
+    with pytest.raises(single_name.PipelineUnavailable, match="writable"):
+        single_name.load_pipeline()
 
 
 def test_a_pipeline_failure_is_a_502(client, pipeline, monkeypatch):
