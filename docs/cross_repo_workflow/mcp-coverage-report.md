@@ -58,6 +58,11 @@ be summed as interchangeable tools or used to infer that optional packages,
 providers, databases, workers, browser sessions, or separate MCP processes are
 currently available.
 
+The program metrics (model reachability, persistence, disposition, invocation,
+and prompt-dependency coverage), the acceptance-criteria status, and the
+rollback proof for this release are in the
+[parity release record](../operations/portfolio-mcp-release.md).
+
 ## Approved exclusions and unavailable products
 
 The reviewed policy continues to deny or omit:
@@ -67,7 +72,9 @@ The reviewed policy continues to deny or omit:
 - private core paper state from public profiles;
 - success-shaped Intelligence stubs;
 - arbitrary jobs, scripts, SQL, cache invalidation, and MCP job cancellation;
-- caller-controlled document URL fetchers without complete SSRF hardening; and
+- caller-controlled document URL fetchers that lack SSRF hardening (the
+  hardened SEC, Congress, and weather-bulletin fetchers are admitted since
+  #2290); and
 - agent products that are documented as absent rather than synthesized from
   unrelated tools.
 

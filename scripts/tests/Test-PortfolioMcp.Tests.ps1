@@ -26,7 +26,7 @@ Describe "Portfolio MCP package replay contract" {
         $validateSet = $command.Parameters["Mode"].Attributes |
             Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
         @($validateSet.ValidValues) -join "," |
-            Should Be "protocol,package,workspace-no-browser,workspace-read,workspace-mutation,operator-fixture,provider-live"
+            Should Be "protocol,package,workspace-no-browser,workspace-read,workspace-mutation,operator-fixture,provider-live,metadata"
     }
 
     It "reports a missing replay interpreter explicitly" {
@@ -55,6 +55,90 @@ Describe "Portfolio MCP package replay contract" {
         }
         $message | Should Match "Unsupported Python 3\.14"
         $message | Should Match ([regex]::Escape(">=3.10,<3.14"))
+    }
+}
+
+function New-FakeAuditPython {
+    param(
+        [string]$Summary,
+        [int]$ExitCode = 0
+    )
+    $path = Join-Path ([System.IO.Path]::GetTempPath()) `
+        "fake-audit-python-$([guid]::NewGuid()).cmd"
+    Set-Content -LiteralPath $path -Encoding ASCII -Value @(
+        "@echo off",
+        "echo $Summary",
+        "exit /b $ExitCode"
+    )
+    return $path
+}
+
+Describe "Portfolio MCP metadata readiness contract" {
+    It "is callable from the script's mode dispatcher" {
+        Get-Command Test-MetadataReadiness -CommandType Function `
+            -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+    }
+
+    It "summarizes metadata-only audit evidence" {
+        $python = New-FakeAuditPython -Summary (
+            '{"metadata_only": true, "collisions": 0, "capabilities": 412, ' +
+            '"profile": "portfolio-read", "provider_models": 181}'
+        )
+        try {
+            $result = Test-MetadataReadiness -RuntimeProfile "portfolio-read" `
+                -Python $python -Root (Resolve-Path "$PSScriptRoot\..\..").Path
+            $result.capabilities | Should Be 412
+            $result.provider_models | Should Be 181
+            $result.profile | Should Be "portfolio-read"
+            $result.verification | Should Be "metadata_only"
+        } finally {
+            Remove-Item -LiteralPath $python -Force
+        }
+    }
+
+    It "rejects capability collisions" {
+        $python = New-FakeAuditPython -Summary (
+            '{"metadata_only": true, "collisions": 2, "capabilities": 412, ' +
+            '"profile": "portfolio-read", "provider_models": 181}'
+        )
+        try {
+            { Test-MetadataReadiness -RuntimeProfile "portfolio-read" `
+                -Python $python -Root (Resolve-Path "$PSScriptRoot\..\..").Path } |
+                Should Throw "Metadata readiness evidence is invalid."
+        } finally {
+            Remove-Item -LiteralPath $python -Force
+        }
+    }
+
+    It "rejects evidence that is not metadata-only" {
+        $python = New-FakeAuditPython -Summary (
+            '{"metadata_only": false, "collisions": 0, "capabilities": 412, ' +
+            '"profile": "portfolio-read", "provider_models": 181}'
+        )
+        try {
+            { Test-MetadataReadiness -RuntimeProfile "portfolio-read" `
+                -Python $python -Root (Resolve-Path "$PSScriptRoot\..\..").Path } |
+                Should Throw "Metadata readiness evidence is invalid."
+        } finally {
+            Remove-Item -LiteralPath $python -Force
+        }
+    }
+
+    It "reports a failed audit" {
+        $python = New-FakeAuditPython -Summary "{}" -ExitCode 1
+        try {
+            { Test-MetadataReadiness -RuntimeProfile "portfolio-read" `
+                -Python $python -Root (Resolve-Path "$PSScriptRoot\..\..").Path } |
+                Should Throw "Metadata readiness audit failed."
+        } finally {
+            Remove-Item -LiteralPath $python -Force
+        }
+    }
+
+    It "reports a missing interpreter explicitly" {
+        { Test-MetadataReadiness -RuntimeProfile "portfolio-read" `
+            -Python "C:\missing\python.exe" -Root "." } |
+            Should Throw "Metadata readiness Python executable is unavailable."
     }
 }
 
