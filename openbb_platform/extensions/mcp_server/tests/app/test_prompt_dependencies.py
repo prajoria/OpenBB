@@ -325,6 +325,31 @@ def _declared_tools(prompt: dict) -> set[str]:
     }
 
 
+def _platform_reference() -> dict:
+    """Return the committed Platform command reference (all extensions)."""
+    # pylint: disable=import-outside-toplevel
+    from pathlib import Path
+
+    path = Path(__file__).parents[4] / "core" / "openbb" / "assets" / "reference.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _reference_tools() -> set[str]:
+    return {
+        path.strip("/").replace("/", "_") for path in _platform_reference()["paths"]
+    }
+
+
+def _reference_providers() -> set[str]:
+    providers = set()
+    for command in _platform_reference()["paths"].values():
+        for section in ("parameters", "data"):
+            providers.update(
+                name for name in command.get(section, {}) if name != "standard"
+            )
+    return providers
+
+
 def _package_installed(distribution: str) -> bool:
     import importlib.metadata  # pylint: disable=import-outside-toplevel
 
@@ -360,11 +385,13 @@ def test_prompt_text_names_only_declared_tools():
 
 @pytest.mark.asyncio
 async def test_every_declared_prompt_tool_is_emitted_by_a_real_profile():
-    """Bundled prompts never require a tool name that no profile emits (#2300).
+    """Bundled prompts never require a tool name that does not exist (#2300).
 
-    A missing tool is acceptable only when the prompt also declares an
-    optional package that is not installed, which keeps its unavailable
-    reason actionable.
+    A tool exists if it is a Platform command in the committed reference
+    (which covers extensions this environment may not install) or an MCP
+    adapter tool a real ``portfolio-ops`` server emits. A missing tool is
+    acceptable only when the prompt declares an uninstalled optional package,
+    which keeps its unavailable reason actionable.
     """
     # pylint: disable=import-outside-toplevel
     from openbb_core.api.rest_api import app as platform_app
@@ -379,7 +406,7 @@ async def test_every_declared_prompt_tool_is_emitted_by_a_real_profile():
     server = create_mcp_server(
         settings, platform_app, auth=("synthetic-user", "x" * 32)
     )
-    emitted = {tool.name for tool in await server.list_tools()}
+    emitted = {tool.name for tool in await server.list_tools()} | _reference_tools()
     unknown = {}
     for prompt in _bundled_prompts():
         missing = _declared_tools(prompt) - emitted
@@ -396,7 +423,7 @@ def test_every_declared_prompt_provider_is_registered():
     # pylint: disable=import-outside-toplevel
     from openbb_core.provider.registry_map import RegistryMap
 
-    known = set(RegistryMap().available_providers)
+    known = set(RegistryMap().available_providers) | _reference_providers()
     unknown = {
         prompt["name"]: sorted(set(prompt["dependencies"]["providers"]) - known)
         for prompt in _bundled_prompts()
