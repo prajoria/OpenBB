@@ -657,7 +657,18 @@ def compare_snapshots(
         ):
             unreviewed_widening.add(capability_id)
 
-    newly_stale = set(head.stale_prompt_references) - set(base.stale_prompt_references)
+    # A prompt already unavailable in the base may change which references it
+    # is missing (for example a nonexistent tool name corrected to a real tool
+    # this profile does not install). Only prompts that were usable in the base
+    # and are now stale count as a regression.
+    base_stale_prompts = {
+        reference.split(":", 1)[0] for reference in base.stale_prompt_references
+    }
+    newly_stale = {
+        reference
+        for reference in head.stale_prompt_references
+        if reference.split(":", 1)[0] not in base_stale_prompts
+    }
     sections = {
         "profile_mismatch": set(profile_mismatch),
         "lost_capabilities": (base_capabilities - head_capabilities)

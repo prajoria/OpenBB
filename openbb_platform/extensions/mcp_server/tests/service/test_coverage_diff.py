@@ -93,6 +93,37 @@ def test_unknown_duplicate_and_stale_prompt_reference_are_blocking():
     assert report.stale_prompt_references == ("deep_dive:missing_tool",)
 
 
+def test_repairing_an_already_stale_prompt_is_not_blocking():
+    """A prompt unavailable in the base may change its missing references (#2300).
+
+    Correcting a nonexistent tool name to a real tool that this profile does
+    not install keeps the prompt unavailable; it is not a new regression.
+    """
+    report = compare_snapshots(
+        _snapshot(stale_prompt_references=("deep_dive:missing tool: equity_news",)),
+        _snapshot(stale_prompt_references=("deep_dive:missing tool: news_company",)),
+    )
+
+    assert report.stale_prompt_references == ()
+    assert "stale_prompt_references" not in report.blocking_reasons
+
+
+def test_a_working_prompt_that_becomes_stale_is_blocking():
+    """Only prompts that were already stale in the base are exempt."""
+    report = compare_snapshots(
+        _snapshot(stale_prompt_references=("deep_dive:missing tool: a",)),
+        _snapshot(
+            stale_prompt_references=(
+                "deep_dive:missing tool: b",
+                "market_brief:missing tool: c",
+            )
+        ),
+    )
+
+    assert report.blocking
+    assert report.stale_prompt_references == ("market_brief:missing tool: c",)
+
+
 def test_prompt_addition_without_manifest_and_test_evidence_is_blocking():
     """Prompt names cannot bypass the evidence gate."""
     prompt_id = "prompt:new_prompt"
