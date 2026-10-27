@@ -73,8 +73,30 @@ provider selection and runtime data schemas require the planned contract tests.
 The one parse exception is recorded rather than silently discarded:
 [TechTrade morning scan](../../notebooks/techtrade/02-morning-scan.ipynb), cell 7,
 contains a "Reading the output" narrative despite its code cell type. It was
-not edited. N01/N02 must classify that defect before an isolated notebook oracle
-is run. All other code-labeled cells parsed; this is not a runtime validity test.
+not edited. N01 (#2211) classifies it as `narrative-in-code` in the inventory's
+reviewed defect registry, so it stays visible without failing the drift check.
+All other code-labeled cells parsed; this is not a runtime validity test.
+
+### Reproducing the source inventory
+
+`scripts/notebook_story_inventory.py` regenerates these source facts without
+executing or importing any notebook. It uses the same fingerprint as this audit
+(compact JSON of ordered `(cell_type, source)` pairs), so its hashes match the
+[story inventory](./notebook-mcp-story-inventory.csv) for all 25 notebooks:
+
+```powershell
+.venv_portfolio\Scripts\python.exe scripts\notebook_story_inventory.py `
+    --root notebooks `
+    --check docs\cross_repo_workflow\notebook-mcp-story-inventory.csv
+```
+
+The command reports 25 stories, 17 families, 243 code cells' symbols by
+one-based cell position, and the classified morning-scan diagnostic. It exits
+1 if any notebook's source hash changed, a notebook was added or removed
+without review, or a new unclassified parse failure appears. Diagnostics name
+the cell position and error kind, never the cell text. Reviewing a change means
+updating the story inventory row (and, for a defect, the registry) in the same
+pull request.
 
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
