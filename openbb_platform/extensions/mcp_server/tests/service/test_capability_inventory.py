@@ -336,6 +336,30 @@ def test_build_inventory_joins_provider_models_and_tools(synthetic_sources):
     assert rows["FetcherOnlyModel"].status == "unrouted"
 
 
+def test_reviewed_descriptor_overrides_generated_fetcher_module(synthetic_sources):
+    """A TTL-wrapper class generated in base_cached is still dedicated (#2298)."""
+    sources, _ = synthetic_sources
+
+    class GeneratedTtlFetcher:
+        """Stand-in for a class produced by ``create_ttl_wrapper_class``."""
+
+    GeneratedTtlFetcher.__module__ = "openbb_fmp_cached.models.base_cached"
+    fetchers = dict(sources.provider_fetchers["fmp_cached"])
+    fetchers["TtlModel"] = GeneratedTtlFetcher
+    sources = replace(
+        sources,
+        provider_fetchers={**sources.provider_fetchers, "fmp_cached": fetchers},
+        non_persistent_models={"fmp_cached": frozenset({"UnroutedModel"})},
+    )
+    rows = {
+        row.model: row
+        for row in build_inventory("portfolio-read", sources=sources).provider_models
+    }
+    assert rows["TtlModel"].persistence == "dedicated"
+    assert rows["UnroutedModel"].persistence == "fallback_none"
+    assert rows["EquityQuote"].persistence == "dedicated"
+
+
 def test_collisions_aliases_and_unavailable_components_are_explicit(
     synthetic_sources,
 ):
@@ -708,6 +732,24 @@ def test_default_inventory_accounts_for_every_fmp_cached_registration(
     baseline = json.loads(manifest_path.read_text(encoding="utf-8"))["counts"]
     assert len(fmp_rows) == baseline["fmp_models"]
     assert Counter(row["status"] for row in fmp_rows) == {"routed": 181}
+    # Persistence comes from the reviewed descriptor that cache_coverage also
+    # reads, so a TTL fetcher generated in base_cached stays dedicated (#2298).
+    descriptor = json.loads(
+        (
+            repo_root
+            / "openbb_platform"
+            / "providers"
+            / "fmp_cached"
+            / "openbb_fmp_cached"
+            / "assets"
+            / "persistence_descriptors.json"
+        ).read_text(encoding="utf-8")
+    )
+    reviewed = set(descriptor["non_persistent_fallbacks"])
+    persistence = {row["model"]: row["persistence"] for row in fmp_rows}
+    assert {m for m, p in persistence.items() if p == "fallback_none"} == reviewed
+    assert Counter(persistence.values()) == {"dedicated": 123, "fallback_none": 58}
+    assert persistence["ExchangeMarketHours"] == "dedicated"
     assert baseline["fmp_models"] == 181
     assert baseline["fmp_routed_models"] == 70
     assert baseline["fmp_unrouted_models"] == 111

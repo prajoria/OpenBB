@@ -160,6 +160,10 @@ class InventorySources:
     scope_limitations: tuple[str, ...] = ()
     specialists: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     source_operations: tuple[tuple[str, str, str], ...] = ()
+    # Reviewed non-persistent models per provider (#2298). When present, it
+    # replaces the fetcher-module heuristic, which misreads factory-generated
+    # TTL fetchers whose class is created inside ``base_cached``.
+    non_persistent_models: Mapping[str, frozenset[str]] | None = None
 
 
 def _canonical_json(value: Any) -> str:
@@ -609,8 +613,13 @@ def _provider_model_rows(
                     }
                 )
             )
-            if provider == "fmp_cached":
+            reviewed = (sources.non_persistent_models or {}).get(provider)
+            if reviewed is not None:
                 persistence: Persistence = (
+                    "fallback_none" if model in reviewed else "dedicated"
+                )
+            elif provider == "fmp_cached":
+                persistence = (
                     "fallback_none"
                     if module == "openbb_fmp_cached.models.base_cached"
                     else "dedicated"
@@ -800,6 +809,23 @@ def validate_inventory_evidence(document: InventoryDocument) -> None:
         )
 
 
+def _reviewed_non_persistent_models() -> frozenset[str]:
+    """Return the reviewed fmp_cached non-persistent models (#2298).
+
+    ``build_cache_coverage`` reads the same descriptor, so the inventory and
+    the ``cache_coverage`` tool cannot disagree about persistence.
+    """
+    # pylint: disable=import-outside-toplevel
+    from importlib.resources import files
+
+    descriptor = json.loads(
+        files("openbb_fmp_cached")
+        .joinpath("assets", "persistence_descriptors.json")
+        .read_text(encoding="utf-8")
+    )
+    return frozenset(descriptor["non_persistent_fallbacks"])
+
+
 def load_default_sources(
     profile_name: ProfileName,
     *,
@@ -819,6 +845,7 @@ def load_default_sources(
     profile = load_profile_metadata(profile_name)
 
     provider_fetchers: dict[str, Mapping[str, type]] = {}
+    non_persistent_models: dict[str, frozenset[str]] = {}
     specialists: dict[str, tuple[str, ...]] = {}
     source_operations: list[tuple[str, str, str]] = []
     unavailable: list[str] = []
@@ -847,6 +874,7 @@ def load_default_sources(
             from openbb_fmp_cached.fmp_cached_router import router as fmp_cached_router
 
             provider_fetchers["fmp_cached"] = fmp_cached_provider.fetcher_dict
+            non_persistent_models["fmp_cached"] = _reviewed_non_persistent_models()
             prefix = f"{settings.api_prefix}/fmp_cached"
             if not any(route.path.startswith(prefix) for route in app.router.routes):
                 app.include_router(fmp_cached_router.api_router, prefix=prefix)
@@ -996,6 +1024,7 @@ def load_default_sources(
         model_providers=model_providers,
         provider_credentials=provider_credentials,
         provider_fetchers=provider_fetchers,
+        non_persistent_models=non_persistent_models or None,
         static_prompts=static_prompts,
         runtime=runtime,
         unavailable_components=tuple(unavailable),
