@@ -16,7 +16,8 @@ param(
         "workspace-read",
         "workspace-mutation",
         "operator-fixture",
-        "provider-live"
+        "provider-live",
+        "metadata"
     )]
     [string]$Mode = "protocol",
 
@@ -143,6 +144,44 @@ if wrong:
         symbols = @("SYNTH")
         verification = "offline_fixture"
         worker_absence_and_warnings = "passed"
+    }
+}
+
+function Test-MetadataReadiness {
+    param(
+        [string]$RuntimeProfile,
+        [string]$Python,
+        [string]$Root
+    )
+
+    if (-not $Python -or -not (Test-Path $Python -PathType Leaf)) {
+        throw "Metadata readiness Python executable is unavailable."
+    }
+    $output = Join-Path ([System.IO.Path]::GetTempPath()) `
+        "openbb-mcp-metadata-$([guid]::NewGuid())"
+    try {
+        $raw = & $Python (Join-Path $Root "scripts\audit_mcp_capabilities.py") `
+            --profile $RuntimeProfile `
+            --output-dir $output `
+            --metadata-only
+        if ($LASTEXITCODE -ne 0) {
+            throw "Metadata readiness audit failed."
+        }
+        $summary = $raw | Select-Object -Last 1 | ConvertFrom-Json
+        if (-not $summary.metadata_only -or $summary.collisions -ne 0) {
+            throw "Metadata readiness evidence is invalid."
+        }
+        return [pscustomobject]@{
+            capabilities = $summary.capabilities
+            collisions = $summary.collisions
+            metadata_only = $true
+            profile = $summary.profile
+            provider_models = $summary.provider_models
+            verification = "metadata_only"
+        }
+    } finally {
+        Remove-Item -LiteralPath $output -Recurse -Force `
+            -ErrorAction SilentlyContinue
     }
 }
 
@@ -856,6 +895,9 @@ if ($MyInvocation.InvocationName -ne ".") {
             -PaidApproved:$AllowPaidRequests `
             -RequestLimit $MaxProviderRequests `
             -Symbol $ProviderSymbol
+    } elseif ($Mode -eq "metadata") {
+        Test-MetadataReadiness -RuntimeProfile $Profile `
+            -Python $PythonExecutable -Root $RepositoryRoot
     } elseif ($Mode -eq "package") {
         Test-PackageReplay -RuntimeProfile $Profile `
             -Python $PythonExecutable -Root $RepositoryRoot `

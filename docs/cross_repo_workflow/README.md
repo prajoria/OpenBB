@@ -27,6 +27,9 @@ example, not live-availability evidence.
 - [Portfolio MCP operator runbook](../operations/portfolio-mcp.md) covers clean
   profile setup, provenance, bridge activation, metadata-only readiness,
   maintenance, controlled restart, rollback, and troubleshooting.
+- [Portfolio MCP parity release record](../operations/portfolio-mcp-release.md)
+  records staged rollout, release/rollback lineage, final denominators,
+  invocation evidence, exceptions, and remaining expansion work.
 - [Cache-job operator runbook](../operations/mcp-cache-jobs.md) defines the
   allowlisted maintenance and durable recovery boundary.
 - [MCP client examples](../../.mcp.json.example) provides credential-free
