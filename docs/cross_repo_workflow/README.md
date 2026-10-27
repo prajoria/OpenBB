@@ -33,6 +33,31 @@ example, not live-availability evidence.
   connection templates for each owning surface and both Workspace deployment
   modes.
 
+## Program plans and audit inventories (2026-10-03 snapshot)
+
+These documents were written against audit baseline `39f17160`. Their counts
+and issue states are a record of that audit, not current status; GitHub Issues
+on Project #4 are the source of truth.
+
+- [MCP capability-parity plan](../superpowers/plans/2026-10-03-portfolio-mcp-capability-parity.md)
+  (program #2123) and
+  [Notebook MCP Companion plan](../superpowers/plans/2026-10-03-notebook-mcp-agent.md)
+  (program #2195), with its
+  [design](../designs/notebook-mcp-agent-design.md) and
+  [requirements](../Specs/notebook-mcp-agent/requirements.md).
+- [Notebook story inventory](./notebook-mcp-story-inventory.csv) and
+  [story coverage](./notebook-mcp-story-coverage.md) for the 25 portfolio
+  notebook stories.
+- [Repository inventory](./repository-inventory.md),
+  [dependency architecture](./dependency-architecture.md),
+  [development workflows](./development-workflows.md) and
+  [submodule consolidation](./submodule-consolidation.md).
+- [Project issue map](./project-issue-map.md)
+  ([JSON](./project-issue-map.json)) linking plan IDs to issues.
+- The audit's operation, FMP-model, catalog and commit snapshots are
+  hash-pinned test fixtures under
+  [`capability_audit/`](../../openbb_platform/extensions/mcp_server/tests/fixtures/capability_audit/).
+
 The machine-readable catalog includes each capability's owning surface,
 connection prerequisites, direct or indirect mapping, verification level,
 verification scope, and current availability basis. Verification scopes are
