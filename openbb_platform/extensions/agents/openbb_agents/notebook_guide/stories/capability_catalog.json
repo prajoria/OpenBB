@@ -307,6 +307,15 @@
         "access": "analysis"
       }
     },
+    "platform:story_single_name_analysis": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_single_name_analysis",
+        "schema_sha256": "2dab836a6e6ce98317a94eff49998b00bdce0379c8a8dfbaa34afaf3f055b937",
+        "access": "analysis"
+      }
+    },
     "platform:techtrade_about": {
       "status": "available",
       "ref": {

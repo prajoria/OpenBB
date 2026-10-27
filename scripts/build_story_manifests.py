@@ -123,6 +123,7 @@ _EFFECTIVE = "platform:story_basket_effective_positions"
 _SECTORS = "platform:story_basket_sector_view"
 _CONCENTRATION = "platform:story_concentration"
 _CONSTRUCTION = "platform:story_construction_targets"
+_SINGLE_NAME = "platform:story_single_name_analysis"
 # Reviewed in N05a (#2313): stages whose notebook-local x-ray math the server
 # computes. (story_id, stage_id) -> (tools, residual). ``residual`` keeps
 # story:analytics when part of the stage still has no tool: the free-tier
@@ -177,6 +178,38 @@ REVIEWED_BINDINGS: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {
         (_CONCENTRATION,),
         True,
     ),
+    # Reviewed in N05b (#2314): the seven-phase pipeline. portfolio/02 runs it
+    # and renders each phase; the regime overlay and the bad-symbol
+    # loud-empty demonstration are the same tool with other inputs.
+    **{
+        ("portfolio/02", stage): ((_SINGLE_NAME,), False)
+        for stage in (
+            "0-why-start-with-one-name",
+            "1-phase-1-company",
+            "2-phase-2-fundamentals",
+            "3-phase-3-technicals",
+            "4-phase-4-valuation",
+            "5-phase-5-risk",
+            "6-phase-6-peer-relative",
+            "7-phase-7-composite-decision",
+            "8-regime-overlay-same-symbol-hostile-regime",
+            "12-loud-empty-demonstration",
+        )
+    },
+    ("portfolio/08", "7-single-name-spot-check-analysis-7-phase-on-the"): (
+        (_SINGLE_NAME,),
+        False,
+    ),
+    # These stages also do other local work: the SEC 13F fallback and SPY
+    # regime statistics, and an end-to-end timing run over several engines.
+    ("techtrade/01", "3-fundamentals-the-analysis-7-phase-pipeline"): (
+        (_SINGLE_NAME,),
+        True,
+    ),
+    ("portfolio/07", "5-the-monday-morning-routine-end-to-end"): (
+        (_SINGLE_NAME,),
+        True,
+    ),
 }
 
 KIND_BY_CAPABILITY = {
@@ -195,6 +228,7 @@ ANALYSIS_TOOL_PREFIXES = (
     "story_basket_",
     "story_concentration",
     "story_construction_",
+    "story_single_name_",
 )
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
 # Imports whose stage is an opt-in personal-data step, never mandatory.

@@ -151,7 +151,7 @@
         "6-risk-metrics-hhi-effective-n-sector-view"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_single_name_analysis"
       ],
       "inputs": [],
       "outputs": [

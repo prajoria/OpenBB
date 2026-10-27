@@ -212,6 +212,10 @@ def _stage(manifest, prefix):
         ("portfolio_yfinance/03", "3-", "platform:story_basket_effective_positions"),
         ("portfolio/08", "6-", "platform:story_basket_sector_view"),
         ("portfolio/08", "10a-", "platform:story_basket_effective_positions"),
+        ("portfolio/02", "1-", "platform:story_single_name_analysis"),
+        ("portfolio/02", "7-", "platform:story_single_name_analysis"),
+        ("portfolio/02", "8-", "platform:story_single_name_analysis"),
+        ("portfolio/08", "7-", "platform:story_single_name_analysis"),
     ],
 )
 def test_reviewed_xray_stages_bind_to_story_analytics_tools(
@@ -247,3 +251,14 @@ def test_every_reviewed_binding_matches_a_stage():
         previous[folder] = source.story_id
     assert REVIEWED_BINDINGS
     assert unused_bindings(built) == []
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage"),
+    [("techtrade/01", "3-"), ("portfolio/07", "5-")],
+)
+def test_mixed_single_name_stages_keep_their_residual(manifests, story_id, stage):
+    """Stages that do more than the pipeline still need N05 for the rest."""
+    bound = _stage(manifests[story_id], stage)
+    assert "platform:story_single_name_analysis" in bound.capabilities
+    assert "story:analytics" in bound.capabilities
