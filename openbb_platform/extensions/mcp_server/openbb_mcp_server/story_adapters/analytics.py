@@ -34,7 +34,14 @@ from openbb_portfolio_intel.analytics.basket_lookthrough import (
     effective_positions,
     strip_corp_suffix,
 )
-from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +50,10 @@ __all__ = ["NportUnavailable", "compose_story_analytics_app"]
 MAX_BASKET = 200
 MAX_CLASS_SYMBOLS = 200
 MAX_WEIGHTS = 5000
+# Provider fan-out per request: distinct funds fetched from N-PORT, and
+# issuer-to-sector resolutions (equity funds times ``top_n_resolve``).
+MAX_FUNDS = 25
+MAX_SECTOR_LOOKUPS = 600
 _SYMBOL = Annotated[
     str, Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.\-^=]+$")
 ]
@@ -149,6 +160,20 @@ class _BasketRequest(_Strict):
     def positions(self) -> list[dict[str, Any]]:
         return [p.model_dump() for p in self.basket]
 
+    def funds(self, classes: set[str]) -> set[str]:
+        """Return the distinct basket symbols in ``classes``."""
+        return {p.symbol for p in self.basket} & classes
+
+    @model_validator(mode="after")
+    def _bounded_funds(self):
+        count = len(self.funds(set(self.equity_etfs) | set(self.bond_etfs)))
+        if count > MAX_FUNDS:
+            raise ValueError(
+                f"at most {MAX_FUNDS} distinct funds can be looked through per "
+                f"request (got {count})"
+            )
+        return self
+
 
 class EffectivePositionsRequest(_BasketRequest):
     """Flatten a basket through N-PORT."""
@@ -160,6 +185,16 @@ class SectorViewRequest(_BasketRequest):
     """Sector weights after look-through."""
 
     top_n_resolve: int = Field(30, ge=1, le=60)
+
+    @model_validator(mode="after")
+    def _bounded_lookups(self):
+        lookups = len(self.funds(set(self.equity_etfs))) * self.top_n_resolve
+        if lookups > MAX_SECTOR_LOOKUPS:
+            raise ValueError(
+                f"equity funds x top_n_resolve is {lookups} sector lookups; at "
+                f"most {MAX_SECTOR_LOOKUPS} per request"
+            )
+        return self
 
 
 def _bounded_weights(value: dict[str, float]) -> dict[str, float]:
@@ -306,7 +341,7 @@ class _SectorLookups:
         return self.for_symbol(ticker) if ticker else None
 
 
-def _holdings(symbol: str) -> list[dict[str, Any]]:
+def _fetch_holdings(symbol: str) -> list[dict[str, Any]]:
     try:
         return _nport_rows(symbol)
     except NportUnavailable:
@@ -318,6 +353,24 @@ def _holdings(symbol: str) -> list[dict[str, Any]]:
             f"N-PORT holdings for {symbol} are unavailable from the provider "
             f"({type(exc).__name__}); no partial look-through was returned.",
         ) from exc
+
+
+def _holdings_once() -> Any:
+    """Return a per-request N-PORT fetcher that fetches each fund once."""
+    fetched: dict[str, list[dict[str, Any]] | NportUnavailable] = {}
+
+    def holdings(symbol: str) -> list[dict[str, Any]]:
+        if symbol not in fetched:
+            try:
+                fetched[symbol] = _fetch_holdings(symbol)
+            except NportUnavailable as exc:
+                fetched[symbol] = exc
+        result = fetched[symbol]
+        if isinstance(result, NportUnavailable):
+            raise result
+        return result
+
+    return holdings
 
 
 def build_router() -> APIRouter:
@@ -342,7 +395,7 @@ def build_router() -> APIRouter:
         """
         result = effective_positions(
             request.positions(),
-            _holdings,
+            _holdings_once(),
             top_n_per_etf=request.top_n_per_etf,
             **request.classes(),
         )
@@ -370,7 +423,7 @@ def build_router() -> APIRouter:
         lookups = _SectorLookups()
         view = basket_sector_view(
             request.positions(),
-            holdings_for=_holdings,
+            holdings_for=_holdings_once(),
             sector_for_name=lookups.for_name,
             sector_for_symbol=lookups.for_symbol,
             top_n_resolve=request.top_n_resolve,

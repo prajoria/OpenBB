@@ -228,6 +228,61 @@ def test_basket_size_is_bounded(client):
     assert response.status_code == 422
 
 
+def test_funds_per_request_are_bounded(client):
+    """One call cannot fan out to more than MAX_FUNDS N-PORT fetches."""
+    funds = [f"F{i}" for i in range(analytics.MAX_FUNDS + 1)]
+    response = client.post(
+        f"{PREFIX}/basket/effective_positions",
+        json={
+            "basket": [{"symbol": f, "weight": 0.001} for f in funds],
+            "equity_etfs": funds,
+        },
+    )
+    assert response.status_code == 422
+    assert "funds" in response.text
+
+
+def test_sector_lookups_per_request_are_bounded(client):
+    """Funds times resolved issuers cannot exceed the lookup budget."""
+    funds_allowed = analytics.MAX_SECTOR_LOOKUPS // 60
+    funds = [f"F{i}" for i in range(funds_allowed + 1)]
+    response = client.post(
+        f"{PREFIX}/basket/sector_view",
+        json={
+            "basket": [{"symbol": f, "weight": 0.001} for f in funds],
+            "equity_etfs": funds,
+            "top_n_resolve": 60,
+        },
+    )
+    assert response.status_code == 422
+    assert "lookup" in response.text
+
+
+def test_a_repeated_fund_is_fetched_once(client, monkeypatch):
+    """Duplicate basket rows share one N-PORT fetch per request."""
+    calls = []
+
+    def _rows(symbol):
+        calls.append(symbol)
+        return HOLDINGS[symbol]
+
+    monkeypatch.setattr(analytics, "_nport_rows", _rows)
+    response = client.post(
+        f"{PREFIX}/basket/effective_positions",
+        json={
+            "basket": [
+                {"symbol": "EQX", "weight": 0.5},
+                {"symbol": "EQX", "weight": 0.5},
+            ],
+            "equity_etfs": ["EQX"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert calls == ["EQX"]
+    positions = {p["key"]: p["weight"] for p in response.json()["positions"]}
+    assert positions["Alpha Corp"] == pytest.approx(0.6)
+
+
 def test_construction_refuses_thin_coverage(client):
     """Thin coverage is a refusal with no targets."""
     response = client.post(
