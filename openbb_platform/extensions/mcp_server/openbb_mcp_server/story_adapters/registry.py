@@ -34,6 +34,7 @@ from openbb_core.app.service.auth_service import AuthService
 from pydantic import BaseModel, ConfigDict, Field
 
 MAX_STATE_BYTES = 64 * 1024
+_ID = Annotated[str, Field(min_length=1, max_length=200)]
 ProviderMode = Literal["fixture", "recorded", "live"]
 StageStatus = Literal[
     "pending", "running", "succeeded", "failed", "unavailable", "approval_required"
@@ -59,10 +60,10 @@ class Provenance(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: str | None = None
-    tool_call_ids: list[str] = Field(default_factory=list)
-    artifact_ids: list[str] = Field(default_factory=list)
-    source_story: str | None = None
+    provider: str | None = Field(default=None, max_length=100)
+    tool_call_ids: list[_ID] = Field(default_factory=list, max_length=100)
+    artifact_ids: list[_ID] = Field(default_factory=list, max_length=100)
+    source_story: str | None = Field(default=None, max_length=100)
 
 
 class RunCreate(BaseModel):
@@ -342,10 +343,14 @@ def build_router(catalog: StoryCatalog, store: RunStore, principal: str) -> APIR
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 f"Stage '{checkpoint.stage_id}' is not in {record.manifest_version}.",
             )
-        if len(json.dumps(checkpoint.state).encode("utf-8")) > MAX_STATE_BYTES:
+        written = {
+            "state": checkpoint.state,
+            "provenance": checkpoint.provenance.model_dump(mode="json"),
+        }
+        if len(json.dumps(written).encode("utf-8")) > MAX_STATE_BYTES:
             raise HTTPException(
                 status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                f"Stage state exceeds {MAX_STATE_BYTES} bytes.",
+                f"Stage state and provenance exceed {MAX_STATE_BYTES} bytes.",
             )
         if checkpoint.expected_version != record.state_version:
             raise HTTPException(

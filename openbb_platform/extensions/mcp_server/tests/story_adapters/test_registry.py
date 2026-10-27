@@ -286,3 +286,59 @@ async def test_run_lifecycle_over_mcp(monkeypatch, tmp_path):
     with pytest.raises(Exception, match="409|version"):
         await mcp.call_tool("story_run_checkpoint", body)
     assert (tmp_path / "runs.sqlite").exists()
+
+
+def test_provenance_cannot_bypass_the_size_limit(registry_harness):
+    """State and provenance together are bounded, not state alone."""
+    run = registry_harness.create_run()
+    huge_ids = ["x" * 200] * 2000
+    response = registry_harness.checkpoint(
+        run.id, expected_version=0, provenance={"tool_call_ids": huge_ids}
+    )
+    assert response.status_code in (413, 422)
+    long_string = registry_harness.checkpoint(
+        run.id, expected_version=0, provenance={"provider": "p" * 10_000}
+    )
+    assert long_string.status_code == 422
+    unchanged = registry_harness.alice.get(f"/api/v1/story/runs/{run.id}").json()
+    assert unchanged["state_version"] == 0
+
+
+@pytest.mark.asyncio
+async def test_custom_auth_provider_gets_no_shared_story_state(monkeypatch, tmp_path):
+    """Without one verifiable identity, runs are not composed at all."""
+    # pylint: disable=import-outside-toplevel
+    from fastmcp.server.auth import AuthProvider
+    from openbb_mcp_server.app.app import create_mcp_server
+    from openbb_mcp_server.models.settings import MCPSettings
+    from openbb_mcp_server.story_adapters import registry
+
+    class ExternalAuth(AuthProvider):
+        """A provider whose users the registry cannot tell apart."""
+
+        async def verify_token(self, token):
+            return None
+
+    monkeypatch.setattr(registry, "default_manifest_dir", lambda: MANIFESTS)
+    monkeypatch.setenv(registry.STORE_ENV, str(tmp_path / "runs.sqlite"))
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile="portfolio-read",
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    mcp = create_mcp_server(settings, FastAPI(), auth=ExternalAuth())
+    names = {tool.name for tool in await mcp.list_tools()}
+    assert not names & STORY_TOOLS
+
+
+def test_principal_binds_the_whole_credential():
+    """Same username with a different secret is a different principal."""
+    # pylint: disable=import-outside-toplevel
+    from openbb_mcp_server.app.app import story_principal_for
+
+    first = story_principal_for(("operator", "a" * 32))
+    second = story_principal_for(("operator", "b" * 32))
+    assert first != second
+    assert first.startswith("operator#")
+    assert "a" * 32 not in first

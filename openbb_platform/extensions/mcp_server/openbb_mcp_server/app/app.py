@@ -4,6 +4,7 @@
 
 import asyncio
 import copy
+import hashlib
 import importlib.metadata
 import json
 import os
@@ -747,6 +748,17 @@ def _add_skills_default_prompt(mcp: FastMCP) -> None:
     logger.info("Added default system prompt with skill awareness nudge.")
 
 
+def story_principal_for(credentials: tuple[str, str]) -> str:
+    """Bind story runs to the whole server credential, not the username alone.
+
+    Two servers that share a username but not a secret get different
+    principals; the secret itself never appears in the principal.
+    """
+    username, secret = credentials
+    digest = hashlib.sha256(f"{username}:{secret}".encode()).hexdigest()[:16]
+    return f"{username}#{digest}"
+
+
 def _compose_profile_adapters(
     fastapi_app: FastAPI,
     settings: MCPSettings,
@@ -886,11 +898,13 @@ def create_mcp_server(
             "pass an AuthProvider or validated server credentials."
         )
     selected_policy = ExposurePolicy.load() if capability_profile else None
-    if isinstance(auth_provider, TokenAuthProvider) and auth_provider.server_auth:
-        story_principal: str | None = auth_provider.server_auth[0]
-    else:
-        # A custom AuthProvider exposes no single identity to bind runs to.
-        story_principal = "external-auth" if auth_provider is not None else None
+    # Story runs need one verifiable identity. A custom AuthProvider may serve
+    # many users the registry cannot tell apart, so it gets no story routes.
+    story_principal = (
+        story_principal_for(auth_provider.server_auth)
+        if isinstance(auth_provider, TokenAuthProvider) and auth_provider.server_auth
+        else None
+    )
 
     source_app = _compose_profile_adapters(
         fastapi_app,
