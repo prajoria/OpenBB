@@ -508,3 +508,8 @@ portfolio-venv-core-in-process,GET,/api/v1/cache/jobs/health,activatable,cache_j
 portfolio-venv-core-in-process,GET,/api/v1/cache/jobs/runs/{run_id},activatable,cache_jobs_run,False,
 portfolio-venv-core-in-process,POST,/api/v1/cache/jobs/portfolio.position_history/trigger,activatable,cache_jobs_trigger_position_history,False,
 portfolio-venv-core-in-process,POST,/api/v1/cache/jobs/portfolio.etf_holdings/trigger,activatable,cache_jobs_trigger_etf_holdings,False,
+portfolio-venv-core-in-process,GET,/api/v1/story/catalog,activatable,story_catalog,False,
+portfolio-venv-core-in-process,GET,/api/v1/story/describe,activatable,story_describe,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/runs,activatable,story_run_create,False,
+portfolio-venv-core-in-process,GET,/api/v1/story/runs/{run_id},activatable,story_run_get,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/checkpoint,activatable,story_run_checkpoint,False,

@@ -751,6 +751,7 @@ def _compose_profile_adapters(
     fastapi_app: FastAPI,
     settings: MCPSettings,
     selected_policy: ExposurePolicy | None,
+    principal: str | None = None,
 ) -> FastAPI:
     """Compose optional profile adapters without mutating the source app."""
     profile = settings.capability_profile
@@ -769,6 +770,13 @@ def _compose_profile_adapters(
                 "Portfolio cache observability requires openbb-fmp-cached"
             ) from exc
         source_app = compose_cache_observability_app(source_app)
+        if principal:
+            # Story runs are scoped to the server's one effective credential.
+            from openbb_mcp_server.story_adapters.registry import (  # pylint: disable=import-outside-toplevel
+                compose_story_registry_app,
+            )
+
+            source_app = compose_story_registry_app(source_app, principal=principal)
     if profile == "portfolio-ops" and settings.enable_maintenance_operations:
         try:
             from openbb_mcp_server.adapters.cache_jobs import (  # pylint: disable=import-outside-toplevel
@@ -878,11 +886,17 @@ def create_mcp_server(
             "pass an AuthProvider or validated server credentials."
         )
     selected_policy = ExposurePolicy.load() if capability_profile else None
+    if isinstance(auth_provider, TokenAuthProvider) and auth_provider.server_auth:
+        story_principal: str | None = auth_provider.server_auth[0]
+    else:
+        # A custom AuthProvider exposes no single identity to bind runs to.
+        story_principal = "external-auth" if auth_provider is not None else None
 
     source_app = _compose_profile_adapters(
         fastapi_app,
         settings,
         selected_policy,
+        principal=story_principal,
     )
     composed_app = copy.copy(source_app)
     composed_app.router = copy.copy(source_app.router)
