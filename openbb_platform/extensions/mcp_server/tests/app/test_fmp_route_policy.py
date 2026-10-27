@@ -147,3 +147,84 @@ async def test_every_provider_owned_tool_is_callable_through_mcp():
                 arguments,
             )
         assert result
+
+
+def _schema_value(name: str, schema: dict):
+    """Synthesize a schema-valid argument for a required tool parameter."""
+    if name in _VALUES:
+        return _VALUES[name]
+    if "date" in name:
+        return "2025-01-02"
+    samples = {"string": "AAPL", "integer": 1, "number": 1.0, "boolean": False}
+    for option in schema.get("anyOf") or [schema]:
+        if "enum" in option:
+            return option["enum"][0]
+        if option.get("type") in samples:
+            return samples[option["type"]]
+    return "AAPL"
+
+
+@pytest.mark.asyncio
+async def test_every_legacy_fmp_cached_mapping_is_callable_through_mcp():
+    """The 70 pre-existing Platform mappings also invoke through MCP (#2302).
+
+    Together with the provider-owned routes above, this gives offline MCP
+    invocation evidence for every registered FMP Cached model.
+    """
+    # pylint: disable=import-outside-toplevel
+    from fastapi.routing import APIRoute
+    from openbb_core.api.rest_api import app as platform_app
+    from openbb_fmp_cached import fmp_cached_provider
+
+    registered = set(fmp_cached_provider.fetcher_dict)
+    legacy = {
+        route.path: route
+        for route in platform_app.routes
+        if isinstance(route, APIRoute)
+        and route.openapi_extra
+        and route.openapi_extra.get("model") in registered
+        and not route.path.startswith("/api/v1/fmp_cached/")
+    }
+    assert len(legacy) == len({r.openapi_extra["model"] for r in legacy.values()})
+    assert len(legacy) == 70
+
+    settings = MCPSettings(
+        api_prefix="/api/v1",
+        capability_profile="portfolio-read",
+        default_tool_categories=["all"],
+        default_skills_dir=None,
+    )
+    mcp = create_mcp_server(settings, platform_app, auth=("synthetic-user", "x" * 32))
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    for path, route in sorted(legacy.items()):
+        name = path.removeprefix("/api/v1/").replace("/", "_")
+        assert name in tools, f"{path} is not listed as {name}"
+        schema = tools[name].parameters or {}
+        properties = schema.get("properties", {})
+        provider = properties.get("provider", {})
+        choices = {
+            choice
+            for option in provider.get("anyOf") or [provider]
+            for choice in option.get("enum", ())
+        }
+        assert "fmp_cached" in choices, f"{name} does not offer fmp_cached"
+        arguments = {"provider": "fmp_cached"}
+        for required in schema.get("required", []):
+            if required != "provider":
+                arguments[required] = _schema_value(
+                    required, properties.get(required, {})
+                )
+        module = importlib.import_module(route.endpoint.__module__)
+        # results=None: an empty list cannot satisfy provider-discriminated
+        # response unions (for example the earnings-call transcript model).
+        response = module.OBBject(results=None, provider="fmp_cached")
+        with (
+            patch.object(module, "Query", return_value=object()),
+            patch.object(
+                module.OBBject,
+                "from_query",
+                new=AsyncMock(return_value=response),
+            ) as from_query,
+        ):
+            assert await mcp.call_tool(name, arguments)
+        assert from_query.await_count == 1, f"{name} did not reach its handler"
