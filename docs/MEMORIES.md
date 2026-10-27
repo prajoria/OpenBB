@@ -1457,3 +1457,25 @@ board state, local-only state at risk, and an ordered resume checklist.
 - **uv facts behind the #2245 locks:** `uv run` ignores `UV_CONSTRAINT` and
   never verifies requirement hashes. That is why the locks pin versions only
   and #2282 tracks hash enforcement.
+
+## portfolio-resume-state-2026-10-27
+
+Current resume record: `docs/handoff/2026-10-27-portfolio-resume-state.md`.
+It supersedes §3, §4 and §6 of the 2026-10-26 pause handoff.
+
+- **MCP capability parity (#2123) is closed.** The release record is
+  `docs/operations/portfolio-mcp-release.md`.
+- **The Notebook Companion (#2195) is under way.** N01 is merged. N02 is in
+  PR #2307. N04 is on branch `feat/notebook-readiness-gh-2214`; open its PR
+  after #2307 merges. Next are N03, then the N05–N10 bridges. Stage readiness
+  is published in `docs/cross_repo_workflow/notebook-mcp-story-coverage.md`.
+- **Auto-close now reads PR bodies (#1975)** and runs once per merge SHA
+  (#2292). The old "put `Closes` in the commit body" caveat no longer applies.
+- **Stacked PRs:** never `--delete-branch` on a PR that another PR is stacked
+  on. GitHub closes the dependent PR instead of retargeting it.
+- **CI:** `openbb.build()` rewrites `core/openbb/assets/reference.json` for
+  the installed extensions only, and only changed test files run per PR.
+- **Before parking work as human-gated,** verify with automation and check
+  the machine. It has an RTX 3090 and Docker Desktop. Only real decisions,
+  money, legal sign-off, or a large download the operator has not approved
+  need a person.
