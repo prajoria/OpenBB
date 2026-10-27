@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "decimal_money_precision",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Decimal sums are exact: 3*33.33 = 99.99 and 0.10+0.20 = 0.30 (binary floats give 0.30000000000000004)."
+  },
+  "stories": [
+    "portfolio/05",
+    "portfolio_yfinance/05",
+    "techtrade/07"
+  ],
+  "inputs": {
+    "fill_amounts": [
+      "33.33",
+      "33.33",
+      "33.33"
+    ],
+    "fee_amounts": [
+      "0.10",
+      "0.20"
+    ]
+  },
+  "expected": {
+    "fills_total": "99.99",
+    "fees_total": "0.30"
+  }
+}

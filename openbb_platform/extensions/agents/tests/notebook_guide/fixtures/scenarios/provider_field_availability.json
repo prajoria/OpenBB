@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "id": "provider_field_availability",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Frozen from the provider data models on 2026-10-27. The free-provider variant must state which fields it cannot supply."
+  },
+  "stories": [
+    "portfolio/01",
+    "portfolio/02",
+    "portfolio_yfinance/01",
+    "portfolio_yfinance/02"
+  ],
+  "inputs": {
+    "models": [
+      "EquityQuote",
+      "EquityHistorical"
+    ],
+    "providers": [
+      "fmp_cached",
+      "yfinance"
+    ]
+  },
+  "expected": {
+    "EquityQuote": {
+      "fmp_cached_only": [
+        "market_cap"
+      ],
+      "yfinance_only": [
+        "currency",
+        "ma_200d",
+        "ma_50d",
+        "volume_average"
+      ],
+      "both": [
+        "ask",
+        "bid",
+        "change_percent",
+        "exchange",
+        "prev_close",
+        "year_high",
+        "year_low"
+      ]
+    },
+    "EquityHistorical": {
+      "fmp_cached_only": [
+        "change_percent"
+      ],
+      "yfinance_only": [
+        "split_ratio"
+      ],
+      "both": [
+        "dividend",
+        "vwap"
+      ]
+    }
+  }
+}

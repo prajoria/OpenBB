@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "missing_observation",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "A missing return is reported, never filled with zero or carried forward."
+  },
+  "stories": [
+    "portfolio/03",
+    "portfolio_yfinance/03",
+    "techtrade/02"
+  ],
+  "inputs": {
+    "dates": [
+      "2025-01-02",
+      "2025-01-03"
+    ],
+    "returns": {
+      "asset_a": {
+        "2025-01-02": 0.01,
+        "2025-01-03": 0.02
+      },
+      "asset_b": {
+        "2025-01-02": 0.01
+      }
+    }
+  },
+  "expected": {
+    "status": "incomplete",
+    "missing": [
+      "asset_b@2025-01-03"
+    ]
+  }
+}

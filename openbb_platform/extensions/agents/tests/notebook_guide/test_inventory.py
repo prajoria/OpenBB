@@ -24,47 +24,6 @@ AUDIT_INVENTORY = (
 )
 
 
-def _write_notebook(path: Path, cells: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    document = {
-        "cells": cells,
-        "metadata": {"kernelspec": {"name": "python3"}},
-        "nbformat": 4,
-        "nbformat_minor": 5,
-    }
-    path.write_text(json.dumps(document), encoding="utf-8")
-
-
-@pytest.fixture
-def notebook_factory(tmp_path):
-    """Return a factory writing one notebook whose outputs and metadata vary."""
-
-    def factory(
-        output: str = "saved-output",
-        root: Path | None = None,
-        source: str = "from openbb import obb\nobb.equity.price.historical('SYNTH')",
-        relative: str = "portfolio/01-synthetic.ipynb",
-        execution_count: int = 1,
-    ) -> Path:
-        root = root or tmp_path / "notebooks"
-        _write_notebook(
-            root / relative,
-            [
-                {"cell_type": "markdown", "metadata": {}, "source": ["# Synthetic"]},
-                {
-                    "cell_type": "code",
-                    "execution_count": execution_count,
-                    "metadata": {"execution": {"started": output}},
-                    "outputs": [{"output_type": "stream", "text": [output]}],
-                    "source": source,
-                },
-            ],
-        )
-        return root
-
-    return factory
-
-
 def test_saved_outputs_do_not_change_source_hash(notebook_factory):
     """Outputs, execution counts and run metadata never move the hash."""
     root = notebook_factory(output="private-output-a")

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "paper_cash_conservation",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Buy 10@100 +1 fee: cash 10000-1000-1=8999. Sell 5@110 +1 fee: 8999+550-1=9548. Realized (110-100)*5=50; unrealized on 5 at mark 110 = 50. Equity 9548+5*110=10098 = 10000+50+50-2."
+  },
+  "stories": [
+    "portfolio/05",
+    "portfolio_yfinance/05",
+    "techtrade/07",
+    "techtrade/08",
+    "techtrade/09"
+  ],
+  "inputs": {
+    "starting_cash": "10000.00",
+    "fills": [
+      {
+        "side": "buy",
+        "quantity": 10,
+        "price": "100.00",
+        "fee": "1.00"
+      },
+      {
+        "side": "sell",
+        "quantity": 5,
+        "price": "110.00",
+        "fee": "1.00"
+      }
+    ],
+    "mark_price": "110.00"
+  },
+  "expected": {
+    "cash": "9548.00",
+    "position_quantity": 5,
+    "realized_pnl": "50.00",
+    "unrealized_pnl": "50.00",
+    "fees": "2.00",
+    "equity": "10098.00"
+  }
+}

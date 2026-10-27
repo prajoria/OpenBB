@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "dividend_total_return",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Price unchanged; (100-100+2)/100 = 0.02."
+  },
+  "stories": [
+    "portfolio/04",
+    "portfolio/06",
+    "portfolio_yfinance/04",
+    "portfolio_yfinance/06"
+  ],
+  "inputs": {
+    "close": [
+      100.0,
+      100.0
+    ],
+    "dividend": {
+      "index": 1,
+      "amount": 2.0
+    }
+  },
+  "expected": {
+    "price_return": 0.0,
+    "total_return": 0.02
+  }
+}
