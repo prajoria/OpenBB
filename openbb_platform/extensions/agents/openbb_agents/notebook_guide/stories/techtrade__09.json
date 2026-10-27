@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "story_id": "techtrade/09",
+  "family": "techtrade/09",
+  "variant": "techtrade",
+  "notebook_path": "notebooks/techtrade/09-t5-end-to-end-plan-to-fills.ipynb",
+  "source_sha256": "6d5ef4b97193d2d392c23efa55c326cf39fffa29ca99c6e689d900a235cd4373",
+  "stages": [
+    {
+      "id": "the-full-t5-flow",
+      "title": "The full T5 flow",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "the-full-t5-flow-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-the-validated-plan-from-t4",
+      "title": "1. The validated plan (from T4)",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3
+      ],
+      "depends_on": [
+        "the-full-t5-flow"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-the-validated-plan-from-t4-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-compose-the-orderbatch",
+      "title": "2. Compose the OrderBatch",
+      "kind": "paper",
+      "cells": [
+        4,
+        5
+      ],
+      "depends_on": [
+        "1-the-validated-plan-from-t4"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-compose-the-orderbatch-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-write-the-artifact",
+      "title": "3. Write the artifact",
+      "kind": "paper",
+      "cells": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "depends_on": [
+        "2-compose-the-orderbatch"
+      ],
+      "capabilities": [
+        "story:artifacts",
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-write-the-artifact-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-print-the-operator-s-type-this-at-fidelity-che",
+      "title": "4. Print the operator's \"type this at Fidelity\" cheat sheet",
+      "kind": "analysis",
+      "cells": [
+        10,
+        11
+      ],
+      "depends_on": [
+        "3-write-the-artifact"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-print-the-operator-s-type-this-at-fidelity-che-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-submit-the-batch-to-the-paper-engine",
+      "title": "5. Submit the batch to the paper engine",
+      "kind": "paper",
+      "cells": [
+        12,
+        13
+      ],
+      "depends_on": [
+        "4-print-the-operator-s-type-this-at-fidelity-che"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-submit-the-batch-to-the-paper-engine-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-simulate-the-operator-s-fidelity-workflow",
+      "title": "6. Simulate the operator's Fidelity workflow",
+      "kind": "analysis",
+      "cells": [
+        14,
+        15
+      ],
+      "depends_on": [
+        "5-submit-the-batch-to-the-paper-engine"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-simulate-the-operator-s-fidelity-workflow-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-position-p-l-after-the-fills",
+      "title": "7. Position + P&L after the fills",
+      "kind": "analysis",
+      "cells": [
+        16,
+        17
+      ],
+      "depends_on": [
+        "6-simulate-the-operator-s-fidelity-workflow"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-position-p-l-after-the-fills-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-partial-close-scenario-take-profit-on-msft",
+      "title": "8. Partial-close scenario \u2014 take profit on MSFT",
+      "kind": "analysis",
+      "cells": [
+        18,
+        19
+      ],
+      "depends_on": [
+        "7-position-p-l-after-the-fills"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-partial-close-scenario-take-profit-on-msft-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-end-of-day-review",
+      "title": "9. End-of-day review",
+      "kind": "analysis",
+      "cells": [
+        20,
+        21
+      ],
+      "depends_on": [
+        "8-partial-close-scenario-take-profit-on-msft"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "9-end-of-day-review-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-what-s-next",
+      "title": "10. What's next",
+      "kind": "narrative",
+      "cells": [
+        22
+      ],
+      "depends_on": [
+        "9-end-of-day-review"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "10-what-s-next-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "techtrade/09:fixture",
+    "techtrade/09:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

@@ -1,0 +1,387 @@
+"""Build the notebook story manifests and capability catalog (#2212, N02).
+
+Derives one ``StoryManifest`` per notebook from its source-only inventory and
+writes them, with a ``CapabilityCatalog``, under
+``openbb_platform/extensions/agents/openbb_agents/notebook_guide/stories/``.
+
+- Each ``##`` Markdown section is a stage; cells before the first section form
+  a ``setup`` stage. Stages depend on the previous stage (ordered mapping).
+- ``obb.*`` calls map to available ``platform:<tool>`` capabilities, pinned by
+  the SHA-256 of the tool's input schema on a real ``portfolio-ops`` server.
+- Notebook-local engines, state, artifacts, jobs, paper and provider internals
+  map to planned ``story:*`` capabilities owned by their N-task issues. A
+  numbered section that only computes locally needs ``story:analytics``.
+
+Rerun after a notebook changes, review the diff, and commit the result:
+
+    python scripts/build_story_manifests.py
+"""
+
+# pylint: disable=import-outside-toplevel,wrong-import-position
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "openbb_platform" / "extensions" / "agents"))
+
+from scripts.notebook_story_inventory import (  # noqa: E402
+    NotebookSource,
+    inventory_notebooks,
+)
+
+STORIES_DIR = (
+    REPO_ROOT
+    / "openbb_platform"
+    / "extensions"
+    / "agents"
+    / "openbb_agents"
+    / "notebook_guide"
+    / "stories"
+)
+
+# Planned capabilities: (access, owning issue, summary).
+PLANNED: dict[str, tuple[str, int, str]] = {
+    "story:analytics": (
+        "analysis",
+        2215,
+        "Notebook-local calculations and engines exposed through owned adapters (N05).",
+    ),
+    "story:state": (
+        "analysis",
+        2216,
+        "Typed story state and cross-chapter handoffs instead of pickle files (N06).",
+    ),
+    "story:artifacts": (
+        "artifact",
+        2217,
+        "Bounded chart, table, report and XLSX artifacts (N07).",
+    ),
+    "story:jobs": (
+        "analysis",
+        2218,
+        "Backtest, tuning and replay through existing durable jobs (N08).",
+    ),
+    "story:paper": (
+        "paper",
+        2219,
+        "Portfolio and TechTrade paper actions in an approved sandbox (N09).",
+    ),
+    "story:provider_modes": (
+        "provider_read",
+        2220,
+        "Provider variants, recording and truthful cache semantics (N10).",
+    ),
+    "story:binding_review": (
+        "analysis",
+        2214,
+        "Behaviour whose MCP binding must be decided during readiness review (N04).",
+    ),
+}
+
+# Import prefix -> planned capability. Longest matching prefix wins.
+IMPORT_CAPABILITIES: dict[str, str] = {
+    "pickle": "story:state",
+    "_nb_render": "story:artifacts",
+    "html": "story:artifacts",
+    "openpyxl": "story:artifacts",
+    "_nport_lookthrough": "story:analytics",
+    "stock_analysis": "story:analytics",
+    "openbb_regime": "story:analytics",
+    "openbb_portfolio_intel.analytics": "story:analytics",
+    "openbb_portfolio_intel.models": "story:analytics",
+    "openbb_portfolio_intel.paper": "story:paper",
+    "openbb_sec.utils.thirteen_f_index": "story:analytics",
+    "openbb_fmp_cached.models.institutional_ownership": "story:analytics",
+    "openbb_techtrade.engine": "story:analytics",
+    "openbb_techtrade.execution": "story:paper",
+    "openbb_techtrade.validation": "story:jobs",
+    "openbb_techtrade.tuning": "story:jobs",
+    "openbb_techtrade.examples": "story:jobs",
+    "openbb_backtest": "story:jobs",
+    "openbb_yfinance": "story:provider_modes",
+    "openbb_cboe": "story:provider_modes",
+    "openbb_sec": "story:provider_modes",
+    "openbb_fmp_cached": "story:provider_modes",
+    "openbb_fmp": "story:provider_modes",
+    "yfinance": "story:provider_modes",
+    "portfolio_snapshot_importer": "story:binding_review",
+}
+
+KIND_BY_CAPABILITY = {
+    "story:paper": "paper",
+    "story:jobs": "job",
+    "story:artifacts": "artifact",
+    "story:state": "state",
+}
+KIND_PRIORITY = ["paper", "job", "analysis", "retrieval", "artifact", "state"]
+STATE_LOADS = re.compile(r"pickle\.loads?\(|\.read_text\(|\.read_bytes\(")
+STATE_NAMES = re.compile(r"notebook_state|basket|\bSTATE\b|\bstate\b")
+ANALYSIS_TOOL_PREFIXES = ("portfolio_intel_", "techtrade_", "backtest_")
+_HEADING = re.compile(r"^##\s+(.+?)\s*$")
+
+
+def _imported_capability(module: str) -> str | None:
+    matches = [
+        prefix
+        for prefix in IMPORT_CAPABILITIES
+        if module == prefix or module.startswith(prefix + ".")
+    ]
+    return IMPORT_CAPABILITIES[max(matches, key=len)] if matches else None
+
+
+def _slug(text: str, used: set[str]) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48].strip("-")
+    base = base or "stage"
+    slug, counter = base, 2
+    while slug in used:
+        slug, counter = f"{base}-{counter}", counter + 1
+    used.add(slug)
+    return slug
+
+
+def _sections(source: NotebookSource, cells: list[dict]) -> list[dict]:
+    sections: list[dict] = [{"title": "Setup", "positions": [], "numbered": False}]
+    for reference in source.cells:
+        cell = cells[reference.position - 1]
+        text = (
+            "".join(cell["source"])
+            if isinstance(cell["source"], list)
+            else cell["source"]
+        )
+        if reference.cell_type == "markdown":
+            heading = next(
+                (
+                    m.group(1)
+                    for line in text.splitlines()
+                    if (m := _HEADING.match(line))
+                ),
+                None,
+            )
+            if heading is not None:
+                sections.append(
+                    {
+                        "title": heading.strip("# ").strip(),
+                        "positions": [],
+                        "numbered": bool(re.match(r"\d", heading)),
+                    }
+                )
+        sections[-1]["positions"].append(reference.position)
+    return [s for s in sections if s["positions"]]
+
+
+def _capability_kind(name: str) -> str:
+    if name in KIND_BY_CAPABILITY:
+        return KIND_BY_CAPABILITY[name]
+    if name.startswith("platform:"):
+        tool = name.split(":", 1)[1]
+        return "analysis" if tool.startswith(ANALYSIS_TOOL_PREFIXES) else "retrieval"
+    return "analysis"
+
+
+def _stage_needs(
+    source: NotebookSource, cells: list[dict], positions: list[int], numbered: bool
+) -> tuple[list[str], str, bool]:
+    by_position = {reference.position: reference for reference in source.cells}
+    capabilities: set[str] = set()
+    has_code = reads_state = False
+    for position in positions:
+        reference = by_position[position]
+        if reference.cell_type != "code":
+            continue
+        has_code = True
+        capabilities.update(
+            "platform:" + call[4:].replace(".", "_")
+            for call in reference.calls
+            if call.startswith("obb.")
+        )
+        for module in reference.imports:
+            mapped = _imported_capability(module)
+            if mapped:
+                capabilities.add(mapped)
+        cell = cells[position - 1]
+        text = (
+            "".join(cell["source"])
+            if isinstance(cell["source"], list)
+            else cell["source"]
+        )
+        if STATE_LOADS.search(text) and STATE_NAMES.search(text):
+            reads_state = True
+        if any(d.position == position for d in source.diagnostics):
+            capabilities.add("story:binding_review")
+    if not has_code:
+        return [], "narrative", False
+    if not capabilities and numbered:
+        capabilities.add("story:analytics")
+    if not capabilities:
+        return [], "setup", reads_state
+    kinds = {_capability_kind(c) for c in capabilities}
+    kind = next(k for k in KIND_PRIORITY if k in kinds)
+    return sorted(capabilities), kind, reads_state
+
+
+def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
+    """Derive one manifest dictionary from a notebook's inventory."""
+    notebook = json.loads(
+        (REPO_ROOT / "notebooks" / source.path).read_text(encoding="utf-8")
+    )
+    cells = notebook["cells"]
+    used: set[str] = set()
+    stages: list[dict] = []
+    limitations = [
+        "Stages follow the notebook's section order; data dependencies within a "
+        "story are modelled as an ordered chain until N04 binds exact outputs.",
+    ]
+    for section in _sections(source, cells):
+        capabilities, kind, reads_state = _stage_needs(
+            source, cells, section["positions"], section["numbered"]
+        )
+        stage_id = _slug(section["title"], used)
+        inputs = []
+        if reads_state and previous_story is not None:
+            inputs.append(
+                {
+                    "name": "prior_state",
+                    "from_story": previous_story,
+                    "output": "story_state",
+                }
+            )
+        outputs = (
+            ["story_state"] if "story:state" in capabilities else [f"{stage_id}-result"]
+        )
+        stages.append(
+            {
+                "id": stage_id,
+                "title": section["title"],
+                "kind": kind,
+                "cells": section["positions"],
+                "depends_on": [stages[-1]["id"]] if stages else [],
+                "capabilities": capabilities,
+                "inputs": inputs,
+                "outputs": outputs,
+                "optional": False,
+            }
+        )
+    if any(stage["inputs"] for stage in stages):
+        limitations.append(
+            "Cross-chapter state is attributed to the previous chapter; N06 binds "
+            "the exact state keys."
+        )
+    if source.diagnostics:
+        limitations.append(
+            "Source diagnostics are routed to story:binding_review: "
+            + ", ".join(
+                f"cell {d.position} ({d.classification or d.kind})"
+                for d in source.diagnostics
+            )
+        )
+    return {
+        "schema_version": 1,
+        "story_id": source.story_id,
+        "family": source.family,
+        "variant": source.variant,
+        "notebook_path": f"notebooks/{source.path}",
+        "source_sha256": source.source_sha256,
+        "stages": stages,
+        "acceptance_cases": [f"{source.story_id}:fixture", f"{source.story_id}:replay"],
+        "limitations": limitations,
+    }
+
+
+async def _tool_schemas(names: set[str]) -> dict[str, str]:
+    from openbb_core.api.rest_api import app
+    from openbb_mcp_server.app.app import create_mcp_server
+    from openbb_mcp_server.models.settings import MCPSettings
+
+    settings = MCPSettings.model_validate(
+        {
+            "api_prefix": "/api/v1",
+            "capability_profile": "portfolio-ops",
+            "default_tool_categories": ["all"],
+            "default_skills_dir": None,
+        }
+    )
+    server = create_mcp_server(settings, app, auth=("catalog-builder", "x" * 32))
+    schemas = {}
+    for tool in await server.list_tools():
+        if tool.name in names:
+            canonical = json.dumps(
+                tool.parameters or {}, sort_keys=True, separators=(",", ":")
+            )
+            schemas[tool.name] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    missing = names - set(schemas)
+    if missing:
+        raise SystemExit(f"tools not emitted by portfolio-ops: {sorted(missing)}")
+    return schemas
+
+
+def build_catalog(manifests: list[dict]) -> dict:
+    """Pin every referenced platform tool and list the planned capabilities."""
+    referenced = {
+        name
+        for manifest in manifests
+        for stage in manifest["stages"]
+        for name in stage["capabilities"]
+    }
+    tools = {
+        name.split(":", 1)[1] for name in referenced if name.startswith("platform:")
+    }
+    schemas = asyncio.run(_tool_schemas(tools))
+    entries: dict[str, dict] = {}
+    for tool in sorted(tools):
+        access = (
+            "analysis" if tool.startswith(ANALYSIS_TOOL_PREFIXES) else "provider_read"
+        )
+        entries[f"platform:{tool}"] = {
+            "status": "available",
+            "ref": {
+                "server": "platform",
+                "tool": tool,
+                "schema_sha256": schemas[tool],
+                "access": access,
+            },
+        }
+    for name, (access, issue, summary) in sorted(PLANNED.items()):
+        if name in referenced:
+            entries[name] = {
+                "status": "planned",
+                "access": access,
+                "owner_issue": issue,
+                "summary": summary,
+            }
+    return {"schema_version": 1, "entries": entries}
+
+
+def main() -> int:
+    """Regenerate manifests and the catalog from the tracked notebooks."""
+    sources = inventory_notebooks(REPO_ROOT / "notebooks")
+    previous: dict[str, str] = {}
+    manifests = []
+    for source in sources:
+        folder = source.story_id.split("/")[0]
+        manifests.append(build_manifest(source, previous.get(folder)))
+        previous[folder] = source.story_id
+    STORIES_DIR.mkdir(parents=True, exist_ok=True)
+    for manifest in manifests:
+        path = STORIES_DIR / (manifest["story_id"].replace("/", "__") + ".json")
+        path.write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
+    catalog = build_catalog(manifests)
+    (STORIES_DIR / "capability_catalog.json").write_text(
+        json.dumps(catalog, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+    summary = f"wrote {len(manifests)} manifests and {len(catalog['entries'])} catalog entries"
+    print(summary)  # noqa: T201
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

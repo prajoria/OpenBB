@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio_yfinance/06",
+  "family": "portfolio/06",
+  "variant": "free-provider",
+  "notebook_path": "notebooks/portfolio_yfinance/06-backtest-and-validation.ipynb",
+  "source_sha256": "37e3dff7176e77ffb4072d799a5f86b0b629f475457654cb423262c6f48c88ef",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-before-we-run-anything",
+      "title": "0. Before we run anything",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "0-before-we-run-anything-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "0-5-why-free-only-nb06-looks-different-from-trac",
+      "title": "0.5 Why free-only NB06 looks different from Track A",
+      "kind": "narrative",
+      "cells": [
+        4
+      ],
+      "depends_on": [
+        "0-before-we-run-anything"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "0-5-why-free-only-nb06-looks-different-from-trac-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-load-basket-build-the-config",
+      "title": "1. Load basket + build the config",
+      "kind": "job",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "0-5-why-free-only-nb06-looks-different-from-trac"
+      ],
+      "capabilities": [
+        "story:jobs"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio_yfinance/05",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "1-load-basket-build-the-config-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-run-obb-backtest-run-provider-cboe",
+      "title": "2. Run \u2014 `obb.backtest.run(..., provider='cboe')`",
+      "kind": "analysis",
+      "cells": [
+        7,
+        8
+      ],
+      "depends_on": [
+        "1-load-basket-build-the-config"
+      ],
+      "capabilities": [
+        "platform:backtest_run"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-run-obb-backtest-run-provider-cboe-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-sweep-momentum-grid-under-cboe",
+      "title": "3. Sweep \u2014 momentum grid under CBOE",
+      "kind": "analysis",
+      "cells": [
+        9,
+        10
+      ],
+      "depends_on": [
+        "2-run-obb-backtest-run-provider-cboe"
+      ],
+      "capabilities": [
+        "platform:backtest_sweep"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-sweep-momentum-grid-under-cboe-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-validate-walk-forward-pbo-under-cboe",
+      "title": "4. Validate \u2014 walk-forward + PBO under CBOE",
+      "kind": "analysis",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "3-sweep-momentum-grid-under-cboe"
+      ],
+      "capabilities": [
+        "platform:backtest_validate"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-validate-walk-forward-pbo-under-cboe-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-tearsheet-html-export-under-cboe",
+      "title": "5. Tearsheet \u2014 HTML export under CBOE",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14
+      ],
+      "depends_on": [
+        "4-validate-walk-forward-pbo-under-cboe"
+      ],
+      "capabilities": [
+        "platform:backtest_tearsheet"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio_yfinance/05",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "5-tearsheet-html-export-under-cboe-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-factor-eval-momentum-quintiles-under-cboe",
+      "title": "6. Factor eval \u2014 Momentum quintiles under CBOE",
+      "kind": "analysis",
+      "cells": [
+        15,
+        16
+      ],
+      "depends_on": [
+        "5-tearsheet-html-export-under-cboe"
+      ],
+      "capabilities": [
+        "platform:backtest_factor_eval"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-factor-eval-momentum-quintiles-under-cboe-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-bundle-reproducibility-freeze-under-cboe",
+      "title": "7. Bundle \u2014 reproducibility freeze under CBOE",
+      "kind": "analysis",
+      "cells": [
+        17,
+        18
+      ],
+      "depends_on": [
+        "6-factor-eval-momentum-quintiles-under-cboe"
+      ],
+      "capabilities": [
+        "platform:backtest_bundle_ingest"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-bundle-reproducibility-freeze-under-cboe-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-save-state-for-nb07-track-b",
+      "title": "8. Save state for NB07 (Track B)",
+      "kind": "state",
+      "cells": [
+        19,
+        20
+      ],
+      "depends_on": [
+        "7-bundle-reproducibility-freeze-under-cboe"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        21
+      ],
+      "depends_on": [
+        "8-save-state-for-nb07-track-b"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio_yfinance/06:fixture",
+    "portfolio_yfinance/06:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

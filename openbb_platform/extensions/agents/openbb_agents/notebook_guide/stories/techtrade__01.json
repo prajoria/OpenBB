@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "story_id": "techtrade/01",
+  "family": "techtrade/01",
+  "variant": "techtrade",
+  "notebook_path": "notebooks/techtrade/01-foundations-techtrade-and-analysis.ipynb",
+  "source_sha256": "e340177367a2ce7396f084888445f162b955727800fe8ebfd39599e45c416802",
+  "stages": [
+    {
+      "id": "what-this-notebook-is",
+      "title": "What this notebook is",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-this-notebook-is-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-environment-setup",
+      "title": "1. Environment Setup",
+      "kind": "analysis",
+      "cells": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "depends_on": [
+        "what-this-notebook-is"
+      ],
+      "capabilities": [
+        "platform:equity_profile",
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "1-environment-setup-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-alex-s-workflow-what-we-re-going-to-actually-d",
+      "title": "2. Alex's Workflow \u2014 what we're going to actually do",
+      "kind": "narrative",
+      "cells": [
+        11
+      ],
+      "depends_on": [
+        "1-environment-setup"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "2-alex-s-workflow-what-we-re-going-to-actually-d-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-fundamentals-the-analysis-7-phase-pipeline",
+      "title": "3. Fundamentals \u2014 the `Analysis` 7-phase pipeline",
+      "kind": "analysis",
+      "cells": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "depends_on": [
+        "2-alex-s-workflow-what-we-re-going-to-actually-d"
+      ],
+      "capabilities": [
+        "platform:equity_price_historical",
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-fundamentals-the-analysis-7-phase-pipeline-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-technical-setup-the-techtrade-engine",
+      "title": "4. Technical Setup \u2014 the techtrade engine",
+      "kind": "analysis",
+      "cells": [
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33
+      ],
+      "depends_on": [
+        "3-fundamentals-the-analysis-7-phase-pipeline"
+      ],
+      "capabilities": [
+        "platform:techtrade_export",
+        "platform:techtrade_plan",
+        "platform:techtrade_scan",
+        "platform:techtrade_signals",
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-technical-setup-the-techtrade-engine-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-the-robustness-gate-obb-techtrade-validate-iss",
+      "title": "5. The Robustness Gate \u2014 `obb.techtrade.validate` (issue #82)",
+      "kind": "job",
+      "cells": [
+        34,
+        35,
+        36,
+        37
+      ],
+      "depends_on": [
+        "4-technical-setup-the-techtrade-engine"
+      ],
+      "capabilities": [
+        "platform:techtrade_plan",
+        "story:jobs"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-the-robustness-gate-obb-techtrade-validate-iss-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-roadmap-what-s-shipped-and-what-s-next",
+      "title": "6. Roadmap \u2014 what's shipped and what's next",
+      "kind": "narrative",
+      "cells": [
+        38
+      ],
+      "depends_on": [
+        "5-the-robustness-gate-obb-techtrade-validate-iss"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "6-roadmap-what-s-shipped-and-what-s-next-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-this-notebook-as-a-verification-harness",
+      "title": "7. This Notebook as a Verification Harness",
+      "kind": "narrative",
+      "cells": [
+        39
+      ],
+      "depends_on": [
+        "6-roadmap-what-s-shipped-and-what-s-next"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "7-this-notebook-as-a-verification-harness-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "appendix-a-file-map",
+      "title": "Appendix A \u2014 File map",
+      "kind": "narrative",
+      "cells": [
+        40,
+        41,
+        42,
+        43
+      ],
+      "depends_on": [
+        "7-this-notebook-as-a-verification-harness"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "appendix-a-file-map-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "techtrade/01:fixture",
+    "techtrade/01:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/03",
+  "family": "portfolio/03",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/03-basket-xray-and-risk.ipynb",
+  "source_sha256": "72281aa1a6427b1a76a5492a89b1b1008c4413803bd617527f08a4b143c1e11c",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "artifact",
+      "cells": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "depends_on": [],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-load-the-basket",
+      "title": "1. Load the basket",
+      "kind": "analysis",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio/02",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "1-load-the-basket-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-the-naive-view-sector-pie-without-look-through",
+      "title": "2. The naive view \u2014 sector pie WITHOUT look-through",
+      "kind": "retrieval",
+      "cells": [
+        7,
+        8
+      ],
+      "depends_on": [
+        "1-load-the-basket"
+      ],
+      "capabilities": [
+        "platform:equity_profile"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-the-naive-view-sector-pie-without-look-through-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-the-x-ray-look-through-via-sec-n-port-obb-etf",
+      "title": "3. The x-ray \u2014 look-through via SEC N-PORT (`obb.etf.nport_disclosure`)",
+      "kind": "analysis",
+      "cells": [
+        9,
+        10
+      ],
+      "depends_on": [
+        "2-the-naive-view-sector-pie-without-look-through"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-the-x-ray-look-through-via-sec-n-port-obb-etf-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-sector-pie-with-look-through-the-pivot",
+      "title": "4. Sector pie WITH look-through \u2014 the pivot",
+      "kind": "analysis",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "3-the-x-ray-look-through-via-sec-n-port-obb-etf"
+      ],
+      "capabilities": [
+        "platform:equity_profile",
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-sector-pie-with-look-through-the-pivot-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-hhi-effective-n-two-numbers-to-quote-from-now",
+      "title": "5. HHI + effective-N \u2014 two numbers to quote from now on",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14
+      ],
+      "depends_on": [
+        "4-sector-pie-with-look-through-the-pivot"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-hhi-effective-n-two-numbers-to-quote-from-now-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-risk-metrics-obb-portfolio-intel-risk-metrics",
+      "title": "6. Risk metrics \u2014 `obb.portfolio_intel.risk.metrics`",
+      "kind": "analysis",
+      "cells": [
+        15,
+        16
+      ],
+      "depends_on": [
+        "5-hhi-effective-n-two-numbers-to-quote-from-now"
+      ],
+      "capabilities": [
+        "platform:equity_price_historical",
+        "platform:portfolio_intel_risk_metrics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-risk-metrics-obb-portfolio-intel-risk-metrics-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-concentration-obb-portfolio-intel-risk-concent",
+      "title": "7. Concentration \u2014 `obb.portfolio_intel.risk.concentration`",
+      "kind": "analysis",
+      "cells": [
+        17,
+        18
+      ],
+      "depends_on": [
+        "6-risk-metrics-obb-portfolio-intel-risk-metrics"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-concentration-obb-portfolio-intel-risk-concent-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-portfolio-construction-turning-the-x-ray-into",
+      "title": "8. Portfolio construction \u2014 turning the x-ray into weights",
+      "kind": "analysis",
+      "cells": [
+        19,
+        20
+      ],
+      "depends_on": [
+        "7-concentration-obb-portfolio-intel-risk-concent"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "8-portfolio-construction-turning-the-x-ray-into-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "9-silent-failure-guards-why-the-numbers-can-be-t",
+      "title": "9. Silent-failure guards \u2014 why the numbers can be trusted",
+      "kind": "analysis",
+      "cells": [
+        21,
+        22
+      ],
+      "depends_on": [
+        "8-portfolio-construction-turning-the-x-ray-into"
+      ],
+      "capabilities": [
+        "platform:portfolio_intel_risk_metrics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "9-silent-failure-guards-why-the-numbers-can-be-t-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "10-reading-the-numbers",
+      "title": "10. Reading the numbers",
+      "kind": "narrative",
+      "cells": [
+        23
+      ],
+      "depends_on": [
+        "9-silent-failure-guards-why-the-numbers-can-be-t"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "10-reading-the-numbers-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "11-save-state-for-nb04-nb05-nb06",
+      "title": "11. Save state for NB04, NB05, NB06",
+      "kind": "state",
+      "cells": [
+        24,
+        25
+      ],
+      "depends_on": [
+        "10-reading-the-numbers"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        26
+      ],
+      "depends_on": [
+        "11-save-state-for-nb04-nb05-nb06"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        27
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/03:fixture",
+    "portfolio/03:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}

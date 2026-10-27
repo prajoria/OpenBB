@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "story_id": "techtrade/07",
+  "family": "techtrade/07",
+  "variant": "techtrade",
+  "notebook_path": "notebooks/techtrade/07-t5-order-batch-and-xlsx-workbook.ipynb",
+  "source_sha256": "b81d61a1af7dcf2a39c59a4c7f90646773ca4ef4b45e4caf52d4ebcb1d3a8743",
+  "stages": [
+    {
+      "id": "what-this-notebook-covers",
+      "title": "What this notebook covers",
+      "kind": "narrative",
+      "cells": [
+        1
+      ],
+      "depends_on": [],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-this-notebook-covers-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-why-t5-is-file-drop-manual-placement",
+      "title": "1. Why T5 is file-drop + manual placement",
+      "kind": "narrative",
+      "cells": [
+        2
+      ],
+      "depends_on": [
+        "what-this-notebook-covers"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "1-why-t5-is-file-drop-manual-placement-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-orderticket-the-executable-unit",
+      "title": "2. OrderTicket \u2014 the executable unit",
+      "kind": "paper",
+      "cells": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "depends_on": [
+        "1-why-t5-is-file-drop-manual-placement"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-orderticket-the-executable-unit-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-orderbatch-a-set-of-tickets-provenance",
+      "title": "3. OrderBatch \u2014 a set of tickets + provenance",
+      "kind": "paper",
+      "cells": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "depends_on": [
+        "2-orderticket-the-executable-unit"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-orderbatch-a-set-of-tickets-provenance-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-writing-the-paired-csv-xlsx",
+      "title": "4. Writing the paired CSV + XLSX",
+      "kind": "paper",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "3-orderbatch-a-set-of-tickets-provenance"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-writing-the-paired-csv-xlsx-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-inspecting-the-csv-fidelity-basket-trading-for",
+      "title": "5. Inspecting the CSV \u2014 Fidelity Basket Trading format",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14,
+        15
+      ],
+      "depends_on": [
+        "4-writing-the-paired-csv-xlsx"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-inspecting-the-csv-fidelity-basket-trading-for-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-the-6-sheet-xlsx-workbook",
+      "title": "6. The 6-sheet XLSX workbook",
+      "kind": "artifact",
+      "cells": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35
+      ],
+      "depends_on": [
+        "5-inspecting-the-csv-fidelity-basket-trading-for"
+      ],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-the-6-sheet-xlsx-workbook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-what-s-next",
+      "title": "7. What's next",
+      "kind": "narrative",
+      "cells": [
+        36
+      ],
+      "depends_on": [
+        "6-the-6-sheet-xlsx-workbook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "7-what-s-next-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "techtrade/07:fixture",
+    "techtrade/07:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs."
+  ]
+}

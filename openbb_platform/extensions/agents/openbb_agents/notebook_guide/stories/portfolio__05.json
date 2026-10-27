@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "story_id": "portfolio/05",
+  "family": "portfolio/05",
+  "variant": "portfolio",
+  "notebook_path": "notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+  "source_sha256": "0839a0e44c1dc91d72a3fdc907dba6d94c097ebd938f20b643771462afde667a",
+  "stages": [
+    {
+      "id": "where-we-are-in-sam-s-story",
+      "title": "Where we are in Sam's story",
+      "kind": "artifact",
+      "cells": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "depends_on": [],
+      "capabilities": [
+        "story:artifacts"
+      ],
+      "inputs": [],
+      "outputs": [
+        "where-we-are-in-sam-s-story-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "1-load-state-from-nb03-nb04",
+      "title": "1. Load state from NB03 + NB04",
+      "kind": "state",
+      "cells": [
+        5,
+        6
+      ],
+      "depends_on": [
+        "where-we-are-in-sam-s-story"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [
+        {
+          "name": "prior_state",
+          "from_story": "portfolio/04",
+          "output": "story_state"
+        }
+      ],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "2-the-three-candidate-trades-in-english-first",
+      "title": "2. The three candidate trades \u2014 in English first",
+      "kind": "analysis",
+      "cells": [
+        7,
+        8
+      ],
+      "depends_on": [
+        "1-load-state-from-nb03-nb04"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "2-the-three-candidate-trades-in-english-first-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "3-what-if-diff-pr-905-https-github-com-prajoria",
+      "title": "3. What-if diff \u2014 PR [#905](https://github.com/prajoria/OpenBB/issues/905)",
+      "kind": "retrieval",
+      "cells": [
+        9,
+        10
+      ],
+      "depends_on": [
+        "2-the-three-candidate-trades-in-english-first"
+      ],
+      "capabilities": [
+        "platform:equity_price_quote"
+      ],
+      "inputs": [],
+      "outputs": [
+        "3-what-if-diff-pr-905-https-github-com-prajoria-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "4-reading-a-what-if",
+      "title": "4. Reading a what-if",
+      "kind": "analysis",
+      "cells": [
+        11,
+        12
+      ],
+      "depends_on": [
+        "3-what-if-diff-pr-905-https-github-com-prajoria"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "4-reading-a-what-if-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "5-brinson-attribution-where-did-my-returns-come",
+      "title": "5. Brinson attribution \u2014 where did my returns come from?",
+      "kind": "analysis",
+      "cells": [
+        13,
+        14
+      ],
+      "depends_on": [
+        "4-reading-a-what-if"
+      ],
+      "capabilities": [
+        "story:analytics"
+      ],
+      "inputs": [],
+      "outputs": [
+        "5-brinson-attribution-where-did-my-returns-come-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "6-paper-blotter-placing-the-trades-without-capit",
+      "title": "6. Paper blotter \u2014 placing the trades without capital",
+      "kind": "paper",
+      "cells": [
+        15,
+        16
+      ],
+      "depends_on": [
+        "5-brinson-attribution-where-did-my-returns-come"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "6-paper-blotter-placing-the-trades-without-capit-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "7-low-bp-alert-deliberately-trigger-one",
+      "title": "7. Low-BP alert \u2014 deliberately trigger one",
+      "kind": "paper",
+      "cells": [
+        17,
+        18
+      ],
+      "depends_on": [
+        "6-paper-blotter-placing-the-trades-without-capit"
+      ],
+      "capabilities": [
+        "story:paper"
+      ],
+      "inputs": [],
+      "outputs": [
+        "7-low-bp-alert-deliberately-trigger-one-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "8-save-state-for-nb07",
+      "title": "8. Save state for NB07",
+      "kind": "state",
+      "cells": [
+        19,
+        20
+      ],
+      "depends_on": [
+        "7-low-bp-alert-deliberately-trigger-one"
+      ],
+      "capabilities": [
+        "story:state"
+      ],
+      "inputs": [],
+      "outputs": [
+        "story_state"
+      ],
+      "optional": false
+    },
+    {
+      "id": "what-is-not-in-this-notebook",
+      "title": "What is NOT in this notebook",
+      "kind": "narrative",
+      "cells": [
+        21
+      ],
+      "depends_on": [
+        "8-save-state-for-nb07"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "what-is-not-in-this-notebook-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        22
+      ],
+      "depends_on": [
+        "what-is-not-in-this-notebook"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-result"
+      ],
+      "optional": false
+    },
+    {
+      "id": "further-reading-2",
+      "title": "\ud83d\udcda Further reading",
+      "kind": "narrative",
+      "cells": [
+        23
+      ],
+      "depends_on": [
+        "further-reading"
+      ],
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        "further-reading-2-result"
+      ],
+      "optional": false
+    }
+  ],
+  "acceptance_cases": [
+    "portfolio/05:fixture",
+    "portfolio/05:replay"
+  ],
+  "limitations": [
+    "Stages follow the notebook's section order; data dependencies within a story are modelled as an ordered chain until N04 binds exact outputs.",
+    "Cross-chapter state is attributed to the previous chapter; N06 binds the exact state keys."
+  ]
+}
