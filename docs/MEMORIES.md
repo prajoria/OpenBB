@@ -1479,3 +1479,21 @@ It supersedes §3, §4 and §6 of the 2026-10-26 pause handoff.
   the machine. It has an RTX 3090 and Docker Desktop. Only real decisions,
   money, legal sign-off, or a large download the operator has not approved
   need a person.
+
+## notebook-companion-n05-complete-2026-10-27
+
+N05 (#2215) and NF2.1 (#2203) are closed. The record is §2-§3 of
+`docs/handoff/2026-10-27-portfolio-resume-state.md`.
+
+- **14 `story_*` MCP tools** (PRs #2317-#2320) run over engines the notebooks
+  share: `portfolio_intel.analytics.basket_lookthrough` and `trade_preview`,
+  the Brinson oracle, `Analysis/stock_analysis` and
+  `openbb_techtrade.engine.story_analytics`.
+- **Nothing waits on N05 or N06** (#2322). `story:state` resolves to the run
+  tools through `DELIVERED` in `scripts/build_story_manifests.py`.
+- **Next:** N07 artifacts (18 needs), N08 jobs (12), N09 paper (23), N10
+  provider modes (14). Reuse the N05 pattern: engine module, notebook-cell
+  parity tests, a bounded `story_adapters/` module, one policy rule and family,
+  `REVIEWED_BINDINGS`, and mutation reverse-checks.
+- **Install pre-commit hooks in a new checkout** (`pre-commit install` with a
+  short `PRE_COMMIT_HOME`). This checkout had none.

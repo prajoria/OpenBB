@@ -13,11 +13,12 @@ This file supersedes its §3, §4 and §6. Tracking issue: #2308 (Record
   [docs/operations/portfolio-mcp-release.md](../operations/portfolio-mcp-release.md):
   promotion decision, metadata readiness, rollback proof, the six program
   metrics and AC-01..AC-12 status.
-- **The Notebook MCP Companion program (#2195) has started.** N01 is merged,
-  N02 and N04 are in review (see §3). Everything else is open and agent-doable
-  except the items in §4.
-- **Project #4 open items:** 39 Notebook Companion issues, plus #2308 until
-  this file merges. Nothing else on the board is open.
+- **The Notebook MCP Companion program (#2195) is past its analytics bridge.**
+  N01-N06 are merged, and N05 (#2215) and its feature NF2.1 (#2203) are
+  closed. Next are the N07-N10 bridges under NF2.2 (#2204), then N11 onward
+  (see §3). Everything is agent-doable except the items in §4.
+- **Project #4 open items:** 30 Notebook Companion issues, plus #2323 until
+  this update merges. Nothing else on the board is open.
 
 ## 2. What shipped on 2026-10-27
 
@@ -38,17 +39,40 @@ The four bugs behind #2298, #2300 and #2302 were found only because every
 number in the T44 release record was re-verified against code before it was
 written down.
 
+### Later on 2026-10-27: N02-N06
+
+| PR | Issue | Outcome |
+| --- | --- | --- |
+| #2307, #2310, #2311, #2312 | #2212, #2214, #2213, #2216 (N02, N04, N03, N06) | Manifests, readiness, scenarios and the story run registry |
+| #2317 | #2313 (N05a basket look-through, sector roll-up and concentration) | Four `story_*` tools over `basket_lookthrough`, which the notebook helper now also uses |
+| #2318 | #2314 (N05b seven-phase single-name analysis) | `story_single_name_analysis` over `Analysis/stock_analysis`, loaded only from a trusted location |
+| #2319 | #2315 (N05c Brinson attribution, what-if diff, candidate trades) | Three tools; the what-if diff never guesses a missing price |
+| #2320 | #2316 (N05d TechTrade story analytics) | Six tools over `openbb_techtrade.engine.story_analytics`; TechTrade chapter 3 is the first ready story |
+| #2322 | #2321 (N05e drain N05 and bind run state to the N06 tools) | Nothing waits on N05 or N06 |
+
 ## 3. Notebook Companion: in flight and next
 
 | Task | State | Notes |
 | --- | --- | --- |
-| N02 (#2212: typed story manifests, stage DAGs and state handoffs) | PR #2307 | Contracts, `validate_stage_graph`, 25 generated manifests and a 47-entry capability catalog |
-| N04 (#2214: bind story outcomes to real MCP capability readiness) | Branch `feat/notebook-readiness-gh-2214`, pushed | Open its PR against `portfolio` once #2307 merges; rebase first (see §5.1) |
-| N03 (#2213: independent synthetic scenarios and parity expectations) | Next | Hand-computed oracles must not compare a wrapper with itself |
-| N05–N10 | After N02/N04 | The readiness table in [notebook-mcp-story-coverage.md](../cross_repo_workflow/notebook-mcp-story-coverage.md) lists how many stages each bridge unblocks; N05 (analytics) is by far the largest |
+| N01-N06 (#2211-#2216) | Done | N05's five sub-issues are #2313-#2316 and #2321 |
+| N07 (#2217: artifacts) | Next | 18 stage needs: charts, tables, reports, XLSX and exported files |
+| N08 (#2218: jobs) | Open | 12 stage needs: backtest, tuning and replay as durable jobs |
+| N09 (#2219: paper) | Open | 23 stage needs, the largest: Portfolio and TechTrade paper actions in a sandbox |
+| N10 (#2220: provider modes) | Open | 14 stage needs: provider variants, recording, free-tier sector maps |
+| N11 onward (#2221-#2234) | Open | N11's live preflight, N18 and N19 need the approval in §4 |
 
-Readiness at this baseline: 287 stages, 194 doing financial work, 44 runnable
-on existing MCP tools, 150 waiting on N05–N10 bridges, 0 of 25 stories ready.
+Readiness now: 287 stages; 114 setup or narrative; 173 doing financial work,
+108 of them runnable on MCP tools; 65 waiting on N07-N10; 1 of 25 stories
+(TechTrade chapter 3) ready. The live table is in
+[notebook-mcp-story-coverage.md](../cross_repo_workflow/notebook-mcp-story-coverage.md).
+
+Every N05 tool follows one pattern worth reusing for N07-N10:
+
+- Lift the notebook math into an engine module.
+- Test it against hand-computed values and against the notebook's own cells (exec'd with rendering stubbed).
+- Expose it from a `story_adapters/` module with bounded, finite inputs.
+- Give it one policy rule and work family, and bind its stages in `REVIEWED_BINDINGS`.
+- Reverse-verify every load-bearing test by mutation.
 
 Regenerate manifests after any notebook change with
 `scripts/build_story_manifests.py` (it needs the `portfolio-ops` server, so run
@@ -88,6 +112,22 @@ commit it. The manifest tests fail until you do.
    see old code (this explained the old `test_cache_observability` failures).
    Reinstall it editable (`pip install -e openbb_platform/providers/fmp_cached`)
    when convenient.
+6. **Pre-commit hooks were not installed in this checkout.** `git commit` ran
+   no hooks until `pre-commit install` (with the short `PRE_COMMIT_HOME`), so
+   one test-file lint issue was committed. Check `.git/hooks/pre-commit`
+   exists before trusting a green commit.
+7. **CI's evidence step runs every test file in a family, integration tests
+   included, without provider keys.** A live test must skip when no key is
+   configured (see `test_single_name.py`), or it fails CI.
+8. **`REVIEWED_BINDINGS` is merged from dict literals,** so a stage reviewed
+   twice silently keeps the later entry. `test_reviewed_binding_keys_are_unique`
+   now catches that.
+9. **Overriding `PYTHONPATH` with the core source hides the venv's built
+   extensions** (`obb.equity` disappears). For a live call, put only the
+   package under test on `PYTHONPATH`.
+10. **Notebook-cell parity needs varied inputs.** Hand-picked fixtures left
+    threshold mutations alive; 150 seeded random paths through the
+    market-weather cell killed them all.
 6. **detect-secrets flags hex digests.** Generated manifests are excluded by
    path; elsewhere prefer a baseline entry with `is_secret: false`, or avoid
    committing raw commit SHAs.
