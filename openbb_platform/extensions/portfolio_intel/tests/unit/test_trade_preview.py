@@ -6,7 +6,7 @@ with rendering stubbed out, and their variables are the oracle.
 """
 
 # The oracle is the notebook's own code, so these tests exec its cells.
-# pylint: disable=exec-used
+# pylint: disable=exec-used,unused-argument
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def test_candidate_trades_accept_objects_and_labels() -> None:
 
 def test_no_conviction_means_no_trades() -> None:
     """Nothing is invented when the rollup is empty."""
-    assert candidate_trades([]) == []
+    assert not candidate_trades([])
 
 
 def test_whatif_diff_by_hand() -> None:
@@ -179,9 +179,8 @@ def test_whatif_diff_matches_notebook_sections_3_and_4(monkeypatch) -> None:
     )
     monkeypatch.setitem(sys.modules, "openbb", fake)
     namespace = {"basket": BASKET, "trades": trades, **_stubs()}
-    exec(
-        _cell("[Phase B / NB05 §3]").split("# ---- render")[0], namespace
-    )  # noqa: S102
+    section_3 = _cell("[Phase B / NB05 §3]").split("# ---- render")[0]
+    exec(section_3, namespace)  # noqa: S102
     exec(_cell("[Phase B / NB05 §4]"), namespace)  # noqa: S102
     diff = whatif_weight_diff(BASKET, PRICES, trades, account_size=100_000)
     assert diff.weights_before == pytest.approx(namespace["w_current"])
