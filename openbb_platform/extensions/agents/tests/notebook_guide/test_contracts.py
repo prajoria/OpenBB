@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from openbb_agents.notebook_guide.contracts import (  # noqa: E402
     ApprovalRequest,
     CapabilityCatalog,
-    StoryManifest,
     validate_stage_graph,
 )
 
@@ -45,54 +44,6 @@ def catalog() -> CapabilityCatalog:
             },
         }
     )
-
-
-@pytest.fixture
-def manifest_factory():
-    """Return a factory that builds a manifest from compact stage data."""
-
-    def factory(
-        *,
-        dependencies: dict[str, list[str]] | None = None,
-        capabilities: dict[str, list[str]] | None = None,
-        inputs: dict[str, list[dict]] | None = None,
-        outputs: dict[str, list[str]] | None = None,
-        cells: dict[str, list[int]] | None = None,
-        extra_stage_fields: dict | None = None,
-    ) -> StoryManifest:
-        dependencies = dependencies or {"a": [], "b": ["a"]}
-        stages = []
-        for index, (stage_id, depends_on) in enumerate(dependencies.items(), 1):
-            stage = {
-                "id": stage_id,
-                "title": f"Stage {stage_id}",
-                "kind": "analysis",
-                "cells": (cells or {}).get(stage_id, [index]),
-                "depends_on": depends_on,
-                "capabilities": (capabilities or {}).get(
-                    stage_id, ["platform:equity_profile"]
-                ),
-                "inputs": (inputs or {}).get(stage_id, []),
-                "outputs": (outputs or {}).get(stage_id, [f"{stage_id}_result"]),
-                "optional": False,
-            }
-            stage.update(extra_stage_fields or {})
-            stages.append(stage)
-        return StoryManifest.model_validate(
-            {
-                "schema_version": 1,
-                "story_id": "portfolio/01",
-                "family": "portfolio/01",
-                "variant": "portfolio",
-                "notebook_path": "notebooks/portfolio/01-synthetic.ipynb",
-                "source_sha256": SHA,
-                "stages": stages,
-                "acceptance_cases": ["portfolio/01:fixture"],
-                "limitations": [],
-            }
-        )
-
-    return factory
 
 
 def test_valid_manifest_passes(manifest_factory, catalog):

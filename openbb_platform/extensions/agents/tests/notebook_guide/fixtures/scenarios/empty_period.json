@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "empty_period",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "A weekend window has no trading days; the result is empty, not a zero return."
+  },
+  "stories": [
+    "portfolio/06",
+    "portfolio_yfinance/06",
+    "techtrade/04",
+    "techtrade/05"
+  ],
+  "inputs": {
+    "start_date": "2025-01-04",
+    "end_date": "2025-01-05",
+    "observations": []
+  },
+  "expected": {
+    "status": "empty",
+    "reason": "no observations in period"
+  }
+}

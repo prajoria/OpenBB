@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "id": "synthetic_universe",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Ten synthetic assets at equal 10% weights, identical closes 100,101,100,102,103: each and the basket return 103/100-1 = 0.03. Names are placeholders, not tickers."
+  },
+  "stories": [
+    "portfolio/01",
+    "portfolio/02",
+    "portfolio/03",
+    "portfolio/04",
+    "portfolio/05",
+    "portfolio/06",
+    "portfolio/07",
+    "portfolio/08",
+    "portfolio_yfinance/01",
+    "portfolio_yfinance/02",
+    "portfolio_yfinance/03",
+    "portfolio_yfinance/04",
+    "portfolio_yfinance/05",
+    "portfolio_yfinance/06",
+    "portfolio_yfinance/07",
+    "portfolio_yfinance/08",
+    "techtrade/01",
+    "techtrade/02",
+    "techtrade/03",
+    "techtrade/04",
+    "techtrade/05",
+    "techtrade/06",
+    "techtrade/07",
+    "techtrade/08",
+    "techtrade/09"
+  ],
+  "inputs": {
+    "currency": "USD",
+    "calendar": [
+      "2025-01-02",
+      "2025-01-03",
+      "2025-01-06",
+      "2025-01-07",
+      "2025-01-08"
+    ],
+    "basket_weights": {
+      "asset_a": 0.1,
+      "asset_b": 0.1,
+      "asset_c": 0.1,
+      "asset_d": 0.1,
+      "asset_e": 0.1,
+      "asset_f": 0.1,
+      "asset_g": 0.1,
+      "asset_h": 0.1,
+      "asset_i": 0.1,
+      "asset_j": 0.1
+    },
+    "close": {
+      "asset_a": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_b": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_c": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_d": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_e": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_f": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_g": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_h": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_i": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ],
+      "asset_j": [
+        100.0,
+        101.0,
+        100.0,
+        102.0,
+        103.0
+      ]
+    },
+    "events": [
+      {
+        "date": "2025-01-06",
+        "asset": "asset_a",
+        "kind": "earnings"
+      }
+    ]
+  },
+  "expected": {
+    "weights_sum": 1.0,
+    "asset_total_return": 0.03,
+    "basket_total_return": 0.03,
+    "observations": 5
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "id": "invalid_orders",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Holding 5 cannot sell 6; 101*10=1010 > 1000 cash; 100*10=1000 exactly uses all cash."
+  },
+  "stories": [
+    "portfolio/05",
+    "portfolio_yfinance/05",
+    "techtrade/07",
+    "techtrade/08",
+    "techtrade/09"
+  ],
+  "inputs": {
+    "starting_cash": "1000.00",
+    "holdings": {
+      "asset_a": 5
+    },
+    "orders": [
+      {
+        "id": "oversell",
+        "side": "sell",
+        "asset": "asset_a",
+        "quantity": 6,
+        "price": "10.00"
+      },
+      {
+        "id": "negative_quantity",
+        "side": "buy",
+        "asset": "asset_a",
+        "quantity": -1,
+        "price": "10.00"
+      },
+      {
+        "id": "zero_price",
+        "side": "buy",
+        "asset": "asset_a",
+        "quantity": 1,
+        "price": "0.00"
+      },
+      {
+        "id": "insufficient_cash",
+        "side": "buy",
+        "asset": "asset_a",
+        "quantity": 101,
+        "price": "10.00"
+      },
+      {
+        "id": "valid_buy",
+        "side": "buy",
+        "asset": "asset_a",
+        "quantity": 100,
+        "price": "10.00"
+      }
+    ]
+  },
+  "expected": {
+    "rejected": {
+      "oversell": "quantity exceeds holding",
+      "negative_quantity": "quantity must be positive",
+      "zero_price": "price must be positive",
+      "insufficient_cash": "cost exceeds available cash"
+    },
+    "accepted": [
+      "valid_buy"
+    ],
+    "cash_after_accepted": "0.00"
+  }
+}

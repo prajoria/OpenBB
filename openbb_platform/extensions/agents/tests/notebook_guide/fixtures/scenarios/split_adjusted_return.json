@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "split_adjusted_return",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "Divide pre-split closes by 2: 50,51,52,53. 53/50-1 = 0.06; unadjusted 53/100-1 = -0.47 is the wrong answer a missing adjustment produces."
+  },
+  "stories": [
+    "portfolio/02",
+    "portfolio/06",
+    "portfolio_yfinance/02",
+    "portfolio_yfinance/06",
+    "techtrade/04"
+  ],
+  "inputs": {
+    "raw_close": [
+      100.0,
+      102.0,
+      52.0,
+      53.0
+    ],
+    "split": {
+      "index": 2,
+      "ratio": 2.0
+    }
+  },
+  "expected": {
+    "adjusted_close": [
+      50.0,
+      51.0,
+      52.0,
+      53.0
+    ],
+    "adjusted_total_return": 0.06,
+    "naive_raw_return": -0.47
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "three_asset_weighted_return",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "0.5*0.04 + 0.3*(-0.02) + 0.2*0.10 = 0.020 - 0.006 + 0.020 = 0.034."
+  },
+  "stories": [
+    "portfolio/03",
+    "portfolio/05",
+    "portfolio_yfinance/03",
+    "portfolio_yfinance/05"
+  ],
+  "inputs": {
+    "weights": {
+      "asset_a": 0.5,
+      "asset_b": 0.3,
+      "asset_c": 0.2
+    },
+    "returns": {
+      "asset_a": 0.04,
+      "asset_b": -0.02,
+      "asset_c": 0.1
+    }
+  },
+  "expected": {
+    "weighted_return": 0.034
+  }
+}

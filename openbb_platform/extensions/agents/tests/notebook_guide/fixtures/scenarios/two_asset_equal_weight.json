@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "two_asset_equal_weight",
+  "provenance": {
+    "kind": "synthetic",
+    "computed_by": "hand",
+    "redistributable": true,
+    "rationale": "0.5*0.10 + 0.5*0.00 = 0.05."
+  },
+  "stories": [
+    "portfolio/03",
+    "portfolio_yfinance/03"
+  ],
+  "inputs": {
+    "weights": {
+      "asset_a": 0.5,
+      "asset_b": 0.5
+    },
+    "returns": {
+      "asset_a": 0.1,
+      "asset_b": 0.0
+    }
+  },
+  "expected": {
+    "weighted_return": 0.05
+  }
+}
