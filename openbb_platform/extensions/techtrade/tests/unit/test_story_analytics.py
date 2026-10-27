@@ -398,6 +398,17 @@ def test_replay_matches_notebook() -> None:
         )
 
 
+def test_a_win_without_risk_reward_is_counted_not_fatal() -> None:
+    """Like the notebook's mean, unknown r:r values are skipped, and counted."""
+    outcomes = [
+        {"status": "target", "realized": 10.0, "r:r": None, "conviction": "High"},
+        {"status": "target", "realized": 10.0, "r:r": 3.0, "conviction": "High"},
+    ]
+    summary = replay_summary(outcomes)
+    assert summary["avg_win_r"] == 3.0
+    assert summary["wins_without_risk_reward"] == 1
+
+
 def test_nan_free_outputs() -> None:
     """Summaries of empty inputs are zeros, never NaN."""
     summary = replay_summary([])

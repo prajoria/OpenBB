@@ -271,6 +271,15 @@
         "access": "provider_read"
       }
     },
+    "platform:story_actionable_plans": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_actionable_plans",
+        "schema_sha256": "4d42828582493b78dcbad1046691a6779a7394cd4f776c9e78a330664a32ca4d",
+        "access": "analysis"
+      }
+    },
     "platform:story_basket_effective_positions": {
       "status": "available",
       "ref": {
@@ -322,6 +331,51 @@
         "server": "platform",
         "tool": "story_construction_targets",
         "schema_sha256": "e70b26b88a8da15134ed7b0943d68eca7139c40f2b369c86a08e95cea336e5d1",
+        "access": "analysis"
+      }
+    },
+    "platform:story_indicator_config": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_indicator_config",
+        "schema_sha256": "92b4553998bf6fd54efde581fbf8868ef82d481f2a44a35dffe1b530d6503d0b",
+        "access": "analysis"
+      }
+    },
+    "platform:story_institutional_summary": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_institutional_summary",
+        "schema_sha256": "a40705017cdb60608823f281ce895c995315ac4a68ee03bbca4405aeea5c0727",
+        "access": "analysis"
+      }
+    },
+    "platform:story_market_weather": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_market_weather",
+        "schema_sha256": "919cd684e615a0c23cd351432689b0108393e0c07befe45a3184e939c61c618d",
+        "access": "analysis"
+      }
+    },
+    "platform:story_replay_recommendations": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_replay_recommendations",
+        "schema_sha256": "2f6000eb4526a52f0bd0ff6abf6b610847f70d46d4694ba60b0bce416c5ab50e",
+        "access": "analysis"
+      }
+    },
+    "platform:story_round_trip_pnl": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_round_trip_pnl",
+        "schema_sha256": "5a3034412a6519260af6453abba117f9fff61089cd101ac125cbc1f65d97db58",
         "access": "analysis"
       }
     },

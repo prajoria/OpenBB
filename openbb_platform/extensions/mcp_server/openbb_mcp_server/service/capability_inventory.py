@@ -929,6 +929,11 @@ def load_default_sources(
             )
 
             app = compose_attribution_app(app)
+            from openbb_mcp_server.story_adapters.techtrade_story import (
+                compose_techtrade_story_app,
+            )
+
+            app = compose_techtrade_story_app(app)
             if profile_name == "portfolio-ops":
                 from openbb_mcp_server.adapters.cache_jobs import (
                     compose_cache_jobs_app,

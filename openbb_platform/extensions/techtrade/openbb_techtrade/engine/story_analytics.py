@@ -318,7 +318,9 @@ def replay_summary(outcomes: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     closed = [r for r in rows if r.get("status") in ("stop", "target")]
     wins = [r for r in closed if r["status"] == "target"]
     win_rate = len(wins) / len(closed) if closed else 0.0
-    avg_win_r = sum(float(r["r:r"]) for r in wins) / len(wins) if wins else 0.0
+    # Like the notebook's pandas mean, unknown r:r values are skipped.
+    known_rr = [float(r["r:r"]) for r in wins if r.get("r:r") is not None]
+    avg_win_r = sum(known_rr) / len(known_rr) if known_rr else 0.0
     by: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in closed:
         by[str(row.get("conviction") or "")].append(row)
@@ -333,6 +335,7 @@ def replay_summary(outcomes: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "losses": len(closed) - len(wins),
         "win_rate": win_rate,
         "avg_win_r": avg_win_r,
+        "wins_without_risk_reward": len(wins) - len(known_rr),
         "avg_loss_r": -1.0,
         "expectancy_r": win_rate * avg_win_r + (1 - win_rate) * -1.0,
         "total_realized": sum(

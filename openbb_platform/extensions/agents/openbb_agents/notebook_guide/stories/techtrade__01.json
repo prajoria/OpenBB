@@ -41,7 +41,7 @@
       ],
       "capabilities": [
         "platform:equity_profile",
-        "story:analytics"
+        "platform:story_institutional_summary"
       ],
       "inputs": [],
       "outputs": [
@@ -87,8 +87,9 @@
       ],
       "capabilities": [
         "platform:equity_price_historical",
-        "platform:story_single_name_analysis",
-        "story:analytics"
+        "platform:story_institutional_summary",
+        "platform:story_market_weather",
+        "platform:story_single_name_analysis"
       ],
       "inputs": [],
       "outputs": [

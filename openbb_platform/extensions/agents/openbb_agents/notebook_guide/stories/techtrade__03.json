@@ -25,7 +25,7 @@
     {
       "id": "1-setup-probe",
       "title": "1. Setup probe",
-      "kind": "analysis",
+      "kind": "narrative",
       "cells": [
         3,
         4
@@ -33,9 +33,7 @@
       "depends_on": [
         "learning-objectives"
       ],
-      "capabilities": [
-        "story:analytics"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "1-setup-probe-result"
@@ -146,7 +144,7 @@
         "5-paper-fill-the-orders-obb-techtrade-simulate"
       ],
       "capabilities": [
-        "story:analytics"
+        "platform:story_round_trip_pnl"
       ],
       "inputs": [],
       "outputs": [

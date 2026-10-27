@@ -221,6 +221,11 @@ def _stage(manifest, prefix):
         ("portfolio/05", "5-", "platform:story_brinson_attribution"),
         ("portfolio_yfinance/05", "2-", "platform:story_candidate_trades"),
         ("portfolio_yfinance/05", "4-", "platform:story_brinson_attribution"),
+        ("techtrade/01", "3-", "platform:story_market_weather"),
+        ("techtrade/02", "6-", "platform:story_actionable_plans"),
+        ("techtrade/03", "6-", "platform:story_round_trip_pnl"),
+        ("techtrade/05", "7-", "platform:story_indicator_config"),
+        ("techtrade/06", "4-", "platform:story_replay_recommendations"),
     ],
 )
 def test_reviewed_xray_stages_bind_to_story_analytics_tools(
@@ -260,7 +265,7 @@ def test_every_reviewed_binding_matches_a_stage():
 
 @pytest.mark.parametrize(
     ("story_id", "stage"),
-    [("techtrade/01", "3-"), ("portfolio/07", "5-")],
+    [("portfolio/07", "5-")],
 )
 def test_mixed_single_name_stages_keep_their_residual(manifests, story_id, stage):
     """Stages that do more than the pipeline still need N05 for the rest."""
@@ -286,3 +291,49 @@ def test_the_what_if_stage_binds_its_arithmetic(manifests):
     assert {"platform:equity_price_quote", "platform:story_whatif_diff"} <= set(
         bound.capabilities
     )
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage"),
+    [("techtrade/03", "1-"), ("techtrade/04", "9-"), ("techtrade/05", "10-")],
+)
+def test_techtrade_probes_and_tables_need_no_capability(manifests, story_id, stage):
+    """Dependency probes, static tables and code templates run nothing."""
+    assert _stage(manifests[story_id], stage).capabilities == []
+
+
+def test_techtrade_story_analytics_bridge_is_drained(manifests):
+    """N05d leaves no TechTrade chapter 1-6 stage waiting on story:analytics."""
+    waiting = [
+        (story_id, stage.id)
+        for story_id, manifest in manifests.items()
+        if story_id in {f"techtrade/0{i}" for i in range(1, 7)}
+        for stage in manifest.stages
+        if "story:analytics" in stage.capabilities
+    ]
+    assert waiting == []
+
+
+def test_reviewed_binding_keys_are_unique():
+    """A stage reviewed twice would silently keep only the later binding."""
+    # pylint: disable=import-outside-toplevel
+    import ast
+
+    source = (REPO_ROOT / "scripts" / "build_story_manifests.py").read_text(
+        encoding="utf-8"
+    )
+    keys = [
+        (node.elts[0].value, node.elts[1].value)
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Tuple)
+        and len(node.elts) >= 2
+        and all(
+            isinstance(e, ast.Constant) and isinstance(e.value, str)
+            for e in node.elts[:2]
+        )
+        and "/" in node.elts[0].value
+        and node.elts[0].value.split("/")[0]
+        in {"portfolio", "portfolio_yfinance", "techtrade"}
+    ]
+    duplicated = sorted({k for k in keys if keys.count(k) > 1})
+    assert not duplicated, duplicated
