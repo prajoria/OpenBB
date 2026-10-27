@@ -135,6 +135,32 @@ def test_catalog_pins_tools_and_owns_every_gap(catalog):
             assert PLANNED[name][1] == entry.owner_issue
 
 
+def test_personal_data_stages_are_optional_and_private(manifests, catalog):
+    """Only sanitized private reads, and never a mandatory step (#2214)."""
+    private = {
+        name
+        for name, entry in catalog.entries.items()
+        if isinstance(entry, AvailableCapability) and entry.ref.access == "private_read"
+    }
+    assert private == {"platform:portfolio_portfolio_snapshots"}
+    stages = [
+        stage
+        for manifest in manifests.values()
+        for stage in manifest.stages
+        if private & set(stage.capabilities)
+    ]
+    assert stages and all(stage.optional for stage in stages)
+
+
+def test_no_unclassified_binding_reviews_remain(manifests):
+    """N04 resolves every binding the generator could not decide."""
+    assert not any(
+        "story:binding_review" in stage.capabilities
+        for manifest in manifests.values()
+        for stage in manifest.stages
+    )
+
+
 def test_portfolio_families_keep_both_provider_variants(manifests):
     """Every Portfolio family is told with both the Portfolio and free providers."""
     families: dict[str, set[str]] = {}

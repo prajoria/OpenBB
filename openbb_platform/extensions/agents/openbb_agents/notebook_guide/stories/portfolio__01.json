@@ -166,7 +166,7 @@
     {
       "id": "6-from-synthetic-basket-to-real-portfolio-option",
       "title": "6. From synthetic basket to real portfolio (optional bridge)",
-      "kind": "analysis",
+      "kind": "retrieval",
       "cells": [
         20,
         21
@@ -175,14 +175,14 @@
         "5-the-through-line-basket"
       ],
       "capabilities": [
-        "story:artifacts",
-        "story:binding_review"
+        "platform:portfolio_portfolio_snapshots",
+        "story:artifacts"
       ],
       "inputs": [],
       "outputs": [
         "6-from-synthetic-basket-to-real-portfolio-option-result"
       ],
-      "optional": false
+      "optional": true
     },
     {
       "id": "what-is-not-in-this-notebook",

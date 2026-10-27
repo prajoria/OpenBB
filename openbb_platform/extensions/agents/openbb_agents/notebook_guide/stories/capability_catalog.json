@@ -253,6 +253,15 @@
         "access": "analysis"
       }
     },
+    "platform:portfolio_portfolio_snapshots": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "portfolio_portfolio_snapshots",
+        "schema_sha256": "c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699",
+        "access": "private_read"
+      }
+    },
     "platform:regulators_sec_institutions_search": {
       "status": "available",
       "ref": {
@@ -372,12 +381,6 @@
       "access": "artifact",
       "owner_issue": 2217,
       "summary": "Bounded chart, table, report and XLSX artifacts (N07)."
-    },
-    "story:binding_review": {
-      "status": "planned",
-      "access": "analysis",
-      "owner_issue": 2214,
-      "summary": "Behaviour whose MCP binding must be decided during readiness review (N04)."
     },
     "story:jobs": {
       "status": "planned",
