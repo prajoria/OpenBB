@@ -1,0 +1,2217 @@
+{
+  "verification_utc": "2026-10-04T05:52:02.059259+00:00",
+  "repository": "prajoria/OpenBB",
+  "project_url": "https://github.com/users/prajoria/projects/4/views/2",
+  "integration_branch": "portfolio",
+  "audit_baseline": "39f171603c9bc4a28778e668ba981cf0e4358b9a",
+  "logical_items": 113,
+  "new_issues": 112,
+  "reused_issues": 1,
+  "type_counts": {
+    "Epic": 15,
+    "Feature": 30,
+    "Task": 68
+  },
+  "plan_sha256": {
+    "docs/superpowers/plans/2026-10-03-portfolio-mcp-capability-parity.md": "4896e05efdfbd437587af936052f8d97a2834bb42b0b0282a9b5a4c61fb8e899",
+    "docs/superpowers/plans/2026-10-03-notebook-mcp-agent.md": "3625177b515fb6f656edecb6105e0c0d59e11aaac65914843e0a612084820136"
+  },
+  "verification_scope": [
+    "113 unique open repository issues",
+    "Project #4 membership",
+    "four project field values",
+    "native parent relationships except preserved reused issue",
+    "all declared blocking relationships",
+    "new-issue stable markers and required labels",
+    "new issues unassigned",
+    "all 24 notebook tasks directly blocked by MCP:T44"
+  ],
+  "items": [
+    {
+      "plan_id": "MCP:ROOT",
+      "number": 2123,
+      "url": "https://github.com/prajoria/OpenBB/issues/2123",
+      "title": "[mcp-parity][PROGRAM] Portfolio capability coverage and trusted MCP delivery",
+      "parent_plan_id": null,
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "M0",
+        "Lane": "PM"
+      },
+      "reused": false,
+      "parent_link_kind": "program-root",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E1",
+      "number": 2124,
+      "url": "https://github.com/prajoria/OpenBB/issues/2124",
+      "title": "[mcp-parity][E1] Capability inventory and exposure policy",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E2",
+      "number": 2125,
+      "url": "https://github.com/prajoria/OpenBB/issues/2125",
+      "title": "[mcp-parity][E2] Reproducible Portfolio runtime profiles",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P0",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E3",
+      "number": 2126,
+      "url": "https://github.com/prajoria/OpenBB/issues/2126",
+      "title": "[mcp-parity][E3] FMP Cached model-to-command parity",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E4",
+      "number": 2127,
+      "url": "https://github.com/prajoria/OpenBB/issues/2127",
+      "title": "[mcp-parity][E4] Portfolio and Intelligence application parity",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E5",
+      "number": 2128,
+      "url": "https://github.com/prajoria/OpenBB/issues/2128",
+      "title": "[mcp-parity][E5] Cache observability and controlled operations",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E6",
+      "number": 2129,
+      "url": "https://github.com/prajoria/OpenBB/issues/2129",
+      "title": "[mcp-parity][E6] Specialist MCP correctness",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E7",
+      "number": 2130,
+      "url": "https://github.com/prajoria/OpenBB/issues/2130",
+      "title": "[mcp-parity][E7] Truthful prompts, client configuration, and unified discovery",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P2",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:E8",
+      "number": 2131,
+      "url": "https://github.com/prajoria/OpenBB/issues/2131",
+      "title": "[mcp-parity][E8] CI, live acceptance, and release rollout",
+      "parent_plan_id": "MCP:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P0",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F1.1",
+      "number": 2132,
+      "url": "https://github.com/prajoria/OpenBB/issues/2132",
+      "title": "[mcp-parity][F1.1] Versioned source/API/MCP inventory",
+      "parent_plan_id": "MCP:E1",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F1.2",
+      "number": 2133,
+      "url": "https://github.com/prajoria/OpenBB/issues/2133",
+      "title": "[mcp-parity][F1.2] Reviewed exposure and invocation policy",
+      "parent_plan_id": "MCP:E1",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F1.3",
+      "number": 2134,
+      "url": "https://github.com/prajoria/OpenBB/issues/2134",
+      "title": "[mcp-parity][F1.3] Portfolio lineage and recent-work traceability",
+      "parent_plan_id": "MCP:E1",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "M0",
+        "Lane": "PM"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F2.1",
+      "number": 2135,
+      "url": "https://github.com/prajoria/OpenBB/issues/2135",
+      "title": "[mcp-parity][F2.1] Deterministic package and profile resolution",
+      "parent_plan_id": "MCP:E2",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P0",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F2.2",
+      "number": 2136,
+      "url": "https://github.com/prajoria/OpenBB/issues/2136",
+      "title": "[mcp-parity][F2.2] Profile-aware launcher and readiness",
+      "parent_plan_id": "MCP:E2",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F3.1",
+      "number": 2137,
+      "url": "https://github.com/prajoria/OpenBB/issues/2137",
+      "title": "[mcp-parity][F3.1] Typed provider route framework and complete regression gate",
+      "parent_plan_id": "MCP:E3",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F3.2",
+      "number": 2138,
+      "url": "https://github.com/prajoria/OpenBB/issues/2138",
+      "title": "[mcp-parity][F3.2] Reference, search, price and intraday coverage",
+      "parent_plan_id": "MCP:E3",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F3.3",
+      "number": 2139,
+      "url": "https://github.com/prajoria/OpenBB/issues/2139",
+      "title": "[mcp-parity][F3.3] Analyst, sector and statement coverage",
+      "parent_plan_id": "MCP:E3",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F3.4",
+      "number": 2140,
+      "url": "https://github.com/prajoria/OpenBB/issues/2140",
+      "title": "[mcp-parity][F3.4] Corporate, government, news and COT coverage",
+      "parent_plan_id": "MCP:E3",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F4.1",
+      "number": 2141,
+      "url": "https://github.com/prajoria/OpenBB/issues/2141",
+      "title": "[mcp-parity][F4.1] Reviewed custom Portfolio API adapter",
+      "parent_plan_id": "MCP:E4",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F4.2",
+      "number": 2142,
+      "url": "https://github.com/prajoria/OpenBB/issues/2142",
+      "title": "[mcp-parity][F4.2] Reviewed Intelligence and Trading Desk adapter",
+      "parent_plan_id": "MCP:E4",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F4.3",
+      "number": 2143,
+      "url": "https://github.com/prajoria/OpenBB/issues/2143",
+      "title": "[mcp-parity][F4.3] Analytics optional-package contract",
+      "parent_plan_id": "MCP:E4",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F5.1",
+      "number": 2144,
+      "url": "https://github.com/prajoria/OpenBB/issues/2144",
+      "title": "[mcp-parity][F5.1] Cache observability and truthful persistence",
+      "parent_plan_id": "MCP:E5",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F5.2",
+      "number": 2145,
+      "url": "https://github.com/prajoria/OpenBB/issues/2145",
+      "title": "[mcp-parity][F5.2] Authenticated job-backed maintenance",
+      "parent_plan_id": "MCP:E5",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F6.1",
+      "number": 2146,
+      "url": "https://github.com/prajoria/OpenBB/issues/2146",
+      "title": "[mcp-parity][F6.1] Callable read-only Daytrade MCP",
+      "parent_plan_id": "MCP:E6",
+      "dependencies": [
+        "MCP:T31"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F6.2",
+      "number": 2147,
+      "url": "https://github.com/prajoria/OpenBB/issues/2147",
+      "title": "[mcp-parity][F6.2] Accurate and verified Agents MCP",
+      "parent_plan_id": "MCP:E6",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F7.1",
+      "number": 2148,
+      "url": "https://github.com/prajoria/OpenBB/issues/2148",
+      "title": "[mcp-parity][F7.1] Prompt and skills dependency integrity",
+      "parent_plan_id": "MCP:E7",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P2",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F7.2",
+      "number": 2149,
+      "url": "https://github.com/prajoria/OpenBB/issues/2149",
+      "title": "[mcp-parity][F7.2] Unified catalog and client/operator guidance",
+      "parent_plan_id": "MCP:E7",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F8.1",
+      "number": 2150,
+      "url": "https://github.com/prajoria/OpenBB/issues/2150",
+      "title": "[mcp-parity][F8.1] Offline protocol and Portfolio drift gates",
+      "parent_plan_id": "MCP:E8",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P0",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:F8.2",
+      "number": 2151,
+      "url": "https://github.com/prajoria/OpenBB/issues/2151",
+      "title": "[mcp-parity][F8.2] Live acceptance and staged release",
+      "parent_plan_id": "MCP:E8",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T01",
+      "number": 2152,
+      "url": "https://github.com/prajoria/OpenBB/issues/2152",
+      "title": "[mcp-parity][T01] Define capability contracts and immutable audit fixtures",
+      "parent_plan_id": "MCP:F1.1",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T02",
+      "number": 2153,
+      "url": "https://github.com/prajoria/OpenBB/issues/2153",
+      "title": "[mcp-parity][T02] Build the metadata-only inventory CLI",
+      "parent_plan_id": "MCP:F1.1",
+      "dependencies": [
+        "MCP:T01"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T03",
+      "number": 2154,
+      "url": "https://github.com/prajoria/OpenBB/issues/2154",
+      "title": "[mcp-parity][T03] Classify every capability and publish profile policy",
+      "parent_plan_id": "MCP:F1.2",
+      "dependencies": [
+        "MCP:T02"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T04",
+      "number": 2155,
+      "url": "https://github.com/prajoria/OpenBB/issues/2155",
+      "title": "[mcp-parity][T04] Enforce policy at discovery and invocation",
+      "parent_plan_id": "MCP:F1.2",
+      "dependencies": [
+        "MCP:T03"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T05",
+      "number": 2156,
+      "url": "https://github.com/prajoria/OpenBB/issues/2156",
+      "title": "[mcp-parity][T05] Automate Portfolio lineage and baseline comparison",
+      "parent_plan_id": "MCP:F1.3",
+      "dependencies": [
+        "MCP:T02"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M0",
+        "Lane": "PM"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T06",
+      "number": 2157,
+      "url": "https://github.com/prajoria/OpenBB/issues/2157",
+      "title": "[mcp-parity][T06] Map recent work and exceptions to accountable capabilities",
+      "parent_plan_id": "MCP:F1.3",
+      "dependencies": [
+        "MCP:T03",
+        "MCP:T05"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "PM"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T07",
+      "number": 2158,
+      "url": "https://github.com/prajoria/OpenBB/issues/2158",
+      "title": "[mcp-parity][T07] Define the install/profile manifests",
+      "parent_plan_id": "MCP:F2.1",
+      "dependencies": [
+        "MCP:T03"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T08",
+      "number": 2159,
+      "url": "https://github.com/prajoria/OpenBB/issues/2159",
+      "title": "[mcp-parity][T08] Establish clean-install and import-provenance checks",
+      "parent_plan_id": "MCP:F2.1",
+      "dependencies": [
+        "MCP:T07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T09",
+      "number": 2160,
+      "url": "https://github.com/prajoria/OpenBB/issues/2160",
+      "title": "[mcp-parity][T09] Add explicit launcher profile selection and safe lifecycle behavior",
+      "parent_plan_id": "MCP:F2.2",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T08"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T10",
+      "number": 2161,
+      "url": "https://github.com/prajoria/OpenBB/issues/2161",
+      "title": "[mcp-parity][T10] Make readiness assert the effective capability contract",
+      "parent_plan_id": "MCP:F2.2",
+      "dependencies": [
+        "MCP:T02",
+        "MCP:T09"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T11",
+      "number": 2162,
+      "url": "https://github.com/prajoria/OpenBB/issues/2162",
+      "title": "[mcp-parity][T11] Introduce typed provider-owned route assembly",
+      "parent_plan_id": "MCP:F3.1",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T12",
+      "number": 2163,
+      "url": "https://github.com/prajoria/OpenBB/issues/2163",
+      "title": "[mcp-parity][T12] Route static directories, lists and references",
+      "parent_plan_id": "MCP:F3.2",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T13",
+      "number": 2164,
+      "url": "https://github.com/prajoria/OpenBB/issues/2164",
+      "title": "[mcp-parity][T13] Route historical reference and identifier search",
+      "parent_plan_id": "MCP:F3.2",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T14",
+      "number": 2165,
+      "url": "https://github.com/prajoria/OpenBB/issues/2165",
+      "title": "[mcp-parity][T14] Route batch quotes, market cap and stock-price extras",
+      "parent_plan_id": "MCP:F3.2",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T15",
+      "number": 2166,
+      "url": "https://github.com/prajoria/OpenBB/issues/2166",
+      "title": "[mcp-parity][T15] Route intraday, aftermarket, hours and single-parameter extras",
+      "parent_plan_id": "MCP:F3.2",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T16",
+      "number": 2167,
+      "url": "https://github.com/prajoria/OpenBB/issues/2167",
+      "title": "[mcp-parity][T16] Route analyst and sector/industry families",
+      "parent_plan_id": "MCP:F3.3",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T17",
+      "number": 2168,
+      "url": "https://github.com/prajoria/OpenBB/issues/2168",
+      "title": "[mcp-parity][T17] Route statement extras, TTM, DCF and as-reported data",
+      "parent_plan_id": "MCP:F3.3",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T18",
+      "number": 2169,
+      "url": "https://github.com/prajoria/OpenBB/issues/2169",
+      "title": "[mcp-parity][T18] Route corporate, SEC and fundraising extras",
+      "parent_plan_id": "MCP:F3.4",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T19",
+      "number": 2170,
+      "url": "https://github.com/prajoria/OpenBB/issues/2170",
+      "title": "[mcp-parity][T19] Route government, news and COT extras",
+      "parent_plan_id": "MCP:F3.4",
+      "dependencies": [
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T20",
+      "number": 2171,
+      "url": "https://github.com/prajoria/OpenBB/issues/2171",
+      "title": "[mcp-parity][T20] Prove full FMP routing and persistence-descriptor regression",
+      "parent_plan_id": "MCP:F3.1",
+      "dependencies": [
+        "MCP:T12",
+        "MCP:T13",
+        "MCP:T14",
+        "MCP:T15",
+        "MCP:T16",
+        "MCP:T17",
+        "MCP:T18",
+        "MCP:T19"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T21",
+      "number": 2172,
+      "url": "https://github.com/prajoria/OpenBB/issues/2172",
+      "title": "[mcp-parity][T21] Implement the custom Portfolio composition seam",
+      "parent_plan_id": "MCP:F4.1",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T22",
+      "number": 2173,
+      "url": "https://github.com/prajoria/OpenBB/issues/2173",
+      "title": "[mcp-parity][T22] Verify all 19 Portfolio operations and private-data boundaries",
+      "parent_plan_id": "MCP:F4.1",
+      "dependencies": [
+        "MCP:T06",
+        "MCP:T21"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T23",
+      "number": 2174,
+      "url": "https://github.com/prajoria/OpenBB/issues/2174",
+      "title": "[mcp-parity][T23] Map Intelligence, provenance, snapshots and Trading Desk effects",
+      "parent_plan_id": "MCP:F4.2",
+      "dependencies": [
+        "MCP:T03",
+        "MCP:T06"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T24",
+      "number": 2175,
+      "url": "https://github.com/prajoria/OpenBB/issues/2175",
+      "title": "[mcp-parity][T24] Add approved Intelligence adapters and contract parity tests",
+      "parent_plan_id": "MCP:F4.2",
+      "dependencies": [
+        "MCP:T21",
+        "MCP:T23"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T25",
+      "number": 2176,
+      "url": "https://github.com/prajoria/OpenBB/issues/2176",
+      "title": "[mcp-parity][T25] Lock analytical extension coverage and behavior",
+      "parent_plan_id": "MCP:F4.3",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T08"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T26",
+      "number": 2177,
+      "url": "https://github.com/prajoria/OpenBB/issues/2177",
+      "title": "[mcp-parity][T26] Reconcile FinancialToolkit router assembly",
+      "parent_plan_id": "MCP:F4.3",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T08"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T27",
+      "number": 2178,
+      "url": "https://github.com/prajoria/OpenBB/issues/2178",
+      "title": "[mcp-parity][T27] Expose sanitized cache health and coverage",
+      "parent_plan_id": "MCP:F5.1",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T11"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T28",
+      "number": 2179,
+      "url": "https://github.com/prajoria/OpenBB/issues/2179",
+      "title": "[mcp-parity][T28] Verify persistence semantics and prioritize conversion gaps",
+      "parent_plan_id": "MCP:F5.1",
+      "dependencies": [
+        "MCP:T20",
+        "MCP:T27"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T29",
+      "number": 2180,
+      "url": "https://github.com/prajoria/OpenBB/issues/2180",
+      "title": "[mcp-parity][T29] Wire operator tools to existing job definitions",
+      "parent_plan_id": "MCP:F5.2",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T27"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T30",
+      "number": 2181,
+      "url": "https://github.com/prajoria/OpenBB/issues/2181",
+      "title": "[mcp-parity][T30] Prove maintenance isolation and recovery",
+      "parent_plan_id": "MCP:F5.2",
+      "dependencies": [
+        "MCP:T29"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "A-Data"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T31",
+      "number": 386,
+      "url": "https://github.com/prajoria/OpenBB/issues/386",
+      "title": "[P3.5 MCP tool server (openbb-daytrade mcp-serve)]",
+      "parent_plan_id": "MCP:F6.1",
+      "dependencies": [
+        "MCP:T03"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": true,
+      "parent_link_kind": "cross-linked",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T32",
+      "number": 2182,
+      "url": "https://github.com/prajoria/OpenBB/issues/2182",
+      "title": "[mcp-parity][T32] Verify Daytrade over an actual stdio connection",
+      "parent_plan_id": "MCP:F6.1",
+      "dependencies": [
+        "MCP:T31"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T33",
+      "number": 2183,
+      "url": "https://github.com/prajoria/OpenBB/issues/2183",
+      "title": "[mcp-parity][T33] Align Agents scope, schemas and documentation",
+      "parent_plan_id": "MCP:F6.2",
+      "dependencies": [
+        "MCP:T02",
+        "MCP:T03"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T34",
+      "number": 2184,
+      "url": "https://github.com/prajoria/OpenBB/issues/2184",
+      "title": "[mcp-parity][T34] Validate Agents transport and sanitized portfolio access",
+      "parent_plan_id": "MCP:F6.2",
+      "dependencies": [
+        "MCP:T33"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T35",
+      "number": 2185,
+      "url": "https://github.com/prajoria/OpenBB/issues/2185",
+      "title": "[mcp-parity][T35] Add structured prompt dependencies and readiness checks",
+      "parent_plan_id": "MCP:F7.1",
+      "dependencies": [
+        "MCP:T02",
+        "MCP:T07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T36",
+      "number": 2186,
+      "url": "https://github.com/prajoria/OpenBB/issues/2186",
+      "title": "[mcp-parity][T36] Correct cache, stock and FinancialToolkit instructions",
+      "parent_plan_id": "MCP:F7.1",
+      "dependencies": [
+        "MCP:T20",
+        "MCP:T22",
+        "MCP:T26",
+        "MCP:T28",
+        "MCP:T35"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T37",
+      "number": 2187,
+      "url": "https://github.com/prajoria/OpenBB/issues/2187",
+      "title": "[mcp-parity][T37] Publish a unified capability resource and client examples",
+      "parent_plan_id": "MCP:F7.2",
+      "dependencies": [
+        "MCP:T10",
+        "MCP:T24",
+        "MCP:T25",
+        "MCP:T32",
+        "MCP:T34",
+        "MCP:T36"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T38",
+      "number": 2188,
+      "url": "https://github.com/prajoria/OpenBB/issues/2188",
+      "title": "[mcp-parity][T38] Write operator setup, maintenance and rollback runbooks",
+      "parent_plan_id": "MCP:F7.2",
+      "dependencies": [
+        "MCP:T30",
+        "MCP:T37"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T39",
+      "number": 2189,
+      "url": "https://github.com/prajoria/OpenBB/issues/2189",
+      "title": "[mcp-parity][T39] Build a shared real-protocol regression matrix",
+      "parent_plan_id": "MCP:F8.1",
+      "dependencies": [
+        "MCP:T04",
+        "MCP:T07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T40",
+      "number": 2190,
+      "url": "https://github.com/prajoria/OpenBB/issues/2190",
+      "title": "[mcp-parity][T40] Add Portfolio-based capability and prompt drift CI",
+      "parent_plan_id": "MCP:F8.1",
+      "dependencies": [
+        "MCP:T06",
+        "MCP:T20",
+        "MCP:T22",
+        "MCP:T24",
+        "MCP:T25",
+        "MCP:T26",
+        "MCP:T35",
+        "MCP:T39"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T41",
+      "number": 2191,
+      "url": "https://github.com/prajoria/OpenBB/issues/2191",
+      "title": "[mcp-parity][T41] Certify package and interpreter replay",
+      "parent_plan_id": "MCP:F8.1",
+      "dependencies": [
+        "MCP:T10",
+        "MCP:T39"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T42",
+      "number": 2192,
+      "url": "https://github.com/prajoria/OpenBB/issues/2192",
+      "title": "[mcp-parity][T42] Revalidate integrated Workspace and registered backend parity",
+      "parent_plan_id": "MCP:F8.2",
+      "dependencies": [
+        "MCP:T24",
+        "MCP:T37",
+        "MCP:T39"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T43",
+      "number": 2193,
+      "url": "https://github.com/prajoria/OpenBB/issues/2193",
+      "title": "[mcp-parity][T43] Validate controlled data and operator workflows",
+      "parent_plan_id": "MCP:F8.2",
+      "dependencies": [
+        "MCP:T28",
+        "MCP:T30",
+        "MCP:T32",
+        "MCP:T34",
+        "MCP:T41"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "MCP:T44",
+      "number": 2194,
+      "url": "https://github.com/prajoria/OpenBB/issues/2194",
+      "title": "[mcp-parity][T44] Release, update coverage evidence, and prove rollback",
+      "parent_plan_id": "MCP:F8.2",
+      "dependencies": [
+        "MCP:T38",
+        "MCP:T40",
+        "MCP:T41",
+        "MCP:T42",
+        "MCP:T43"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M4",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:ROOT",
+      "number": 2195,
+      "url": "https://github.com/prajoria/OpenBB/issues/2195",
+      "title": "[notebook-agent][PROGRAM] Python MCP Notebook Companion with local vLLM Nemotron",
+      "parent_plan_id": null,
+      "dependencies": [
+        "MCP:T44"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "M0",
+        "Lane": "PM"
+      },
+      "reused": false,
+      "parent_link_kind": "program-root",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NE1",
+      "number": 2196,
+      "url": "https://github.com/prajoria/OpenBB/issues/2196",
+      "title": "[notebook-agent][NE1] Source story contracts and independent fixture readiness",
+      "parent_plan_id": "NB:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NE2",
+      "number": 2197,
+      "url": "https://github.com/prajoria/OpenBB/issues/2197",
+      "title": "[notebook-agent][NE2] Notebook-specific MCP analytical and workflow bridges",
+      "parent_plan_id": "NB:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NE3",
+      "number": 2198,
+      "url": "https://github.com/prajoria/OpenBB/issues/2198",
+      "title": "[notebook-agent][NE3] Python local-model MCP agent and CLI",
+      "parent_plan_id": "NB:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NE4",
+      "number": 2199,
+      "url": "https://github.com/prajoria/OpenBB/issues/2199",
+      "title": "[notebook-agent][NE4] Differential, model and safety qualification",
+      "parent_plan_id": "NB:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NE5",
+      "number": 2200,
+      "url": "https://github.com/prajoria/OpenBB/issues/2200",
+      "title": "[notebook-agent][NE5] Resume, Workspace integration and release",
+      "parent_plan_id": "NB:ROOT",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Epic",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF1.1",
+      "number": 2201,
+      "url": "https://github.com/prajoria/OpenBB/issues/2201",
+      "title": "[notebook-agent][NF1.1] Source inventory and versioned narrative contracts",
+      "parent_plan_id": "NB:NE1",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF1.2",
+      "number": 2202,
+      "url": "https://github.com/prajoria/OpenBB/issues/2202",
+      "title": "[notebook-agent][NF1.2] Independent fixtures and capability readiness",
+      "parent_plan_id": "NB:NE1",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF2.1",
+      "number": 2203,
+      "url": "https://github.com/prajoria/OpenBB/issues/2203",
+      "title": "[notebook-agent][NF2.1] Deterministic analytics and managed story state",
+      "parent_plan_id": "NB:NE2",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF2.2",
+      "number": 2204,
+      "url": "https://github.com/prajoria/OpenBB/issues/2204",
+      "title": "[notebook-agent][NF2.2] Artifacts, jobs, paper gates and provider modes",
+      "parent_plan_id": "NB:NE2",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P1",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF3.1",
+      "number": 2205,
+      "url": "https://github.com/prajoria/OpenBB/issues/2205",
+      "title": "[notebook-agent][NF3.1] Local model, MCP sessions and enforced tool execution",
+      "parent_plan_id": "NB:NE3",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF3.2",
+      "number": 2206,
+      "url": "https://github.com/prajoria/OpenBB/issues/2206",
+      "title": "[notebook-agent][NF3.2] Narrative planner, evidence and developer CLI",
+      "parent_plan_id": "NB:NE3",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF4.1",
+      "number": 2207,
+      "url": "https://github.com/prajoria/OpenBB/issues/2207",
+      "title": "[notebook-agent][NF4.1] Numerical and full-corpus story parity",
+      "parent_plan_id": "NB:NE4",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF4.2",
+      "number": 2208,
+      "url": "https://github.com/prajoria/OpenBB/issues/2208",
+      "title": "[notebook-agent][NF4.2] Local Nemotron reliability and safety qualification",
+      "parent_plan_id": "NB:NE4",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF5.1",
+      "number": 2209,
+      "url": "https://github.com/prajoria/OpenBB/issues/2209",
+      "title": "[notebook-agent][NF5.1] Recoverable runs and shared Workspace agent experience",
+      "parent_plan_id": "NB:NE5",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:NF5.2",
+      "number": 2210,
+      "url": "https://github.com/prajoria/OpenBB/issues/2210",
+      "title": "[notebook-agent][NF5.2] Portfolio drift CI and verified showcase release",
+      "parent_plan_id": "NB:NE5",
+      "dependencies": [],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Feature",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N01",
+      "number": 2211,
+      "url": "https://github.com/prajoria/OpenBB/issues/2211",
+      "title": "[notebook-agent][N01] Inventory source-only notebook stories and Portfolio lineage",
+      "parent_plan_id": "NB:NF1.1",
+      "dependencies": [
+        "MCP:T44"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N02",
+      "number": 2212,
+      "url": "https://github.com/prajoria/OpenBB/issues/2212",
+      "title": "[notebook-agent][N02] Define typed story manifests, stage DAGs and state handoffs",
+      "parent_plan_id": "NB:NF1.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N01"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N03",
+      "number": 2213,
+      "url": "https://github.com/prajoria/OpenBB/issues/2213",
+      "title": "[notebook-agent][N03] Build independent synthetic scenarios and parity expectations",
+      "parent_plan_id": "NB:NF1.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N02"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N04",
+      "number": 2214,
+      "url": "https://github.com/prajoria/OpenBB/issues/2214",
+      "title": "[notebook-agent][N04] Bind story outcomes to real MCP capability readiness",
+      "parent_plan_id": "NB:NF1.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N02"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P0",
+        "Lane": "D-Widgets+QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N05",
+      "number": 2215,
+      "url": "https://github.com/prajoria/OpenBB/issues/2215",
+      "title": "[notebook-agent][N05] Expose missing notebook analytics through owned engine adapters",
+      "parent_plan_id": "NB:NF2.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N03",
+        "NB:N04"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N06",
+      "number": 2216,
+      "url": "https://github.com/prajoria/OpenBB/issues/2216",
+      "title": "[notebook-agent][N06] Add story catalog, run registry and typed state management tools",
+      "parent_plan_id": "NB:NF2.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N02",
+        "NB:N04"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "B-Analytics"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N07",
+      "number": 2217,
+      "url": "https://github.com/prajoria/OpenBB/issues/2217",
+      "title": "[notebook-agent][N07] Produce bounded chart, table, report and XLSX artifacts",
+      "parent_plan_id": "NB:NF2.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N03",
+        "NB:N05",
+        "NB:N06"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P1",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N08",
+      "number": 2218,
+      "url": "https://github.com/prajoria/OpenBB/issues/2218",
+      "title": "[notebook-agent][N08] Bridge backtest, tuning and replay into existing durable jobs",
+      "parent_plan_id": "NB:NF2.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N05",
+        "NB:N06",
+        "NB:N07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N09",
+      "number": 2219,
+      "url": "https://github.com/prajoria/OpenBB/issues/2219",
+      "title": "[notebook-agent][N09] Gate Portfolio and TechTrade sandbox paper actions",
+      "parent_plan_id": "NB:NF2.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N05",
+        "NB:N06",
+        "NB:N07"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N10",
+      "number": 2220,
+      "url": "https://github.com/prajoria/OpenBB/issues/2220",
+      "title": "[notebook-agent][N10] Enforce provider variants, recording and truthful cache semantics",
+      "parent_plan_id": "NB:NF2.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N03",
+        "NB:N04",
+        "NB:N08"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N11",
+      "number": 2221,
+      "url": "https://github.com/prajoria/OpenBB/issues/2221",
+      "title": "[notebook-agent][N11] Implement explicit local vLLM model configuration and preflight",
+      "parent_plan_id": "NB:NF3.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N04"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N12",
+      "number": 2222,
+      "url": "https://github.com/prajoria/OpenBB/issues/2222",
+      "title": "[notebook-agent][N12] Implement authenticated server-qualified MCP client sessions",
+      "parent_plan_id": "NB:NF3.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N04"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N13",
+      "number": 2223,
+      "url": "https://github.com/prajoria/OpenBB/issues/2223",
+      "title": "[notebook-agent][N13] Build bounded schema-validated MCP tool execution loop",
+      "parent_plan_id": "NB:NF3.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N05",
+        "NB:N06",
+        "NB:N07",
+        "NB:N08",
+        "NB:N09",
+        "NB:N10",
+        "NB:N11",
+        "NB:N12"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P2",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N14",
+      "number": 2224,
+      "url": "https://github.com/prajoria/OpenBB/issues/2224",
+      "title": "[notebook-agent][N14] Plan narrative progression and cross-chapter state bindings",
+      "parent_plan_id": "NB:NF3.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N02",
+        "NB:N04",
+        "NB:N13"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N15",
+      "number": 2225,
+      "url": "https://github.com/prajoria/OpenBB/issues/2225",
+      "title": "[notebook-agent][N15] Render evidence-grounded explanations and artifact provenance",
+      "parent_plan_id": "NB:NF3.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N07",
+        "NB:N13",
+        "NB:N14"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N16",
+      "number": 2226,
+      "url": "https://github.com/prajoria/OpenBB/issues/2226",
+      "title": "[notebook-agent][N16] Deliver CLI story inspection, planning and approved execution",
+      "parent_plan_id": "NB:NF3.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N11",
+        "NB:N12",
+        "NB:N14",
+        "NB:N15"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N17",
+      "number": 2227,
+      "url": "https://github.com/prajoria/OpenBB/issues/2227",
+      "title": "[notebook-agent][N17] Implement independent numeric and artifact differential tests",
+      "parent_plan_id": "NB:NF4.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N03",
+        "NB:N05",
+        "NB:N07",
+        "NB:N09",
+        "NB:N10",
+        "NB:N16"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N18",
+      "number": 2228,
+      "url": "https://github.com/prajoria/OpenBB/issues/2228",
+      "title": "[notebook-agent][N18] Qualify all 25 notebook stories and narrative handoffs",
+      "parent_plan_id": "NB:NF4.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N14",
+        "NB:N16",
+        "NB:N17"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N19",
+      "number": 2229,
+      "url": "https://github.com/prajoria/OpenBB/issues/2229",
+      "title": "[notebook-agent][N19] Qualify local Nemotron tool use and explainability",
+      "parent_plan_id": "NB:NF4.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N11",
+        "NB:N15",
+        "NB:N18"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N20",
+      "number": 2230,
+      "url": "https://github.com/prajoria/OpenBB/issues/2230",
+      "title": "[notebook-agent][N20] Test denial, prompt injection, approvals and uncertain completion",
+      "parent_plan_id": "NB:NF4.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N09",
+        "NB:N12",
+        "NB:N13",
+        "NB:N16"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N21",
+      "number": 2231,
+      "url": "https://github.com/prajoria/OpenBB/issues/2231",
+      "title": "[notebook-agent][N21] Add checkpoint resume, idempotency reconciliation and budgets",
+      "parent_plan_id": "NB:NF5.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N06",
+        "NB:N08",
+        "NB:N13",
+        "NB:N16",
+        "NB:N20"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N22",
+      "number": 2232,
+      "url": "https://github.com/prajoria/OpenBB/issues/2232",
+      "title": "[notebook-agent][N22] Register a Workspace agent adapter over the same Python runner",
+      "parent_plan_id": "NB:NF5.1",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N15",
+        "NB:N16",
+        "NB:N20",
+        "NB:N21"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "C-App+Paper"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N23",
+      "number": 2233,
+      "url": "https://github.com/prajoria/OpenBB/issues/2233",
+      "title": "[notebook-agent][N23] Add Portfolio source, capability and agent regression CI gates",
+      "parent_plan_id": "NB:NF5.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N01",
+        "NB:N18",
+        "NB:N19",
+        "NB:N20",
+        "NB:N21",
+        "NB:N22"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "P3",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    },
+    {
+      "plan_id": "NB:N24",
+      "number": 2234,
+      "url": "https://github.com/prajoria/OpenBB/issues/2234",
+      "title": "[notebook-agent][N24] Release verified notebook-equivalent showcase and runbooks",
+      "parent_plan_id": "NB:NF5.2",
+      "dependencies": [
+        "MCP:T44",
+        "NB:N18",
+        "NB:N19",
+        "NB:N20",
+        "NB:N21",
+        "NB:N22",
+        "NB:N23"
+      ],
+      "fields": {
+        "Status": "Todo",
+        "Type": "Task",
+        "Phase": "M4",
+        "Lane": "QA"
+      },
+      "reused": false,
+      "parent_link_kind": "sub-issue",
+      "verified": true
+    }
+  ]
+}
