@@ -25,6 +25,7 @@ import hashlib
 import json
 import math
 import sqlite3
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -43,6 +44,10 @@ from openbb_mcp_server.story_adapters.artifacts import (
 from openbb_mcp_server.story_adapters.registry import RunStore, default_store_path
 
 OPERATION_ID = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+# The routes record a submission, enqueue it, then record the job ID. A worker
+# that claims the job in between waits this long for the ID, then refuses.
+ATTACH_WAIT_SECONDS = 5.0
+ATTACH_POLL_SECONDS = 0.05
 _RUN_ID = r"^[a-f0-9]{32}$"
 
 
@@ -540,16 +545,36 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _attached_submission(
+    ledger: SubmissionLedger, principal: str, operation_id: str
+) -> Submission | None:
+    """Return the submission once its job ID is recorded, or as it stands."""
+    deadline = time.monotonic() + ATTACH_WAIT_SECONDS
+    submission = ledger.get(principal, operation_id)
+    while (
+        submission is not None
+        and submission.job_id is None
+        and time.monotonic() < deadline
+    ):
+        time.sleep(ATTACH_POLL_SECONDS)
+        submission = ledger.get(principal, operation_id)
+    return submission
+
+
 def _execute(kind: str, context: JobContext, params: StoryJobParams) -> JobResult:
     spec = KINDS[kind]
     db_path = default_store_path()
     digest = payload_digest(params.run_id, kind, params.stage_id, params.payload)
-    submission = SubmissionLedger(db_path).get(params.principal, params.operation_id)
+    submission = _attached_submission(
+        SubmissionLedger(db_path), params.principal, params.operation_id
+    )
+    # The submission must name this exact durable run; an unattached one never
+    # matches, so a run triggered outside the routes cannot borrow it.
     if (
         submission is None
         or submission.digest != digest
         or submission.kind != kind
-        or submission.job_id not in (None, context.run_id)
+        or submission.job_id != context.run_id
     ):
         raise UnauthorizedStoryJob(
             "No matching story job submission; story jobs are submitted through"

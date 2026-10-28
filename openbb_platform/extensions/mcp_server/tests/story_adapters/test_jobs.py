@@ -827,3 +827,42 @@ def test_live_backtest_job_runs_on_the_real_engine(tmp_path, monkeypatch):
     highlights = view.json()["result"]["highlights"]
     assert highlights["equity_points"] > 100, "a half-year of daily bars"
     assert highlights["metrics"]["sharpe"] is not None
+
+
+def test_an_unattached_submission_cannot_authorize_a_forged_run(
+    job_harness, monkeypatch
+):
+    """A run with identical params but no recorded job ID is refused."""
+    monkeypatch.setattr(story_job_kinds, "ATTACH_WAIT_SECONDS", 0.05)
+    run_id = job_harness.run()
+    _crash_after_recording(job_harness, "op-1", run_id)
+    params = StoryJobParams(
+        principal="alice", run_id=run_id, operation_id="op-1", payload=BACKTEST
+    )
+    # Normalize the payload exactly as the routes do, so only the job ID differs.
+    payload = story_job_kinds.payload_model("story.backtest").model_validate(BACKTEST)
+    params = params.model_copy(update={"payload": payload.model_dump(mode="json")})
+    job_harness.service.enqueue("story.backtest", params.model_dump(mode="json"))
+    assert job_harness.worker.run_once().status == "failed"
+    with sqlite3.connect(job_harness.jobs_db) as connection:
+        error = connection.execute("SELECT error_type FROM job_run").fetchone()[0]
+    assert error == "UnauthorizedStoryJob"
+    assert job_harness.calls == []
+
+
+def test_a_job_claimed_before_its_id_is_recorded_waits_for_it(job_harness, monkeypatch):
+    """The worker waits for the routes to record the job ID, then runs."""
+    job = job_harness.submit(operation_id="op-1")
+    with sqlite3.connect(job_harness.store) as connection:
+        connection.execute("UPDATE story_jobs SET job_id = NULL")
+    ledger = story_job_kinds.SubmissionLedger(job_harness.store)
+    sleeps = []
+
+    def attach_during_wait(seconds):
+        sleeps.append(seconds)
+        ledger.attach_job("alice", "op-1", job.job_id)
+
+    monkeypatch.setattr(story_job_kinds.time, "sleep", attach_during_wait)
+    assert job_harness.worker.run_once().status == "succeeded"
+    assert sleeps, "the worker never waited for the job ID"
+    assert len(job_harness.calls) == 1
