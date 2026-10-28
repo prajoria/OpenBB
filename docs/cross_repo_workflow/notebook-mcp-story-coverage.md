@@ -249,6 +249,23 @@ workbook as run artifacts, idempotently by batch SHA. Neither submits or
 needs approval: a batch with failed gates is written so a reviewer sees them,
 and only N09a's approved apply can submit, which refuses a failed verdict.
 
+N09c (#2333) added the Portfolio engine. A sandbox created with
+`engine: "portfolio"` holds a Portfolio Intelligence paper account, its lots
+and its ledger in durable SQLite stores that implement the existing
+`AccountStore`, `PositionStore` and `LedgerStore` protocols. The account,
+fill, ledger, isolation and race suites now run against both the in-memory
+and SQLite stores. The sandbox may open with chapter 5's seed lots, which
+enter the ledger as a deposit and a trade, so it opens at its starting cash.
+Its one action, `submit_order`, runs `submit_order` behind the N09a approval
+gate. The approved arguments include the quote, so the person approves the
+price the order fills against. At apply time the quote must not be stamped in
+the future, be over 30 minutes old, or predate the book's last entry.
+A business rejection is an applied result with its reason and the alert the
+Portfolio alerts pipeline raises. The low-buying-power alert is that kind of
+rejection, and it changes nothing. Every order lands on the sandbox blotter.
+The sandbox state replays the ledger and reports whether it reconciles with
+the live book. No tool was added.
+
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
 was preserved byte-for-byte. Its current working-copy pipeline is authoritative

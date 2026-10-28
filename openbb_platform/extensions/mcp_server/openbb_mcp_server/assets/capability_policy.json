@@ -600,14 +600,17 @@
         "implementation_state": "implemented_product"
       },
       "notebook-story-paper": {
-        "owner_issues": ["#2331 Human approval gate and isolated paper sandboxes (TechTrade engine)"],
+        "owner_issues": ["#2331 Human approval gate and isolated paper sandboxes (TechTrade engine)", "#2333 Portfolio paper blotter and low-buying-power alert in a durable sandbox"],
         "rationale": "Portfolio profiles create principal-scoped paper sandboxes and prepare typed actions; only portfolio-ops may apply one, and only with an HMAC approval a person grants outside the model over the stored request (principal, sandbox, run, action, argument hash, manifest, expiry, nonce). Applies are consumed once and deduplicated; no broker or live endpoint is reachable.",
         "source_evidence": [
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_approve.py",
           "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_batch.py",
-          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_batch.py"
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_batch.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_portfolio.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_portfolio.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/paper/sqlite_stores.py"
         ],
         "review_triggers": ["paper action added", "approval binding changed", "paper engine or sandbox scoping changed"],
         "implementation_state": "implemented_product"
@@ -845,7 +848,10 @@
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_approve.py",
           "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_batch.py",
-          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_batch.py"
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_batch.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_portfolio.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_portfolio.py",
+          "openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/paper/sqlite_stores.py"
         ]
       },
       "platform-cache-observability": {
