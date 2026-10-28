@@ -240,6 +240,15 @@ expired approval are refused, and a re-delivered apply returns the first result.
 Stage bindings follow in N09d (#2334), so the readiness figures above are
 unchanged.
 
+N09b (#2332) added the TechTrade batch tools. `story_paper_order_batch`
+builds an `OrderBatch` from typed tickets, gates and provenance and returns
+the engine's content SHA, any failed gates and the operator's "type this at
+Fidelity" checklist. `story_paper_batch_artifacts` writes the batch through
+`PaperOrderSink` and publishes the paired Fidelity CSV and six-sheet review
+workbook as run artifacts, idempotently by batch SHA. Neither submits or
+needs approval: a batch with failed gates is written so a reviewer sees them,
+and only N09a's approved apply can submit, which refuses a failed verdict.
+
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
 was preserved byte-for-byte. Its current working-copy pipeline is authoritative

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "1956987628c3e96a2ade1c6d807fe08ace3e05af4dbb4a336740c0a4feacab39"
+    "sha256": "a6c87136160afc2ae0deb9d92492de17a9a13dcae651b333d40f706da91688ab"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -203,6 +203,18 @@
       "disposition": "direct",
       "access_class": "story_paper",
       "admitted_profiles": ["portfolio-ops"]
+    },
+    {
+      "id": "story-paper-batches",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/paper/batches/preview",
+        "/api/v1/story/runs/{run_id}/paper/batch_artifacts"
+      ],
+      "disposition": "direct",
+      "access_class": "story_state",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
     },
     {
       "id": "story-basket-analytics",
@@ -593,7 +605,9 @@
         "source_evidence": [
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_approve.py",
-          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py"
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_batch.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_batch.py"
         ],
         "review_triggers": ["paper action added", "approval binding changed", "paper engine or sandbox scoping changed"],
         "implementation_state": "implemented_product"
@@ -684,6 +698,7 @@
       "story-run-jobs": "notebook-story-jobs",
       "story-paper-sandboxes": "notebook-story-paper",
       "story-paper-apply": "notebook-story-paper",
+      "story-paper-batches": "notebook-story-paper",
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
@@ -819,14 +834,18 @@
           "story_paper_state",
           "story_paper_prepare",
           "story_paper_request",
-          "story_paper_apply"
+          "story_paper_apply",
+          "story_paper_order_batch",
+          "story_paper_batch_artifacts"
         ],
         "rationale": "Human-approved paper actions in isolated story sandboxes; apply is portfolio-ops only.",
         "verification_level": "policy_reviewed_runtime_inventory",
         "verification_evidence": [
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_approve.py",
-          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py"
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_batch.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper_batch.py"
         ]
       },
       "platform-cache-observability": {

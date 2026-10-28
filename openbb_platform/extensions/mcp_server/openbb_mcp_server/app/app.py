@@ -824,6 +824,11 @@ def _compose_profile_adapters(
             )
 
             source_app = compose_story_paper_app(source_app, principal=principal)
+            from openbb_mcp_server.story_adapters.paper_batch import (  # pylint: disable=import-outside-toplevel
+                compose_story_paper_batch_app,
+            )
+
+            source_app = compose_story_paper_batch_app(source_app, principal=principal)
     if profile == "portfolio-ops" and settings.enable_maintenance_operations:
         try:
             from openbb_mcp_server.adapters.cache_jobs import (  # pylint: disable=import-outside-toplevel
