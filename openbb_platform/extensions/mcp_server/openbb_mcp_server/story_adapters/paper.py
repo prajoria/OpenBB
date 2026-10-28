@@ -4,9 +4,11 @@ Routes under ``/api/v1/story``:
 
 - ``POST /runs/{run_id}/paper/sandboxes`` and ``GET`` the same path: create
   and list sandboxes. A sandbox is a server-owned paper book for one run of
-  one principal; nothing reaches a broker.
-- ``GET /paper/sandboxes/{sandbox_id}``: the book's account, positions,
-  orders and fills.
+  one principal; nothing reaches a broker. Its engine is TechTrade's paper
+  engine or, with ``engine="portfolio"``, a Portfolio Intelligence paper
+  account (:mod:`.paper_portfolio`), which may open with seed positions.
+- ``GET /paper/sandboxes/{sandbox_id}``: the book's account and positions,
+  with TechTrade's orders and fills or Portfolio's blotter and ledger check.
 - ``POST /paper/sandboxes/{sandbox_id}/prepare``: record one typed action and
   return its approval request. Preparing changes nothing.
 - ``GET /paper/requests/{request_id}``: the request's status.
@@ -196,12 +198,27 @@ ACTIONS: dict[str, type[_Strict]] = {
     "record_fill": RecordFill,
     "cancel_order": CancelOrder,
 }
-PaperAction = Literal["submit_batch", "record_fill", "cancel_order"]
+PaperAction = Literal["submit_batch", "record_fill", "cancel_order", "submit_order"]
+ENGINES = ("techtrade", "portfolio")
+
+
+def engine_actions(engine: str) -> dict[str, type[_Strict]]:
+    """Return the actions a sandbox of ``engine`` accepts."""
+    if engine == "portfolio":
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from openbb_mcp_server.story_adapters import paper_portfolio
+
+        return paper_portfolio.ACTIONS
+    return ACTIONS
 
 
 def normalize(action: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Validate the arguments of ``action`` and return their canonical form."""
-    return ACTIONS[action].model_validate(arguments).model_dump(mode="json")
+    for engine in ENGINES:
+        model = engine_actions(engine).get(action)
+        if model is not None:
+            return model.model_validate(arguments).model_dump(mode="json")
+    raise ValueError(f"Unknown paper action {action!r}.")
 
 
 # --- Engine -----------------------------------------------------------------
@@ -295,6 +312,26 @@ def engine_state(engine: Any) -> dict[str, Any]:
     }
 
 
+class _TechTradeBook:
+    """A TechTrade paper engine behind the sandbox book interface."""
+
+    def __init__(self, engine: Any):
+        self.engine = engine
+        self.errors = engine_errors()
+
+    def run(self, action: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Apply one validated action."""
+        return run_action(self.engine, action, arguments)
+
+    def state(self) -> dict[str, Any]:
+        """Account, positions, orders and fills."""
+        return engine_state(self.engine)
+
+    def close(self) -> None:
+        """Close the engine's database."""
+        self.engine.close()
+
+
 # --- Store ------------------------------------------------------------------
 
 
@@ -363,12 +400,35 @@ class PaperStore:
             raise UnsafeLocation("A paper sandbox resolves outside its root.")
         return directory
 
-    def engine(self, principal: str, sandbox: sqlite3.Row, *, create: bool = False):
-        """Open the sandbox's paper engine."""
+    def engine(
+        self,
+        principal: str,
+        sandbox: sqlite3.Row,
+        *,
+        create: bool = False,
+        seeds: list[SeedLot] | None = None,
+    ):
+        """Open the sandbox's paper book; ``create`` also opens its account."""
         directory = self.sandbox_dir(principal, sandbox["sandbox_id"], create=create)
-        return _techtrade_engine(
-            directory / "techtrade.sqlite", Decimal(sandbox["starting_cash"])
+        starting_cash = Decimal(sandbox["starting_cash"])
+        if sandbox["engine"] != "portfolio":
+            return _TechTradeBook(
+                _techtrade_engine(directory / "techtrade.sqlite", starting_cash)
+            )
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from openbb_mcp_server.story_adapters.paper_portfolio import PortfolioBook
+
+        book = PortfolioBook(
+            directory,
+            user_id=ArtifactStore.principal_key(principal),
+            account_id=sandbox["sandbox_id"],
+            starting_cash=starting_cash,
         )
+        if create:
+            book.open_account(
+                seeds or [], at=datetime.fromisoformat(sandbox["created_at"])
+            )
+        return book
 
     def sandbox(self, principal: str, sandbox_id: str) -> sqlite3.Row | None:
         """Return a sandbox this principal owns."""
@@ -408,13 +468,31 @@ def signed_view(row: sqlite3.Row) -> dict[str, Any]:
 # --- Routes -----------------------------------------------------------------
 
 
-class SandboxCreate(_Strict):
-    """A new, empty paper book for one run."""
+class SeedLot(_Strict):
+    """A position a Portfolio sandbox opens with."""
 
-    engine: Literal["techtrade"] = "techtrade"
+    symbol: Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9./\-]{0,15}$")]
+    quantity: _Amount
+    avg_cost: _Amount
+
+
+class SandboxCreate(_Strict):
+    """A new paper book for one run; a Portfolio book may hold seed lots."""
+
+    engine: Literal["techtrade", "portfolio"] = "techtrade"
     starting_cash: Annotated[
         Decimal, Field(gt=0, le=1_000_000_000, decimal_places=2, allow_inf_nan=False)
     ] = Decimal("100000")
+    initial_positions: list[SeedLot] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def _seeds_fit_the_engine(self) -> SandboxCreate:
+        if self.initial_positions and self.engine != "portfolio":
+            raise ValueError("only a portfolio sandbox opens with positions")
+        symbols = [seed.symbol for seed in self.initial_positions]
+        if len(set(symbols)) != len(symbols):
+            raise ValueError("each seed position needs its own symbol")
+        return self
 
 
 class Prepare(_Strict):
@@ -512,9 +590,9 @@ def build_router(  # pylint: disable=too-many-statements
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown sandbox.")
         return row
 
-    def _engine(sandbox: sqlite3.Row, *, create: bool = False):
+    def _engine(sandbox: sqlite3.Row, *, create: bool = False, seeds=None):
         try:
-            return store.engine(principal, sandbox, create=create)
+            return store.engine(principal, sandbox, create=create, seeds=seeds)
         except UnsafeLocation as error:
             raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
 
@@ -546,7 +624,7 @@ def build_router(  # pylint: disable=too-many-statements
                 ),
             )
         row = _owned_sandbox(sandbox_id)
-        _engine(row, create=True).close()
+        _engine(row, create=True, seeds=request.initial_positions).close()
         return _sandbox_view(row)
 
     @_route("get", "/runs/{run_id}/paper/sandboxes", "story_paper_sandbox_list")
@@ -563,13 +641,13 @@ def build_router(  # pylint: disable=too-many-statements
 
     @_route("get", "/paper/sandboxes/{sandbox_id}", "story_paper_state")
     def story_paper_state(sandbox_id: str) -> dict:
-        """Return a sandbox's account, positions, orders and fills."""
+        """Return a sandbox's account, positions and order history."""
         sandbox = _owned_sandbox(sandbox_id)
-        engine = _engine(sandbox)
+        book = _engine(sandbox)
         try:
-            return {**_sandbox_view(sandbox), **engine_state(engine)}
+            return {**_sandbox_view(sandbox), **book.state()}
         finally:
-            engine.close()
+            book.close()
 
     @_route("post", "/paper/sandboxes/{sandbox_id}/prepare", "story_paper_prepare")
     def story_paper_prepare(sandbox_id: str, request: Prepare) -> dict:
@@ -577,6 +655,11 @@ def build_router(  # pylint: disable=too-many-statements
         _key()
         sandbox = _owned_sandbox(sandbox_id)
         run = _owned_run(sandbox["run_id"])
+        if request.action not in engine_actions(sandbox["engine"]):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"A {sandbox['engine']} sandbox has no action '{request.action}'.",
+            )
         try:
             arguments = normalize(request.action, request.arguments)
         except (ValidationError, ValueError) as error:
@@ -692,10 +775,10 @@ def build_router(  # pylint: disable=too-many-statements
             raise HTTPException(
                 status.HTTP_409_CONFLICT, "The request was applied concurrently."
             )
-        engine = _engine(sandbox)
+        book = _engine(sandbox)
         try:
-            result = run_action(engine, row["action"], json.loads(row["arguments"]))
-        except engine_errors() as error:
+            result = book.run(row["action"], json.loads(row["arguments"]))
+        except book.errors as error:
             with store.connect() as connection:
                 connection.execute(
                     "UPDATE story_paper_requests SET status = 'failed', error = ?"
@@ -706,7 +789,7 @@ def build_router(  # pylint: disable=too-many-statements
                 status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)[:1000]
             ) from error
         finally:
-            engine.close()
+            book.close()
         with store.connect() as connection:
             connection.execute(
                 "UPDATE story_paper_requests SET status = 'applied', result = ?"
