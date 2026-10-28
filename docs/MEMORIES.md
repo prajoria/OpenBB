@@ -1497,3 +1497,26 @@ N05 (#2215) and NF2.1 (#2203) are closed. The record is §2-§3 of
   `REVIEWED_BINDINGS`, and mutation reverse-checks.
 - **Install pre-commit hooks in a new checkout** (`pre-commit install` with a
   short `PRE_COMMIT_HOME`). This checkout had none.
+
+## notebook-companion-n07-complete-2026-10-28
+
+N07 (#2217) is closed (PR #2325). The record is §1-§3 and lessons 12-16 of
+`docs/handoff/2026-10-27-portfolio-resume-state.md`.
+
+- **Seven `story_artifact_*` MCP tools** in
+  `mcp_server/.../story_adapters/artifacts.py` (store and routes) and
+  `artifact_render.py` (typed inputs and renderers). Artifacts belong to one
+  run of one principal; refs are exactly N03's `ArtifactRef`; access class is
+  `story_state`, admitted to portfolio-read and portfolio-ops.
+- **Store guarantees:** server-issued 32-hex IDs, atomic hard-link publish
+  that never overwrites, symlink and junction refusal, 4 MiB per file and
+  50 artifacts or 32 MiB per run, formula-safe CSV/XLSX cells, SHA-256
+  re-checked on every read, 1-365 day retention with purge on write,
+  reproducible workbook and JSON bytes.
+- **Nothing waits on `story:artifacts`.** `ARTIFACT_BINDINGS` in
+  `scripts/build_story_manifests.py` binds all 18 stages and fails the
+  generator on an unbound or stale stage; `SUPERSEDED_BY` swaps
+  `techtrade_export` for the run-scoped workbook.
+- **Readiness:** 5 of 25 stories ready; 49 stage needs left: N08 jobs (12),
+  N09 paper (23), N10 provider modes (14). N09's paper-sink writers should go
+  through `ArtifactStore.write`.

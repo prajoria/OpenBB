@@ -13,11 +13,12 @@ This file supersedes its §3, §4 and §6. Tracking issue: #2308 (Record
   [docs/operations/portfolio-mcp-release.md](../operations/portfolio-mcp-release.md):
   promotion decision, metadata readiness, rollback proof, the six program
   metrics and AC-01..AC-12 status.
-- **The Notebook MCP Companion program (#2195) is past its analytics bridge.**
-  N01-N06 are merged, and N05 (#2215) and its feature NF2.1 (#2203) are
-  closed. Next are the N07-N10 bridges under NF2.2 (#2204), then N11 onward
-  (see §3). Everything is agent-doable except the items in §4.
-- **Project #4 open items:** 30 Notebook Companion issues, plus #2323 until
+- **The Notebook MCP Companion program (#2195) is past its analytics and
+  artifact bridges.** N01-N07 are merged; N05 (#2215) and its feature NF2.1
+  (#2203) are closed, and N07 (#2217) closed on 2026-10-28. Next are N08-N10
+  under NF2.2 (#2204), then N11 onward (see §3). Everything is agent-doable
+  except the items in §4.
+- **Project #4 open items:** 29 Notebook Companion issues, plus #2326 until
   this update merges. Nothing else on the board is open.
 
 ## 2. What shipped on 2026-10-27
@@ -50,29 +51,45 @@ written down.
 | #2320 | #2316 (N05d TechTrade story analytics) | Six tools over `openbb_techtrade.engine.story_analytics`; TechTrade chapter 3 is the first ready story |
 | #2322 | #2321 (N05e drain N05 and bind run state to the N06 tools) | Nothing waits on N05 or N06 |
 
+### 2026-10-28: N07
+
+| PR | Issue | Outcome |
+| --- | --- | --- |
+| #2325 | #2217 (N07 bounded chart, table, report and XLSX artifacts) | Seven `story_artifact_*` tools; every artifact stage bound; 5 of 25 stories ready |
+
 ## 3. Notebook Companion: in flight and next
 
 | Task | State | Notes |
 | --- | --- | --- |
-| N01-N06 (#2211-#2216) | Done | N05's five sub-issues are #2313-#2316 and #2321 |
-| N07 (#2217: artifacts) | Next | 18 stage needs: charts, tables, reports, XLSX and exported files |
-| N08 (#2218: jobs) | Open | 12 stage needs: backtest, tuning and replay as durable jobs |
+| N01-N07 (#2211-#2217) | Done | N05's five sub-issues are #2313-#2316 and #2321 |
+| N08 (#2218: jobs) | Next | 12 stage needs: backtest, tuning and replay as durable jobs |
 | N09 (#2219: paper) | Open | 23 stage needs, the largest: Portfolio and TechTrade paper actions in a sandbox |
 | N10 (#2220: provider modes) | Open | 14 stage needs: provider variants, recording, free-tier sector maps |
 | N11 onward (#2221-#2234) | Open | N11's live preflight, N18 and N19 need the approval in §4 |
 
-Readiness now: 287 stages; 114 setup or narrative; 173 doing financial work,
-108 of them runnable on MCP tools; 65 waiting on N07-N10; 1 of 25 stories
-(TechTrade chapter 3) ready. The live table is in
+Readiness now: 287 stages; 120 setup or narrative; 167 doing financial work,
+118 of them runnable on MCP tools; 49 waiting on N08-N10; 5 of 25 stories
+ready (Portfolio chapters 3 and 4, TechTrade chapters 2, 3 and 6). The live
+table is in
 [notebook-mcp-story-coverage.md](../cross_repo_workflow/notebook-mcp-story-coverage.md).
 
-Every N05 tool follows one pattern worth reusing for N07-N10:
+Every N05 tool follows one pattern worth reusing for N08-N10:
 
 - Lift the notebook math into an engine module.
 - Test it against hand-computed values and against the notebook's own cells (exec'd with rendering stubbed).
 - Expose it from a `story_adapters/` module with bounded, finite inputs.
 - Give it one policy rule and work family, and bind its stages in `REVIEWED_BINDINGS`.
 - Reverse-verify every load-bearing test by mutation.
+
+N07 extended the pattern for a bridge that replaces a whole planned
+capability: `ARTIFACT_BINDINGS` names the tools for each `story:artifacts`
+stage, and the generator fails on a stage with no reviewed binding or a stale
+one. `SUPERSEDED_BY` drops a notebook's Platform call when a reviewed tool
+replaces it (the run-scoped workbook replaces `techtrade_export`). N08-N10
+can follow the same shape for `story:jobs`, `story:paper` and
+`story:provider_modes`. Writers that N09 adds (the paper sink's CSV and
+workbook) should go through `ArtifactStore.write`, so they inherit its
+limits, link checks and hashing.
 
 Regenerate manifests after any notebook change with
 `scripts/build_story_manifests.py` (it needs the `portfolio-ops` server, so run
@@ -106,7 +123,8 @@ commit it. The manifest tests fail until you do.
 4. **Local pre-commit.** The sandbox cannot read `~/.cache/pre-commit`, and long
    paths break pip on Windows. Use a short cache path:
    `PRE_COMMIT_HOME=<repo>/.worktrees/.pch pre-commit run --files ...`.
-   Pylint's `C0328` CRLF notices are local-only noise.
+   Pylint's `C0328` CRLF notices never reach CI, but the local pylint hook
+   fails on them and blocks the commit (see lesson 14).
 5. **`.venv_portfolio` has a stale non-editable `openbb_fmp_cached`** in
    `site-packages`. Tests that import it without the source on `PYTHONPATH`
    see old code (this explained the old `test_cache_observability` failures).
@@ -128,6 +146,25 @@ commit it. The manifest tests fail until you do.
 10. **Notebook-cell parity needs varied inputs.** Hand-picked fixtures left
     threshold mutations alive; 150 seeded random paths through the
     market-weather cell killed them all.
-6. **detect-secrets flags hex digests.** Generated manifests are excluded by
-   path; elsewhere prefer a baseline entry with `is_secret: false`, or avoid
-   committing raw commit SHAs.
+11. **detect-secrets flags hex digests.** Generated manifests are excluded by
+    path; elsewhere prefer a baseline entry with `is_secret: false`, or avoid
+    committing raw commit SHAs.
+12. **`.venv_portfolio`'s editable portfolio-intel points at an old sibling
+    worktree** (`workspace-mcp-2102`), so `trade_preview` and other recent
+    modules are missing. Run suites with every package under test on
+    `PYTHONPATH`, `financialtoolkit` included, or reinstall with
+    `scripts/pi_install.py`.
+13. **Pydantic needs a module loaded by path to be in `sys.modules`.** With
+    `from __future__ import annotations`, models resolve their annotations
+    through `sys.modules[module.__name__]`. Register the module before
+    `exec_module` (see `_n03_contracts` in `test_artifacts.py`).
+14. **Files edited with Edit keep CRLF in the working tree.** The local
+    pylint hook then reports thousands of `C0328` lines and fails. Normalize
+    to LF (`sed -i 's/\r$//'`) before committing; the blob is LF either way.
+15. **Swapping NaN for a string only works where strings are invalid.**
+    Table cells accept text, so the N05 `_json_safe` trick let NaN through as
+    a string. N07 swaps it for a mapping no cell type accepts, so the 422
+    stays JSON-encodable.
+16. **A mutation run rewrites source in place.** If it moves to the
+    background, leave the worktree alone until it finishes and restores the
+    files, then confirm the suite passes before committing.
