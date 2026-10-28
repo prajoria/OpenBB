@@ -1520,3 +1520,22 @@ N07 (#2217) is closed (PR #2325). The record is §1-§3 and lessons 12-16 of
 - **Readiness:** 5 of 25 stories ready; 49 stage needs left: N08 jobs (12),
   N09 paper (23), N10 provider modes (14). N09's paper-sink writers should go
   through `ArtifactStore.write`.
+
+## notebook-companion-n08-complete-2026-10-28
+
+N08 (#2218) is closed (PR #2328). The record is §1-§3 and lessons 17-20 of
+`docs/handoff/2026-10-27-portfolio-resume-state.md`.
+
+- **Four `story_job_*` MCP tools** (`story_adapters/jobs.py`) only enqueue on
+  the core `JobService`; the existing worker runs five allowlisted kinds
+  registered through `openbb_job_extension` (`story_job_kinds.py`):
+  single-name, backtest, validate, tune (never persisted) and replay.
+- **Guarantees:** operation ID is the core dedupe key (a lost response or a
+  crash before the job ID is recorded still yields one job); reuse for a
+  different payload or run is a 409; the worker runs only a recorded
+  submission whose job ID equals the durable run's (it waits up to 5 s for
+  the ID, then refuses); results become `result` artifacts; one attempt;
+  cancel is cancelled / too_late / already_finished; 4 active jobs per
+  principal.
+- **Readiness:** 11 of 25 stories ready; 37 needs left: N09 paper (23) and
+  N10 provider modes (14). N09 must keep approval out of the model's reach.

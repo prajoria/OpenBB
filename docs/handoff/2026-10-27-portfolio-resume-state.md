@@ -13,12 +13,12 @@ This file supersedes its §3, §4 and §6. Tracking issue: #2308 (Record
   [docs/operations/portfolio-mcp-release.md](../operations/portfolio-mcp-release.md):
   promotion decision, metadata readiness, rollback proof, the six program
   metrics and AC-01..AC-12 status.
-- **The Notebook MCP Companion program (#2195) is past its analytics and
-  artifact bridges.** N01-N07 are merged; N05 (#2215) and its feature NF2.1
-  (#2203) are closed, and N07 (#2217) closed on 2026-10-28. Next are N08-N10
-  under NF2.2 (#2204), then N11 onward (see §3). Everything is agent-doable
-  except the items in §4.
-- **Project #4 open items:** 29 Notebook Companion issues, plus #2326 until
+- **The Notebook MCP Companion program (#2195) is past its analytics,
+  artifact and job bridges.** N01-N08 are merged; N05 (#2215) and its feature
+  NF2.1 (#2203) are closed, and N07 (#2217) and N08 (#2218) closed on
+  2026-10-28. Next are N09 and N10 under NF2.2 (#2204), then N11 onward (see
+  §3). Everything is agent-doable except the items in §4.
+- **Project #4 open items:** 28 Notebook Companion issues, plus #2329 until
   this update merges. Nothing else on the board is open.
 
 ## 2. What shipped on 2026-10-27
@@ -56,21 +56,21 @@ written down.
 | PR | Issue | Outcome |
 | --- | --- | --- |
 | #2325 | #2217 (N07 bounded chart, table, report and XLSX artifacts) | Seven `story_artifact_*` tools; every artifact stage bound; 5 of 25 stories ready |
+| #2328 | #2218 (N08 bridge backtest, tuning and replay into existing durable jobs) | Four `story_job_*` tools and five allowlisted kinds on the core jobs service; 11 of 25 stories ready |
 
 ## 3. Notebook Companion: in flight and next
 
 | Task | State | Notes |
 | --- | --- | --- |
-| N01-N07 (#2211-#2217) | Done | N05's five sub-issues are #2313-#2316 and #2321 |
-| N08 (#2218: jobs) | Next | 12 stage needs: backtest, tuning and replay as durable jobs |
-| N09 (#2219: paper) | Open | 23 stage needs, the largest: Portfolio and TechTrade paper actions in a sandbox |
+| N01-N08 (#2211-#2218) | Done | N05's five sub-issues are #2313-#2316 and #2321 |
+| N09 (#2219: paper) | Next | 23 stage needs, the largest: Portfolio and TechTrade paper actions in a sandbox |
 | N10 (#2220: provider modes) | Open | 14 stage needs: provider variants, recording, free-tier sector maps |
 | N11 onward (#2221-#2234) | Open | N11's live preflight, N18 and N19 need the approval in §4 |
 
-Readiness now: 287 stages; 120 setup or narrative; 167 doing financial work,
-118 of them runnable on MCP tools; 49 waiting on N08-N10; 5 of 25 stories
-ready (Portfolio chapters 3 and 4, TechTrade chapters 2, 3 and 6). The live
-table is in
+Readiness now: 287 stages; 121 setup or narrative; 166 doing financial work,
+129 of them runnable on MCP tools; 37 waiting on N09 (23) and N10 (14); 11 of
+25 stories ready (Portfolio chapters 3, 4, 6 and 8, free-track chapter 6, and
+TechTrade chapters 1-6). The live table is in
 [notebook-mcp-story-coverage.md](../cross_repo_workflow/notebook-mcp-story-coverage.md).
 
 Every N05 tool follows one pattern worth reusing for N08-N10:
@@ -90,6 +90,21 @@ can follow the same shape for `story:jobs`, `story:paper` and
 `story:provider_modes`. Writers that N09 adds (the paper sink's CSV and
 workbook) should go through `ArtifactStore.write`, so they inherit its
 limits, link checks and hashing.
+
+N08 generalized that into `REVIEWED_BRIDGES` (planned capability to its
+binding table) and `_bind_reviewed`; N09 and N10 add their own table there.
+Story jobs register through `openbb_job_extension`, so the worker host must
+reinstall `openbb-mcp-server` to pick them up.
+
+**N09 design constraint (read before starting).** The design doc requires
+`ApprovalRequest` to bind principal, sandbox, tool, argument hash, manifest
+version, expiry and a one-use nonce, and to be "never an LLM boolean"; the
+explicit approval UX belongs to the CLI (N16) and Workspace, enforced by the
+N13 runner. So N09 must not expose an "approve" MCP tool the model can call:
+`prepare` returns the request, a human confirms it outside the model, and
+`apply` verifies a server-checked approval. Portfolio paper accounts, fills
+and the ledger have only in-memory stores, so a durable per-sandbox store is
+part of N09; TechTrade already has `SqlitePaperEngine`.
 
 Regenerate manifests after any notebook change with
 `scripts/build_story_manifests.py` (it needs the `portfolio-ops` server, so run
@@ -168,3 +183,16 @@ commit it. The manifest tests fail until you do.
 16. **A mutation run rewrites source in place.** If it moves to the
     background, leave the worktree alone until it finishes and restores the
     files, then confirm the suite passes before committing.
+17. **`Path.write_text` writes CRLF on Windows.** Scripts that rewrite source
+    should use `write_bytes` (or `newline="
+"`); otherwise pylint's score
+    collapses under `C0328` noise.
+18. **Normalizing a whole directory dirties untouched files.** Git then lists
+    them as modified with an empty diff. `git checkout -- <file>` on every
+    file whose `git diff --quiet` succeeds restores them; stage explicit paths.
+19. **Ruff and pylint disagree about `tomllib`.** Ruff's target version files
+    it as third-party, pylint as stdlib. Import it inside the test that needs
+    it rather than fighting both tools over the import block.
+20. **The commit security review earns its keep.** On N08 it caught a
+    fail-open check (a NULL job ID accepted as a match). Treat every
+    "allow when unset" branch in an authorization check as a finding.
