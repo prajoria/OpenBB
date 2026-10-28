@@ -925,6 +925,11 @@ def load_default_sources(
             from openbb_mcp_server.story_adapters.paper import compose_story_paper_app
 
             app = compose_story_paper_app(app, principal="inventory")
+            from openbb_mcp_server.story_adapters.paper_batch import (
+                compose_story_paper_batch_app,
+            )
+
+            app = compose_story_paper_batch_app(app, principal="inventory")
             from openbb_mcp_server.story_adapters.analytics import (
                 compose_story_analytics_app,
             )

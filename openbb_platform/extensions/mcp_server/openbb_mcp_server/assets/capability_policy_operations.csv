@@ -544,3 +544,5 @@ portfolio-venv-core-in-process,GET,/api/v1/story/paper/sandboxes/{sandbox_id},ac
 portfolio-venv-core-in-process,POST,/api/v1/story/paper/sandboxes/{sandbox_id}/prepare,activatable,story_paper_prepare,False,
 portfolio-venv-core-in-process,GET,/api/v1/story/paper/requests/{request_id},activatable,story_paper_request,False,
 portfolio-venv-core-in-process,POST,/api/v1/story/paper/requests/{request_id}/apply,activatable,story_paper_apply,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/paper/batches/preview,activatable,story_paper_order_batch,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/paper/batch_artifacts,activatable,story_paper_batch_artifacts,False,
