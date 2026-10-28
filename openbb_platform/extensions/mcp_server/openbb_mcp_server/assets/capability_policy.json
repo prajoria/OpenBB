@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "777103ee0ba6bd0135b6f3c2caf7ba875b8f741c3286394cc85c1bb6c18e3748"
+    "sha256": "1956987628c3e96a2ade1c6d807fe08ace3e05af4dbb4a336740c0a4feacab39"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -42,7 +42,8 @@
       "cache_maintenance",
       "job_control",
       "workspace_mutation",
-      "story_state"
+      "story_state",
+      "story_paper"
     ]
   },
   "rules": [
@@ -177,6 +178,31 @@
       "disposition": "direct",
       "access_class": "story_state",
       "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-paper-sandboxes",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/paper/requests/{request_id}",
+        "/api/v1/story/paper/sandboxes/{sandbox_id}",
+        "/api/v1/story/paper/sandboxes/{sandbox_id}/prepare",
+        "/api/v1/story/runs/{run_id}/paper/sandboxes"
+      ],
+      "disposition": "direct",
+      "access_class": "story_state",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-paper-apply",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/paper/requests/{request_id}/apply"
+      ],
+      "disposition": "direct",
+      "access_class": "story_paper",
+      "admitted_profiles": ["portfolio-ops"]
     },
     {
       "id": "story-basket-analytics",
@@ -561,6 +587,17 @@
         "review_triggers": ["story job kind added", "job payload changed", "job limits or scoping changed"],
         "implementation_state": "implemented_product"
       },
+      "notebook-story-paper": {
+        "owner_issues": ["#2331 Human approval gate and isolated paper sandboxes (TechTrade engine)"],
+        "rationale": "Portfolio profiles create principal-scoped paper sandboxes and prepare typed actions; only portfolio-ops may apply one, and only with an HMAC approval a person grants outside the model over the stored request (principal, sandbox, run, action, argument hash, manifest, expiry, nonce). Applies are consumed once and deduplicated; no broker or live endpoint is reachable.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_approve.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py"
+        ],
+        "review_triggers": ["paper action added", "approval binding changed", "paper engine or sandbox scoping changed"],
+        "implementation_state": "implemented_product"
+      },
       "fmp-routing-waves": {
         "owner_issues": ["#2162 Typed provider route framework", "#2171 Complete FMP parity gate"],
         "rationale": "Own every FMP Cached registration and routing gap without reducing the denominator.",
@@ -645,6 +682,8 @@
       "story-run-state": "notebook-story-registry",
       "story-run-artifacts": "notebook-story-artifacts",
       "story-run-jobs": "notebook-story-jobs",
+      "story-paper-sandboxes": "notebook-story-paper",
+      "story-paper-apply": "notebook-story-paper",
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
@@ -771,6 +810,23 @@
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/jobs.py",
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/story_job_kinds.py",
           "openbb_platform/extensions/mcp_server/tests/story_adapters/test_jobs.py"
+        ]
+      },
+      "platform-story-paper": {
+        "members": [
+          "story_paper_sandbox_create",
+          "story_paper_sandbox_list",
+          "story_paper_state",
+          "story_paper_prepare",
+          "story_paper_request",
+          "story_paper_apply"
+        ],
+        "rationale": "Human-approved paper actions in isolated story sandboxes; apply is portfolio-ops only.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/paper_approve.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_paper.py"
         ]
       },
       "platform-cache-observability": {

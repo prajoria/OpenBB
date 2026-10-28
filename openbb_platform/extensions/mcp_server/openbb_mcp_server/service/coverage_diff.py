@@ -36,6 +36,7 @@ _ACCESS_SENSITIVITY = {
     "job_control": 3,
     "workspace_mutation": 3,
     "story_state": 3,
+    "story_paper": 3,
     "financial_mutation": 3,
 }
 _ASSET_RELATIVE = Path("openbb_platform/extensions/mcp_server/openbb_mcp_server/assets")

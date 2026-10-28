@@ -227,6 +227,19 @@ Portfolio chapters 6 and 8 and free-track chapter 6. The remaining stages wait
 on N09 and N10. These figures are stage outcomes, not an API-count parity
 claim.
 
+N09a (#2331) added the paper gate that N09 builds on: six `story_paper_*`
+tools over TechTrade's `SqlitePaperEngine` in isolated, principal-scoped
+sandboxes. Preparing an action records it with an `ApprovalRequest` that binds
+principal, sandbox, run, action, argument hash, manifest version, expiry and a
+one-use nonce. No MCP tool approves. A person approves with
+`python -m openbb_mcp_server.story_adapters.paper_approve <request_id>`, which
+reads the stored arguments, needs a terminal and prints an HMAC keyed by the
+operator's `OPENBB_STORY_APPROVAL_KEY`. Only portfolio-ops can apply, once, with
+that approval; changed arguments, another sandbox, a changed manifest or an
+expired approval are refused, and a re-delivered apply returns the first result.
+Stage bindings follow in N09d (#2334), so the readiness figures above are
+unchanged.
+
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
 was preserved byte-for-byte. Its current working-copy pipeline is authoritative

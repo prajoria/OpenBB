@@ -45,6 +45,7 @@ AccessClass = Literal[
     "job_control",
     "workspace_mutation",
     "story_state",
+    "story_paper",
     "financial_mutation",
 ]
 Persistence = Literal[
