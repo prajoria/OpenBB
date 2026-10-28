@@ -34,6 +34,9 @@ enough parallelism. Proves the lock is load-bearing rather than
 ceremonial.
 """
 
+# ruff: noqa: D101, D102, D103
+# pylint: disable=protected-access,unused-variable,unused-argument,cell-var-from-loop
+
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -52,6 +55,9 @@ from openbb_portfolio_intel.paper import (
 )
 from openbb_portfolio_intel.paper.fills import _submit_order_locked
 from openbb_portfolio_intel.paper.locking import AccountLockManager
+
+# Run against the in-memory and the durable SQLite stores (#2333).
+pytestmark = pytest.mark.usefixtures("paper_store_backend")
 
 D = Decimal
 NOW = datetime(2026, 7, 20, 9, 30, 0)

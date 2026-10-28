@@ -24,6 +24,9 @@ The purpose is to lock down the wire contract now so widgets, the
 router, and the scheduler follow-up all build against a stable API.
 """
 
+# ruff: noqa: D101, D102, D103
+# pylint: disable=unused-argument
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -42,6 +45,9 @@ from openbb_portfolio_intel.paper import (
     TimeInForce,
     submit_order,
 )
+
+# Run against the in-memory and the durable SQLite stores (#2333).
+pytestmark = pytest.mark.usefixtures("paper_store_backend")
 
 D = Decimal
 NOW = datetime(2026, 7, 20, 9, 30, 0)

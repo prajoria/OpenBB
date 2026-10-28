@@ -1,5 +1,7 @@
 """Unit tests for paper-trading account CRUD (#562)."""
 
+# ruff: noqa: D101, D102, D103
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,6 +15,9 @@ from openbb_portfolio_intel.paper import (
     InMemoryAccountStore,
     PaperAccount,
 )
+
+# Run against the in-memory and the durable SQLite stores (#2333).
+pytestmark = pytest.mark.usefixtures("paper_store_backend")
 
 NOW = datetime(2026, 7, 20, 9, 30, 0)
 LATER = datetime(2026, 7, 20, 10, 0, 0)
@@ -150,10 +155,8 @@ def test_reset_zeros_cash_back_to_starting() -> None:
         user_id="daisy", config=_cfg(starting_cash=Decimal("50000")), now=NOW
     )
     # Simulate a drawn-down balance via internal mutation for the test
-    store._accounts[acc.account_id] = _spend_cash(
-        store._accounts[acc.account_id], Decimal("30000")
-    )
-    assert store._accounts[acc.account_id].cash_balance == Decimal("20000")
+    _spend_cash(store, acc, Decimal("30000"))
+    assert store.get(acc.account_id, user_id="daisy").cash_balance == Decimal("20000")
     reset = store.reset(acc.account_id, user_id="daisy", now=LATER)
     assert reset.cash_balance == Decimal("50000")
     assert reset.updated_at == LATER
@@ -245,9 +248,7 @@ def test_r711_user_scope_prevents_reset_hijack() -> None:
     acc = store.create(
         user_id="daisy", config=_cfg(starting_cash=Decimal("100")), now=NOW
     )
-    store._accounts[acc.account_id] = _spend_cash(
-        store._accounts[acc.account_id], Decimal("40")
-    )
+    _spend_cash(store, acc, Decimal("40"))
     balance_before = store.get(acc.account_id, user_id="daisy").cash_balance
     with pytest.raises(AccountNotFoundError):
         store.reset(acc.account_id, user_id="mallory", now=LATER)
@@ -260,12 +261,15 @@ def test_r711_user_scope_prevents_reset_hijack() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _spend_cash(acc: PaperAccount, amount: Decimal) -> PaperAccount:
-    """Test-only helper: build a new PaperAccount with reduced cash.
+def _spend_cash(store, acc: PaperAccount, amount: Decimal) -> PaperAccount:
+    """Test-only helper: draw an account's cash down by ``amount``.
 
-    Production code would do this via the fill engine (#563); the tests
-    reach in via dataclasses.replace to simulate a drawn-down state.
+    Production code would do this via the fill engine (#563); the tests use
+    the store's public ``update_cash`` so they run on every store backend.
     """
-    from dataclasses import replace
-
-    return replace(acc, cash_balance=acc.cash_balance - amount)
+    return store.update_cash(
+        acc.account_id,
+        acc.cash_balance - amount,
+        user_id=acc.user_id,
+        now=acc.updated_at,
+    )
