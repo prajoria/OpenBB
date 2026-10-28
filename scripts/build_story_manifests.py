@@ -408,6 +408,56 @@ DELIVERED: dict[str, tuple[str, ...]] = {
     "story:state": ("platform:story_run_get", "platform:story_run_checkpoint"),
 }
 
+_REPORT = "platform:story_artifact_report"
+_TT_WORKBOOK = "platform:story_artifact_techtrade_workbook"
+_ART_LIST = "platform:story_artifact_list"
+_ART_READ = "platform:story_artifact_read"
+# Reviewed in N07 (#2217): the artifact tools each stage needs in place of
+# story:artifacts. Every stage that still carries story:artifacts must be
+# listed. An empty tuple means the stage renders a panel or prepares the
+# notebook's state directory and needs no tool: run state and artifacts live
+# server-side.
+ARTIFACT_BINDINGS: dict[tuple[str, str], tuple[str, ...]] = {
+    **{
+        (story, stage): ()
+        for story, stage in (
+            ("portfolio/01", "0-before-we-run-anything"),
+            ("portfolio/01", "6-from-synthetic-basket-to-real-portfolio-option"),
+            ("portfolio/02", "0-why-start-with-one-name"),
+            ("portfolio/03", "where-we-are-in-sam-s-story"),
+            ("portfolio/04", "where-we-are-in-sam-s-story"),
+            ("portfolio/05", "where-we-are-in-sam-s-story"),
+            ("portfolio/07", "where-we-are-in-sam-s-story"),
+            ("portfolio/08", "where-this-notebook-fits"),
+        )
+    },
+    # It loads the basket portfolio/05 left in run state.
+    ("portfolio/06", "where-we-are-in-sam-s-story"): (_STATE,),
+    # The capstones compose one HTML report from earlier chapters' results.
+    ("portfolio/07", "5-the-monday-morning-routine-end-to-end"): (_REPORT,),
+    ("portfolio_yfinance/07", "2-end-to-end-reunion-compose-the-track-b-html-re"): (
+        _REPORT,
+    ),
+    # The morning workbook is the TechTrade export, written into the run.
+    ("techtrade/01", "4-technical-setup-the-techtrade-engine"): (
+        _TT_WORKBOOK,
+        _ART_READ,
+    ),
+    ("techtrade/02", "8-export-to-excel-the-morning-artifact"): (
+        _TT_WORKBOOK,
+        _ART_READ,
+    ),
+    # The audit finds an earlier run's workbook, then loads its sheets.
+    ("techtrade/06", "1-setup-find-a-workbook-to-audit"): (_ART_LIST,),
+    ("techtrade/06", "2-load-the-recommendations"): (_ART_READ,),
+    # The paper sink's CSV and workbook are read back; writing them is N09.
+    ("techtrade/07", "5-inspecting-the-csv-fidelity-basket-trading-for"): (_ART_READ,),
+    ("techtrade/07", "6-the-6-sheet-xlsx-workbook"): (_ART_READ,),
+    ("techtrade/09", "3-write-the-artifact"): (_ART_READ,),
+}
+# A bound artifact tool replaces the platform tool the notebook called.
+SUPERSEDED_BY = {"platform:techtrade_export": _TT_WORKBOOK}
+
 KIND_BY_CAPABILITY = {
     "story:paper": "paper",
     "story:jobs": "job",
@@ -437,6 +487,7 @@ ANALYSIS_TOOL_PREFIXES = (
     "story_run_",
 )
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
+ARTIFACT_TOOL_PREFIXES = ("story_artifact_",)
 # Imports whose stage is an opt-in personal-data step, never mandatory.
 OPTIONAL_IMPORTS = frozenset({"portfolio_snapshot_importer"})
 _HEADING = re.compile(r"^##\s+(.+?)\s*$")
@@ -496,6 +547,8 @@ def _capability_kind(name: str) -> str:
         return KIND_BY_CAPABILITY[name]
     if name.startswith("platform:"):
         tool = name.split(":", 1)[1]
+        if tool.startswith(ARTIFACT_TOOL_PREFIXES):
+            return "artifact"
         return "analysis" if tool.startswith(ANALYSIS_TOOL_PREFIXES) else "retrieval"
     return "analysis"
 
@@ -562,6 +615,20 @@ def _apply_binding(story_id: str, stage_id: str, capabilities: list[str]) -> lis
     return sorted(bound)
 
 
+def _bind_artifacts(story_id: str, stage_id: str, capabilities: list[str]) -> list[str]:
+    if "story:artifacts" not in capabilities:
+        return capabilities
+    tools = ARTIFACT_BINDINGS.get((story_id, stage_id))
+    if tools is None:
+        raise SystemExit(
+            f"{story_id} {stage_id} needs story:artifacts but has no reviewed"
+            " artifact binding"
+        )
+    bound = (set(capabilities) - {"story:artifacts"}) | set(tools)
+    bound -= {old for old, new in SUPERSEDED_BY.items() if new in bound}
+    return sorted(bound)
+
+
 def _resolve_delivered(capabilities: list[str]) -> list[str]:
     resolved: set[str] = set()
     for name in capabilities:
@@ -572,7 +639,7 @@ def _resolve_delivered(capabilities: list[str]) -> list[str]:
 def unused_bindings(manifests: list[dict]) -> list[tuple[str, str]]:
     """Return reviewed bindings whose stage no longer exists."""
     present = {(m["story_id"], s["id"]) for m in manifests for s in m["stages"]}
-    return sorted(set(REVIEWED_BINDINGS) - present)
+    return sorted((set(REVIEWED_BINDINGS) | set(ARTIFACT_BINDINGS)) - present)
 
 
 def _is_optional(source: NotebookSource, positions: list[int]) -> bool:
@@ -603,6 +670,7 @@ def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
         )
         stage_id = _slug(section["title"], used)
         reviewed = _apply_binding(source.story_id, stage_id, capabilities)
+        reviewed = _bind_artifacts(source.story_id, stage_id, reviewed)
         if reviewed != capabilities:
             capabilities, kind = reviewed, _stage_kind(set(reviewed))
         inputs = []
@@ -698,7 +766,9 @@ def build_catalog(manifests: list[dict]) -> dict:
     schemas = asyncio.run(_tool_schemas(tools))
     entries: dict[str, dict] = {}
     for tool in sorted(tools):
-        if tool.startswith(ANALYSIS_TOOL_PREFIXES):
+        if tool.startswith(ARTIFACT_TOOL_PREFIXES):
+            access = "artifact"
+        elif tool.startswith(ANALYSIS_TOOL_PREFIXES):
             access = "analysis"
         elif tool.startswith(PRIVATE_TOOL_PREFIXES):
             access = "private_read"

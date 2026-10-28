@@ -171,7 +171,7 @@
     {
       "id": "8-export-to-excel-the-morning-artifact",
       "title": "8. Export to Excel (the morning artifact)",
-      "kind": "analysis",
+      "kind": "artifact",
       "cells": [
         23,
         24,
@@ -181,8 +181,8 @@
         "7-why-does-each-setup-look-good-the-audit-trail"
       ],
       "capabilities": [
-        "platform:techtrade_export",
-        "story:artifacts"
+        "platform:story_artifact_read",
+        "platform:story_artifact_techtrade_workbook"
       ],
       "inputs": [],
       "outputs": [

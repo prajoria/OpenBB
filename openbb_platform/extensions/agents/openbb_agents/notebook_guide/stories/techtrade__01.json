@@ -119,11 +119,11 @@
         "3-fundamentals-the-analysis-7-phase-pipeline"
       ],
       "capabilities": [
-        "platform:techtrade_export",
+        "platform:story_artifact_read",
+        "platform:story_artifact_techtrade_workbook",
         "platform:techtrade_plan",
         "platform:techtrade_scan",
-        "platform:techtrade_signals",
-        "story:artifacts"
+        "platform:techtrade_signals"
       ],
       "inputs": [],
       "outputs": [

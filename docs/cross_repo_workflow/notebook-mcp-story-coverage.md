@@ -110,12 +110,12 @@ Gross denominators at this baseline, counting every stage:
 
 | Measure | Count |
 | --- | ---: |
-| Stories / ready stories | 25 / 1 |
+| Stories / ready stories | 25 / 5 |
 | Stages | 287 |
-| Setup and narrative stages (no capability needed) | 114 |
-| Stages doing financial work | 173 |
-| Of those, runnable on existing MCP tools | 108 |
-| Stages waiting on a planned bridge | 65 |
+| Setup and narrative stages (no capability needed) | 120 |
+| Stages doing financial work | 167 |
+| Of those, runnable on existing MCP tools | 118 |
+| Stages waiting on a planned bridge | 49 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
@@ -123,7 +123,6 @@ Planned capability needs by owning task (a stage can need more than one):
 | Owner | Bridge | Needs |
 | --- | --- | ---: |
 | #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 23 |
-| #2217 (N07) | Chart, table, report and XLSX artifacts | 18 |
 | #2220 (N10) | Provider variants and recording | 14 |
 | #2218 (N08) | Backtest, tuning and replay jobs | 12 |
 
@@ -173,9 +172,31 @@ stages already bind. Cross-chapter run state now binds to the delivered N06
 tools `story_run_get` and `story_run_checkpoint` instead of waiting on a
 planned bridge. Nothing waits on N05 or N06.
 
-Only one story is ready, which is the expected state before the N05–N10
-bridges land. These figures are stage outcomes, not an API-count parity
-claim.
+N07 (#2217) added seven `story_artifact_*` tools. Five write into a run
+the principal owns: a table (CSV or canonical JSON), a chart spec with its
+data, an escaped HTML report that cites the run's other artifacts by ID and
+hash, a typed workbook, and the TechTrade six-sheet export. `story_artifact_list`
+and `story_artifact_read` find and read them back; workbooks come back as
+bounded sheet previews. IDs are server-issued, names are labels, files are
+created atomically without overwrite or link escape, spreadsheet cells cannot
+hold formulas, and every read re-checks the stored SHA-256. Each of the 18
+artifact stages has a reviewed binding:
+
+- Eight chapter preambles and panel-only cells need no tool: they create the
+  notebook's state directory or import its rendering toolkit.
+- Portfolio chapter 6's preamble loads chapter 5's basket from run state.
+- The two end-to-end capstones bind the report tool. The Portfolio one still
+  needs N08 for the routine it times.
+- TechTrade chapters 1 and 2 write the morning workbook into the run. This
+  replaces `techtrade_export`, which writes under `Analysis/exports` and is an
+  operator-only filesystem write.
+- The chapter 6 audit lists and reads an earlier run's workbook.
+- Chapters 7 and 9 read back the paper sink's CSV and workbook. Writing them
+  is N09.
+
+Portfolio chapters 3 and 4 and TechTrade chapters 2 and 6 joined TechTrade
+chapter 3 as fully runnable. The remaining stages wait on N08–N10. These
+figures are stage outcomes, not an API-count parity claim.
 
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)

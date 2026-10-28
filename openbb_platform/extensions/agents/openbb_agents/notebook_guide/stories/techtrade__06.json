@@ -34,7 +34,7 @@
         "the-question-this-notebook-answers"
       ],
       "capabilities": [
-        "story:artifacts"
+        "platform:story_artifact_list"
       ],
       "inputs": [],
       "outputs": [
@@ -54,7 +54,7 @@
         "1-setup-find-a-workbook-to-audit"
       ],
       "capabilities": [
-        "story:artifacts"
+        "platform:story_artifact_read"
       ],
       "inputs": [],
       "outputs": [

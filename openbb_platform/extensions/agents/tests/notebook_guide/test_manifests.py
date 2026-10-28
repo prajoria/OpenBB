@@ -19,7 +19,12 @@ from openbb_agents.notebook_guide.contracts import (  # noqa: E402
     validate_stage_graph,
 )
 
-from scripts.build_story_manifests import PLANNED, build_manifest  # noqa: E402
+from scripts.build_story_manifests import (  # noqa: E402
+    PLANNED,
+    SUPERSEDED_BY,
+    _bind_artifacts,
+    build_manifest,
+)
 from scripts.notebook_story_inventory import inventory_notebooks  # noqa: E402
 
 STORIES = (
@@ -110,7 +115,11 @@ def test_every_cell_belongs_to_exactly_one_stage(manifests, sources):
 
 
 def test_every_obb_call_is_a_stage_capability(manifests, sources):
-    """Each Platform call a stage makes is named by that stage."""
+    """Each Platform call a stage makes is named by that stage.
+
+    A call may instead be covered by the reviewed tool that supersedes it
+    (N07: the run-scoped workbook replaces the repository export).
+    """
     for story_id, manifest in manifests.items():
         calls = {cell.position: cell.calls for cell in sources[story_id].cells}
         for stage in manifest.stages:
@@ -120,7 +129,13 @@ def test_every_obb_call_is_a_stage_capability(manifests, sources):
                 for call in calls[cell]
                 if call.startswith("obb.")
             }
-            assert needed <= set(stage.capabilities), (story_id, stage.id)
+            covered = {
+                name
+                for name in needed
+                if name in stage.capabilities
+                or SUPERSEDED_BY.get(name) in stage.capabilities
+            }
+            assert needed == covered, (story_id, stage.id)
 
 
 def test_catalog_pins_tools_and_owns_every_gap(catalog):
@@ -318,21 +333,33 @@ def test_reviewed_binding_keys_are_unique():
     source = (REPO_ROOT / "scripts" / "build_story_manifests.py").read_text(
         encoding="utf-8"
     )
-    keys = [
-        (node.elts[0].value, node.elts[1].value)
+    tables = {
+        node.target.id: node.value
         for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.Tuple)
-        and len(node.elts) >= 2
-        and all(
-            isinstance(e, ast.Constant) and isinstance(e.value, str)
-            for e in node.elts[:2]
-        )
-        and "/" in node.elts[0].value
-        and node.elts[0].value.split("/")[0]
-        in {"portfolio", "portfolio_yfinance", "techtrade"}
-    ]
-    duplicated = sorted({k for k in keys if keys.count(k) > 1})
-    assert not duplicated, duplicated
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id in {"REVIEWED_BINDINGS", "ARTIFACT_BINDINGS"}
+    }
+    assert set(tables) == {"REVIEWED_BINDINGS", "ARTIFACT_BINDINGS"}
+    # A stage may appear once per table: its analytics review and its
+    # artifact review are separate decisions.
+    for name, table in tables.items():
+        keys = [
+            (node.elts[0].value, node.elts[1].value)
+            for node in ast.walk(table)
+            if isinstance(node, ast.Tuple)
+            and len(node.elts) >= 2
+            and all(
+                isinstance(e, ast.Constant) and isinstance(e.value, str)
+                for e in node.elts[:2]
+            )
+            and "/" in node.elts[0].value
+            and node.elts[0].value.split("/")[0]
+            in {"portfolio", "portfolio_yfinance", "techtrade"}
+        ]
+        assert keys, name
+        duplicated = sorted({k for k in keys if keys.count(k) > 1})
+        assert not duplicated, (name, duplicated)
 
 
 def test_no_stage_waits_on_story_analytics_or_story_state(manifests):
@@ -369,7 +396,7 @@ def test_state_handoffs_bind_to_the_run_registry(manifests, catalog):
     [
         ("techtrade/08", "7-", "story:paper"),
         ("techtrade/09", "9-", "story:paper"),
-        ("techtrade/07", "5-", "story:artifacts"),
+        ("techtrade/07", "5-", "platform:story_artifact_read"),
         ("portfolio_yfinance/03", "4-", "story:provider_modes"),
         ("portfolio/07", "2-", "story:provider_modes"),
         ("portfolio/03", "1-", "platform:story_run_get"),
@@ -389,8 +416,79 @@ def test_remaining_stages_moved_to_their_owning_bridge(
         ("portfolio/02", "11-"),
         ("portfolio_yfinance/03", "8-"),
         ("techtrade/09", "1-"),
+        ("portfolio/03", "where-we-are"),
+        ("portfolio/08", "where-this-notebook-fits"),
     ],
 )
 def test_probes_and_illustrations_need_nothing(manifests, story_id, stage):
     """Environment probes and illustrations run no capability."""
     assert _stage(manifests[story_id], stage).capabilities == []
+
+
+def test_no_stage_waits_on_story_artifacts(manifests, catalog):
+    """N07 (#2217): every artifact stage is bound to a delivered tool."""
+    waiting = [
+        (story_id, stage.id)
+        for story_id, manifest in manifests.items()
+        for stage in manifest.stages
+        if "story:artifacts" in stage.capabilities
+    ]
+    assert waiting == []
+    assert "story:artifacts" not in catalog.entries
+    artifact_tools = {
+        name for name in catalog.entries if name.startswith("platform:story_artifact_")
+    }
+    assert artifact_tools == {
+        "platform:story_artifact_list",
+        "platform:story_artifact_read",
+        "platform:story_artifact_report",
+        "platform:story_artifact_techtrade_workbook",
+    }
+    for name in artifact_tools:
+        assert catalog.entries[name].ref.access == "artifact", name
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage", "tools"),
+    [
+        ("techtrade/02", "8-", {"platform:story_artifact_techtrade_workbook"}),
+        ("techtrade/06", "1-", {"platform:story_artifact_list"}),
+        ("techtrade/06", "2-", {"platform:story_artifact_read"}),
+        ("portfolio/07", "5-", {"platform:story_artifact_report", "story:jobs"}),
+        ("techtrade/09", "3-", {"platform:story_artifact_read", "story:paper"}),
+    ],
+)
+def test_artifact_stages_bind_to_their_tools(manifests, story_id, stage, tools):
+    """Writers, readers and the capstone reports name the artifact tool they use."""
+    assert tools <= set(_stage(manifests[story_id], stage).capabilities)
+
+
+def test_the_run_scoped_workbook_supersedes_the_repository_export(manifests):
+    """No stage keeps the export that writes under Analysis/exports."""
+    users = [
+        (story_id, stage.id)
+        for story_id, manifest in manifests.items()
+        for stage in manifest.stages
+        if "platform:techtrade_export" in stage.capabilities
+    ]
+    assert users == []
+
+
+def test_a_stale_artifact_binding_is_reported(manifests, monkeypatch):
+    """An artifact binding whose stage disappeared fails the generator run."""
+    # pylint: disable=import-outside-toplevel
+    from scripts import build_story_manifests as generator
+
+    stale = ("portfolio/03", "no-longer-a-stage")
+    monkeypatch.setitem(generator.ARTIFACT_BINDINGS, stale, ())
+    dumped = [m.model_dump(mode="json") for m in manifests.values()]
+    assert generator.unused_bindings(dumped) == [stale]
+
+
+def test_an_unreviewed_artifact_stage_fails_the_generator():
+    """A new artifact stage cannot ship without a reviewed binding."""
+    with pytest.raises(SystemExit, match="no reviewed artifact binding"):
+        _bind_artifacts("portfolio/99", "new-stage", ["story:artifacts"])
+    assert _bind_artifacts("portfolio/99", "new-stage", ["platform:x"]) == [
+        "platform:x"
+    ]

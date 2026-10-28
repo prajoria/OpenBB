@@ -37,8 +37,7 @@
         "where-we-are-in-sam-s-story"
       ],
       "capabilities": [
-        "platform:story_single_name_analysis",
-        "story:artifacts"
+        "platform:story_single_name_analysis"
       ],
       "inputs": [],
       "outputs": [

@@ -9,7 +9,7 @@
     {
       "id": "where-this-notebook-fits",
       "title": "Where this notebook fits",
-      "kind": "artifact",
+      "kind": "narrative",
       "cells": [
         1,
         2,
@@ -17,9 +17,7 @@
         4
       ],
       "depends_on": [],
-      "capabilities": [
-        "story:artifacts"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "where-this-notebook-fits-result"

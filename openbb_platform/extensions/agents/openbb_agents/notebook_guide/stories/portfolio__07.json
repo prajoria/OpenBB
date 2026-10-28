@@ -9,7 +9,7 @@
     {
       "id": "where-we-are-in-sam-s-story",
       "title": "Where we are in Sam's story",
-      "kind": "artifact",
+      "kind": "narrative",
       "cells": [
         1,
         2,
@@ -17,9 +17,7 @@
         4
       ],
       "depends_on": [],
-      "capabilities": [
-        "story:artifacts"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "where-we-are-in-sam-s-story-result"
@@ -113,10 +111,10 @@
       ],
       "capabilities": [
         "platform:backtest_run",
+        "platform:story_artifact_report",
         "platform:story_run_checkpoint",
         "platform:story_run_get",
         "platform:story_single_name_analysis",
-        "story:artifacts",
         "story:jobs"
       ],
       "inputs": [

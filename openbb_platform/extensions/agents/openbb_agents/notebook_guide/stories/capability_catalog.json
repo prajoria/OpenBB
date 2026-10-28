@@ -280,6 +280,42 @@
         "access": "analysis"
       }
     },
+    "platform:story_artifact_list": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_artifact_list",
+        "schema_sha256": "46057783d04d29b08cd77a5fef57f28519e1d6b0bf32cdce269b4bdf33c00167",
+        "access": "artifact"
+      }
+    },
+    "platform:story_artifact_read": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_artifact_read",
+        "schema_sha256": "3009881c4231e51d838d1a339f912bf767a52be5fa1532745c2da513a3f0803e",
+        "access": "artifact"
+      }
+    },
+    "platform:story_artifact_report": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_artifact_report",
+        "schema_sha256": "de4c834bf713ddf042fb045f76c65607442cc6d8b3f30de1cdfb22637db08a7c",
+        "access": "artifact"
+      }
+    },
+    "platform:story_artifact_techtrade_workbook": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_artifact_techtrade_workbook",
+        "schema_sha256": "b1b25f4a469aa540c6d58274bc1ac8bd6c0e2bab1cedec28b55ce4304c818d62",
+        "access": "artifact"
+      }
+    },
     "platform:story_basket_effective_positions": {
       "status": "available",
       "ref": {
@@ -424,15 +460,6 @@
         "access": "analysis"
       }
     },
-    "platform:techtrade_export": {
-      "status": "available",
-      "ref": {
-        "server": "platform",
-        "tool": "techtrade_export",
-        "schema_sha256": "8979fe42b059854bea76aa313bf97c9fee66ea913f020a4fcef53e27202ee89a",
-        "access": "analysis"
-      }
-    },
     "platform:techtrade_movers": {
       "status": "available",
       "ref": {
@@ -513,12 +540,6 @@
         "schema_sha256": "e405ebe4da6fb57a63d3595d3c7c59fd4936d376e64c025e3882994d13b7f6dd",
         "access": "analysis"
       }
-    },
-    "story:artifacts": {
-      "status": "planned",
-      "access": "artifact",
-      "owner_issue": 2217,
-      "summary": "Bounded chart, table, report and XLSX artifacts (N07)."
     },
     "story:jobs": {
       "status": "planned",

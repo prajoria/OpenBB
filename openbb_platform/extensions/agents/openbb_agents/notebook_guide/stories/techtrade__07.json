@@ -115,7 +115,7 @@
         "4-writing-the-paired-csv-xlsx"
       ],
       "capabilities": [
-        "story:artifacts"
+        "platform:story_artifact_read"
       ],
       "inputs": [],
       "outputs": [
@@ -153,7 +153,7 @@
         "5-inspecting-the-csv-fidelity-basket-trading-for"
       ],
       "capabilities": [
-        "story:artifacts"
+        "platform:story_artifact_read"
       ],
       "inputs": [],
       "outputs": [
