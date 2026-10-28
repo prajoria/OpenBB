@@ -285,7 +285,7 @@
       "ref": {
         "server": "platform",
         "tool": "story_artifact_list",
-        "schema_sha256": "46057783d04d29b08cd77a5fef57f28519e1d6b0bf32cdce269b4bdf33c00167",
+        "schema_sha256": "6542661e16143af52811b90a424402ca27f870139d0e2cba1343a781e615cd57",
         "access": "artifact"
       }
     },
@@ -385,6 +385,24 @@
         "server": "platform",
         "tool": "story_institutional_summary",
         "schema_sha256": "a40705017cdb60608823f281ce895c995315ac4a68ee03bbca4405aeea5c0727",
+        "access": "analysis"
+      }
+    },
+    "platform:story_job_get": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_job_get",
+        "schema_sha256": "c8327364b083dba3966af7a81fca3f974af64b774082ff368e81c1a36110aae8",
+        "access": "analysis"
+      }
+    },
+    "platform:story_job_submit": {
+      "status": "available",
+      "ref": {
+        "server": "platform",
+        "tool": "story_job_submit",
+        "schema_sha256": "f89aa8d8f82ab0b1c4eeb897df81928a3b2d116d1b29d07e60fbb192d3df6924",
         "access": "analysis"
       }
     },
@@ -540,12 +558,6 @@
         "schema_sha256": "e405ebe4da6fb57a63d3595d3c7c59fd4936d376e64c025e3882994d13b7f6dd",
         "access": "analysis"
       }
-    },
-    "story:jobs": {
-      "status": "planned",
-      "access": "analysis",
-      "owner_issue": 2218,
-      "summary": "Backtest, tuning and replay through existing durable jobs (N08)."
     },
     "story:paper": {
       "status": "planned",

@@ -1,5 +1,7 @@
 """Authenticated, allowlisted durable cache-job adapter contracts."""
 
+# pylint: disable=redefined-outer-name,protected-access,import-outside-toplevel
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -310,9 +312,13 @@ async def test_real_mcp_exposes_jobs_only_with_ops_and_explicit_maintenance(
         "cache_jobs_trigger_etf_holdings",
     }
     all_names = {tool.name for tool in await ops.list_tools()}
+    # Reviewed exception (#2218): story_job_cancel cancels only the calling
+    # principal's own queued story jobs, never a cache job or another job.
+    reviewed = {"story_job_cancel"}
+    assert reviewed <= all_names
     assert not any(
         fragment in name
-        for name in all_names
+        for name in all_names - reviewed
         for fragment in ("cancel", "invalidate")
     )
     assert not any(name.startswith("jobs_") for name in all_names)

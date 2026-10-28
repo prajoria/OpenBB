@@ -458,6 +458,49 @@ ARTIFACT_BINDINGS: dict[tuple[str, str], tuple[str, ...]] = {
 # A bound artifact tool replaces the platform tool the notebook called.
 SUPERSEDED_BY = {"platform:techtrade_export": _TT_WORKBOOK}
 
+_JOB_SUBMIT = "platform:story_job_submit"
+_JOB_GET = "platform:story_job_get"
+_INDICATOR_CONFIG = "platform:story_indicator_config"
+# Reviewed in N08 (#2218): the job tools each stage needs in place of
+# story:jobs. Long backtests, validation and the timed routines queue a
+# durable job and read it back. Building a BacktestConfig only prepares the
+# next stage's payload; the knob table and the tuned-config check read the
+# indicator config.
+JOB_BINDINGS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("portfolio/06", "1-from-rationale-to-backtestconfig"): (),
+    # Track B loads the basket itself before building the config.
+    ("portfolio_yfinance/06", "1-load-basket-build-the-config"): (_STATE,),
+    **{
+        (story, stage): (_JOB_SUBMIT, _JOB_GET)
+        for story, stage in (
+            ("portfolio/07", "5-the-monday-morning-routine-end-to-end"),
+            ("portfolio/08", "8-backtest-buy-and-hold-on-the-15-etf-universe-v"),
+            (
+                "portfolio_yfinance/07",
+                "3-timed-end-to-end-run-optional-how-long-does-tr",
+            ),
+            (
+                "portfolio_yfinance/08",
+                "8-backtest-buy-and-hold-on-the-16-etf-universe-v",
+            ),
+            (
+                "portfolio_yfinance/08",
+                "10-the-self-maintained-alternative-five-etfs-one",
+            ),
+            ("techtrade/01", "5-the-robustness-gate-obb-techtrade-validate-iss"),
+            ("techtrade/04", "8-attaching-the-verdict-to-the-plan"),
+        )
+    },
+    # The soft-dependency demo is the submission's explicit 503.
+    ("techtrade/04", "3-demonstrate-the-soft-dep-degradation"): (_JOB_SUBMIT,),
+    ("techtrade/05", "3-which-knobs-are-actually-tunable"): (_INDICATOR_CONFIG,),
+    ("techtrade/05", "8-verify-the-persist-and-auto-load-chain-end-to"): (
+        _INDICATOR_CONFIG,
+    ),
+}
+# Planned bridges whose stages are each bound by a reviewed table.
+REVIEWED_BRIDGES = {"story:artifacts": ARTIFACT_BINDINGS, "story:jobs": JOB_BINDINGS}
+
 KIND_BY_CAPABILITY = {
     "story:paper": "paper",
     "story:jobs": "job",
@@ -488,6 +531,7 @@ ANALYSIS_TOOL_PREFIXES = (
 )
 PRIVATE_TOOL_PREFIXES = ("portfolio_portfolio_", "portfolio_espp_")
 ARTIFACT_TOOL_PREFIXES = ("story_artifact_",)
+JOB_TOOL_PREFIXES = ("story_job_",)
 # Imports whose stage is an opt-in personal-data step, never mandatory.
 OPTIONAL_IMPORTS = frozenset({"portfolio_snapshot_importer"})
 _HEADING = re.compile(r"^##\s+(.+?)\s*$")
@@ -549,6 +593,8 @@ def _capability_kind(name: str) -> str:
         tool = name.split(":", 1)[1]
         if tool.startswith(ARTIFACT_TOOL_PREFIXES):
             return "artifact"
+        if tool.startswith(JOB_TOOL_PREFIXES):
+            return "job"
         return "analysis" if tool.startswith(ANALYSIS_TOOL_PREFIXES) else "retrieval"
     return "analysis"
 
@@ -615,16 +661,17 @@ def _apply_binding(story_id: str, stage_id: str, capabilities: list[str]) -> lis
     return sorted(bound)
 
 
-def _bind_artifacts(story_id: str, stage_id: str, capabilities: list[str]) -> list[str]:
-    if "story:artifacts" not in capabilities:
-        return capabilities
-    tools = ARTIFACT_BINDINGS.get((story_id, stage_id))
-    if tools is None:
-        raise SystemExit(
-            f"{story_id} {stage_id} needs story:artifacts but has no reviewed"
-            " artifact binding"
-        )
-    bound = (set(capabilities) - {"story:artifacts"}) | set(tools)
+def _bind_reviewed(story_id: str, stage_id: str, capabilities: list[str]) -> list[str]:
+    bound = set(capabilities)
+    for capability, bindings in REVIEWED_BRIDGES.items():
+        if capability not in bound:
+            continue
+        tools = bindings.get((story_id, stage_id))
+        if tools is None:
+            raise SystemExit(
+                f"{story_id} {stage_id} needs {capability} but has no reviewed binding"
+            )
+        bound = (bound - {capability}) | set(tools)
     bound -= {old for old, new in SUPERSEDED_BY.items() if new in bound}
     return sorted(bound)
 
@@ -639,7 +686,10 @@ def _resolve_delivered(capabilities: list[str]) -> list[str]:
 def unused_bindings(manifests: list[dict]) -> list[tuple[str, str]]:
     """Return reviewed bindings whose stage no longer exists."""
     present = {(m["story_id"], s["id"]) for m in manifests for s in m["stages"]}
-    return sorted((set(REVIEWED_BINDINGS) | set(ARTIFACT_BINDINGS)) - present)
+    reviewed = set(REVIEWED_BINDINGS)
+    for bindings in REVIEWED_BRIDGES.values():
+        reviewed |= set(bindings)
+    return sorted(reviewed - present)
 
 
 def _is_optional(source: NotebookSource, positions: list[int]) -> bool:
@@ -670,7 +720,7 @@ def build_manifest(source: NotebookSource, previous_story: str | None) -> dict:
         )
         stage_id = _slug(section["title"], used)
         reviewed = _apply_binding(source.story_id, stage_id, capabilities)
-        reviewed = _bind_artifacts(source.story_id, stage_id, reviewed)
+        reviewed = _bind_reviewed(source.story_id, stage_id, reviewed)
         if reviewed != capabilities:
             capabilities, kind = reviewed, _stage_kind(set(reviewed))
         inputs = []
@@ -768,7 +818,7 @@ def build_catalog(manifests: list[dict]) -> dict:
     for tool in sorted(tools):
         if tool.startswith(ARTIFACT_TOOL_PREFIXES):
             access = "artifact"
-        elif tool.startswith(ANALYSIS_TOOL_PREFIXES):
+        elif tool.startswith(ANALYSIS_TOOL_PREFIXES + JOB_TOOL_PREFIXES):
             access = "analysis"
         elif tool.startswith(PRIVATE_TOOL_PREFIXES):
             access = "private_read"

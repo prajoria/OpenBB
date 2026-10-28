@@ -200,7 +200,8 @@
       ],
       "capabilities": [
         "platform:backtest_run",
-        "story:jobs"
+        "platform:story_job_get",
+        "platform:story_job_submit"
       ],
       "inputs": [],
       "outputs": [
@@ -248,7 +249,8 @@
       ],
       "capabilities": [
         "platform:backtest_run",
-        "story:jobs"
+        "platform:story_job_get",
+        "platform:story_job_submit"
       ],
       "inputs": [],
       "outputs": [

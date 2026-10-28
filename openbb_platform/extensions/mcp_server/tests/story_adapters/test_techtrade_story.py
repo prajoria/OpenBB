@@ -261,6 +261,23 @@ def test_indicator_config_and_candidate_diff(client, monkeypatch):
     assert "symbol" in body["panel_parameters"]
 
 
+def test_indicator_config_lists_the_tunable_knobs(client):
+    """TechTrade chapter 5's knob table: the period knobs tuning searches."""
+    from openbb_techtrade.tuning.tuneta_adapter import (  # pylint: disable=import-outside-toplevel
+        KNOB_TABLE,
+    )
+
+    body = client.post(f"{PREFIX}/indicator_config", json={}).json()
+    assert body["tunable_knobs"] == [
+        {"field": field, "indicator": indicator, "low": low, "high": high}
+        for field, indicator, (low, high) in KNOB_TABLE
+    ]
+    assert len(body["tunable_knobs"]) == 8
+    assert {k["field"] for k in body["tunable_knobs"]} <= set(
+        techtrade_story.default_config()
+    )
+
+
 def test_unknown_candidate_knob_is_rejected(client):
     """A candidate may only set knobs the config defines."""
     response = client.post(

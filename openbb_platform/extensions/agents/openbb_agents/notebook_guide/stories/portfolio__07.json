@@ -112,10 +112,11 @@
       "capabilities": [
         "platform:backtest_run",
         "platform:story_artifact_report",
+        "platform:story_job_get",
+        "platform:story_job_submit",
         "platform:story_run_checkpoint",
         "platform:story_run_get",
-        "platform:story_single_name_analysis",
-        "story:jobs"
+        "platform:story_single_name_analysis"
       ],
       "inputs": [
         {

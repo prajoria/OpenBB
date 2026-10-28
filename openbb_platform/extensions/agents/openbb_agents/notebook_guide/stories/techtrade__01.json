@@ -145,8 +145,9 @@
         "4-technical-setup-the-techtrade-engine"
       ],
       "capabilities": [
-        "platform:techtrade_plan",
-        "story:jobs"
+        "platform:story_job_get",
+        "platform:story_job_submit",
+        "platform:techtrade_plan"
       ],
       "inputs": [],
       "outputs": [

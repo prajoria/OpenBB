@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "607e10a8e5feb24b4c0f7e38594b867235444c24005a1a40fb4f5c924a452b03"
+    "sha256": "777103ee0ba6bd0135b6f3c2caf7ba875b8f741c3286394cc85c1bb6c18e3748"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -160,6 +160,19 @@
         "/api/v1/story/runs/{run_id}/artifacts/workbook",
         "/api/v1/story/runs/{run_id}/artifacts/techtrade_workbook",
         "/api/v1/story/runs/{run_id}/artifacts/{artifact_id}"
+      ],
+      "disposition": "direct",
+      "access_class": "story_state",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-run-jobs",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/runs/{run_id}/jobs",
+        "/api/v1/story/runs/{run_id}/jobs/{job_id}",
+        "/api/v1/story/runs/{run_id}/jobs/{job_id}/cancel"
       ],
       "disposition": "direct",
       "access_class": "story_state",
@@ -537,6 +550,17 @@
         "review_triggers": ["artifact route added", "artifact format added", "artifact limits or scoping changed"],
         "implementation_state": "implemented_product"
       },
+      "notebook-story-jobs": {
+        "owner_issues": ["#2218 Bridge backtest, tuning and replay into existing durable jobs"],
+        "rationale": "Portfolio profiles queue five allowlisted story job kinds (single-name analysis, backtest, validation, never-persisted tuning, replay) with typed payloads on the existing durable jobs service; operation IDs make submission idempotent, the worker runs only recorded submissions, results become run artifacts, and each principal has a bounded number of active jobs.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/jobs.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/story_job_kinds.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_jobs.py"
+        ],
+        "review_triggers": ["story job kind added", "job payload changed", "job limits or scoping changed"],
+        "implementation_state": "implemented_product"
+      },
       "fmp-routing-waves": {
         "owner_issues": ["#2162 Typed provider route framework", "#2171 Complete FMP parity gate"],
         "rationale": "Own every FMP Cached registration and routing gap without reducing the denominator.",
@@ -620,6 +644,7 @@
       "story-registry-metadata": "notebook-story-registry",
       "story-run-state": "notebook-story-registry",
       "story-run-artifacts": "notebook-story-artifacts",
+      "story-run-jobs": "notebook-story-jobs",
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
@@ -731,6 +756,21 @@
         "verification_evidence": [
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/artifacts.py",
           "openbb_platform/extensions/mcp_server/tests/story_adapters/test_artifacts.py"
+        ]
+      },
+      "platform-story-jobs": {
+        "members": [
+          "story_job_submit",
+          "story_job_list",
+          "story_job_get",
+          "story_job_cancel"
+        ],
+        "rationale": "Allowlisted, idempotent story jobs on the durable jobs service for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/jobs.py",
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/story_job_kinds.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_jobs.py"
         ]
       },
       "platform-cache-observability": {

@@ -36,7 +36,7 @@
     {
       "id": "1-from-rationale-to-backtestconfig",
       "title": "1. From rationale to `BacktestConfig`",
-      "kind": "job",
+      "kind": "narrative",
       "cells": [
         5,
         6
@@ -44,9 +44,7 @@
       "depends_on": [
         "where-we-are-in-sam-s-story"
       ],
-      "capabilities": [
-        "story:jobs"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "1-from-rationale-to-backtestconfig-result"

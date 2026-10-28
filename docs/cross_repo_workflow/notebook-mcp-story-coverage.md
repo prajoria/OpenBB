@@ -110,12 +110,12 @@ Gross denominators at this baseline, counting every stage:
 
 | Measure | Count |
 | --- | ---: |
-| Stories / ready stories | 25 / 5 |
+| Stories / ready stories | 25 / 11 |
 | Stages | 287 |
-| Setup and narrative stages (no capability needed) | 120 |
-| Stages doing financial work | 167 |
-| Of those, runnable on existing MCP tools | 118 |
-| Stages waiting on a planned bridge | 49 |
+| Setup and narrative stages (no capability needed) | 121 |
+| Stages doing financial work | 166 |
+| Of those, runnable on existing MCP tools | 129 |
+| Stages waiting on a planned bridge | 37 |
 | Missing, forbidden or browser-unavailable stages | 0 |
 
 Planned capability needs by owning task (a stage can need more than one):
@@ -124,7 +124,6 @@ Planned capability needs by owning task (a stage can need more than one):
 | --- | --- | ---: |
 | #2219 (N09) | Sandboxed Portfolio and TechTrade paper actions | 23 |
 | #2220 (N10) | Provider variants and recording | 14 |
-| #2218 (N08) | Backtest, tuning and replay jobs | 12 |
 
 N04 reviewed the two bindings the generator could not decide. The morning-scan
 cell 7 narrative needs no capability. The Portfolio chapter 1 preview of the
@@ -195,8 +194,38 @@ artifact stages has a reviewed binding:
   is N09.
 
 Portfolio chapters 3 and 4 and TechTrade chapters 2 and 6 joined TechTrade
-chapter 3 as fully runnable. The remaining stages wait on N08–N10. These
-figures are stage outcomes, not an API-count parity claim.
+chapter 3 as fully runnable.
+
+N08 (#2218) added four `story_job_*` tools over the existing durable jobs
+service: submit, list, get and cancel, all inside a run the principal owns.
+They only enqueue; the existing worker runs five allowlisted kinds
+registered through `openbb_job_extension`:
+
+- `story.single_name`: the seven-phase `Analysis` pipeline.
+- `story.backtest`: a `BacktestConfig` through `openbb_backtest`.
+- `story.validate`: TechTrade validation of a plan.
+- `story.tune`: TechTrade segment tuning, never persisted.
+- `story.replay`: the forward-bar replay.
+
+A caller-chosen operation ID makes submission idempotent: retrying after a
+lost response returns the same job, and reusing the ID for anything else is a
+`409`. The worker runs only submissions the routes recorded, writes the full
+result as a run artifact, and fails a lost run once instead of repeating it.
+Cancel reports `cancelled`, `too_late` (a claimed job is never interrupted) or
+`already_finished`. A missing engine or worker definition is a `503` that
+names it. Each of the 12 job stages has a reviewed binding:
+
+- Backtests, validation and the two timed routines submit a job and read it
+  back. The soft-dependency demo is the submission's `503`.
+- Building a `BacktestConfig` prepares the next stage's payload; the free
+  track's version also loads the basket from run state.
+- TechTrade chapter 5's knob table and tuned-config check read
+  `story_indicator_config`, which now lists the tunable knobs.
+
+Six more stories became fully runnable: TechTrade chapters 1, 4 and 5, and
+Portfolio chapters 6 and 8 and free-track chapter 6. The remaining stages wait
+on N09 and N10. These figures are stage outcomes, not an API-count parity
+claim.
 
 The existing change to
 [Portfolio single-name deep dive](../../notebooks/portfolio/02-single-name-deep-dive.ipynb)

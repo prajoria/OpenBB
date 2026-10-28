@@ -22,7 +22,7 @@ from openbb_agents.notebook_guide.contracts import (  # noqa: E402
 from scripts.build_story_manifests import (  # noqa: E402
     PLANNED,
     SUPERSEDED_BY,
-    _bind_artifacts,
+    _bind_reviewed,
     build_manifest,
 )
 from scripts.notebook_story_inventory import inventory_notebooks  # noqa: E402
@@ -338,9 +338,9 @@ def test_reviewed_binding_keys_are_unique():
         for node in ast.walk(ast.parse(source))
         if isinstance(node, ast.AnnAssign)
         and isinstance(node.target, ast.Name)
-        and node.target.id in {"REVIEWED_BINDINGS", "ARTIFACT_BINDINGS"}
+        and node.target.id in {"REVIEWED_BINDINGS", "ARTIFACT_BINDINGS", "JOB_BINDINGS"}
     }
-    assert set(tables) == {"REVIEWED_BINDINGS", "ARTIFACT_BINDINGS"}
+    assert set(tables) == {"REVIEWED_BINDINGS", "ARTIFACT_BINDINGS", "JOB_BINDINGS"}
     # A stage may appear once per table: its analytics review and its
     # artifact review are separate decisions.
     for name, table in tables.items():
@@ -454,7 +454,11 @@ def test_no_stage_waits_on_story_artifacts(manifests, catalog):
         ("techtrade/02", "8-", {"platform:story_artifact_techtrade_workbook"}),
         ("techtrade/06", "1-", {"platform:story_artifact_list"}),
         ("techtrade/06", "2-", {"platform:story_artifact_read"}),
-        ("portfolio/07", "5-", {"platform:story_artifact_report", "story:jobs"}),
+        (
+            "portfolio/07",
+            "5-",
+            {"platform:story_artifact_report", "platform:story_job_submit"},
+        ),
         ("techtrade/09", "3-", {"platform:story_artifact_read", "story:paper"}),
     ],
 )
@@ -487,8 +491,85 @@ def test_a_stale_artifact_binding_is_reported(manifests, monkeypatch):
 
 def test_an_unreviewed_artifact_stage_fails_the_generator():
     """A new artifact stage cannot ship without a reviewed binding."""
-    with pytest.raises(SystemExit, match="no reviewed artifact binding"):
-        _bind_artifacts("portfolio/99", "new-stage", ["story:artifacts"])
-    assert _bind_artifacts("portfolio/99", "new-stage", ["platform:x"]) == [
-        "platform:x"
+    for bridge in ("story:artifacts", "story:jobs"):
+        with pytest.raises(SystemExit, match=f"needs {bridge} but has no reviewed"):
+            _bind_reviewed("portfolio/99", "new-stage", [bridge])
+    assert _bind_reviewed("portfolio/99", "new-stage", ["platform:x"]) == ["platform:x"]
+
+
+def test_no_stage_waits_on_story_jobs(manifests, catalog):
+    """N08 (#2218): every job stage is bound to a delivered tool."""
+    waiting = [
+        (story_id, stage.id)
+        for story_id, manifest in manifests.items()
+        for stage in manifest.stages
+        if "story:jobs" in stage.capabilities
     ]
+    assert waiting == []
+    assert "story:jobs" not in catalog.entries
+    for name in ("platform:story_job_submit", "platform:story_job_get"):
+        assert catalog.entries[name].ref.access == "analysis", name
+
+
+@pytest.mark.parametrize(
+    ("story_id", "stage", "tools", "kind"),
+    [
+        (
+            "portfolio/08",
+            "8-",
+            {"platform:story_job_submit", "platform:story_job_get"},
+            "job",
+        ),
+        (
+            "techtrade/01",
+            "5-",
+            {"platform:story_job_submit", "platform:story_job_get"},
+            "job",
+        ),
+        ("techtrade/04", "3-", {"platform:story_job_submit"}, "job"),
+        ("techtrade/05", "3-", {"platform:story_indicator_config"}, "analysis"),
+        ("portfolio_yfinance/06", "1-", {"platform:story_run_get"}, "state"),
+    ],
+)
+def test_job_stages_bind_to_their_tools(manifests, story_id, stage, tools, kind):
+    """Backtests and validation queue jobs; config and knob stages do not."""
+    bound = _stage(manifests[story_id], stage)
+    assert tools <= set(bound.capabilities)
+    assert bound.kind == kind
+
+
+def test_catalog_access_classes_come_from_the_tool_prefixes(manifests, monkeypatch):
+    """Artifact tools get ``artifact`` access and job tools ``analysis``."""
+    # pylint: disable=import-outside-toplevel
+    from scripts import build_story_manifests as generator
+
+    async def fake_schemas(names):
+        return {name: "a" * 64 for name in names}
+
+    def run_without_a_loop(coroutine):
+        # An event loop opens a socketpair, which this suite forbids; the fake
+        # coroutine never awaits, so one step completes it.
+        try:
+            coroutine.send(None)
+        except StopIteration as done:
+            return done.value
+        raise AssertionError("fake schema lookup should not await")
+
+    monkeypatch.setattr(generator, "_tool_schemas", fake_schemas)
+    monkeypatch.setattr(generator.asyncio, "run", run_without_a_loop)
+    dumped = [m.model_dump(mode="json") for m in manifests.values()]
+    entries = generator.build_catalog(dumped)["entries"]
+    access = {
+        name: entry["ref"]["access"]
+        for name, entry in entries.items()
+        if entry["status"] == "available"
+    }
+    assert access["platform:story_artifact_read"] == "artifact"
+    assert access["platform:story_job_submit"] == "analysis"
+    assert access["platform:story_job_get"] == "analysis"
+    assert access["platform:portfolio_portfolio_snapshots"] == "private_read"
+
+
+def test_building_a_backtest_config_needs_no_tool(manifests):
+    """Portfolio chapter 6 builds the payload its next stage runs."""
+    assert _stage(manifests["portfolio/06"], "1-").capabilities == []
