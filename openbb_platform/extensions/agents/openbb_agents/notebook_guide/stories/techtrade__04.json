@@ -74,8 +74,8 @@
         "2-build-a-plan-to-validate"
       ],
       "capabilities": [
-        "platform:techtrade_validate",
-        "story:jobs"
+        "platform:story_job_submit",
+        "platform:techtrade_validate"
       ],
       "inputs": [],
       "outputs": [
@@ -175,7 +175,8 @@
         "7-the-ic-harness-per-vote-empirical-justificatio"
       ],
       "capabilities": [
-        "story:jobs"
+        "platform:story_job_get",
+        "platform:story_job_submit"
       ],
       "inputs": [],
       "outputs": [

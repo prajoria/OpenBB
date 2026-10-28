@@ -534,3 +534,7 @@ portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/artifacts/workbo
 portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/artifacts/techtrade_workbook,activatable,story_artifact_techtrade_workbook,False,
 portfolio-venv-core-in-process,GET,/api/v1/story/artifacts,activatable,story_artifact_list,False,
 portfolio-venv-core-in-process,GET,/api/v1/story/runs/{run_id}/artifacts/{artifact_id},activatable,story_artifact_read,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/jobs,activatable,story_job_submit,False,
+portfolio-venv-core-in-process,GET,/api/v1/story/runs/{run_id}/jobs,activatable,story_job_list,False,
+portfolio-venv-core-in-process,GET,/api/v1/story/runs/{run_id}/jobs/{job_id},activatable,story_job_get,False,
+portfolio-venv-core-in-process,POST,/api/v1/story/runs/{run_id}/jobs/{job_id}/cancel,activatable,story_job_cancel,False,

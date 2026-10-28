@@ -63,7 +63,7 @@
     {
       "id": "3-which-knobs-are-actually-tunable",
       "title": "3. Which knobs are actually tunable?",
-      "kind": "job",
+      "kind": "analysis",
       "cells": [
         7,
         8,
@@ -73,7 +73,7 @@
         "2-the-default-config-baseline"
       ],
       "capabilities": [
-        "story:jobs"
+        "platform:story_indicator_config"
       ],
       "inputs": [],
       "outputs": [
@@ -163,7 +163,7 @@
     {
       "id": "8-verify-the-persist-and-auto-load-chain-end-to",
       "title": "8. Verify the persist-and-auto-load chain end-to-end",
-      "kind": "job",
+      "kind": "analysis",
       "cells": [
         19,
         20
@@ -172,7 +172,7 @@
         "7-what-did-tuneta-actually-propose"
       ],
       "capabilities": [
-        "story:jobs"
+        "platform:story_indicator_config"
       ],
       "inputs": [],
       "outputs": [

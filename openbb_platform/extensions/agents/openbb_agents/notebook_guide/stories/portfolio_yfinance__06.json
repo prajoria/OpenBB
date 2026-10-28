@@ -59,7 +59,7 @@
     {
       "id": "1-load-basket-build-the-config",
       "title": "1. Load basket + build the config",
-      "kind": "job",
+      "kind": "state",
       "cells": [
         5,
         6
@@ -68,7 +68,8 @@
         "0-5-why-free-only-nb06-looks-different-from-trac"
       ],
       "capabilities": [
-        "story:jobs"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -78,7 +79,7 @@
         }
       ],
       "outputs": [
-        "1-load-basket-build-the-config-result"
+        "story_state"
       ],
       "optional": false
     },

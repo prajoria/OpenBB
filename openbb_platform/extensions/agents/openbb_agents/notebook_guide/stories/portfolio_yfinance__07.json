@@ -119,7 +119,8 @@
       "capabilities": [
         "platform:backtest_run",
         "platform:equity_price_quote",
-        "story:jobs"
+        "platform:story_job_get",
+        "platform:story_job_submit"
       ],
       "inputs": [],
       "outputs": [

@@ -273,6 +273,43 @@ class ReplayRequest(_Strict):
     days_ahead: Annotated[int, Field(ge=1, le=60)] = 30
 
 
+def run_replay(request: ReplayRequest) -> dict[str, Any]:
+    """Replay each recommendation; a failed fetch is that outcome, not an error."""
+    outcomes = []
+    for rec in request.recommendations:
+        fields = rec.model_dump()
+        try:
+            bars = _forward_bars(rec.symbol.upper(), request.as_of, request.days_ahead)
+            outcome = replay_recommendation(fields, bars)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("story replay fetch failed for %s: %s", rec.symbol, exc)
+            outcome = {"status": "fetch-failed"}
+        outcome.update(
+            {
+                "symbol": rec.symbol.upper(),
+                "as_of": request.as_of.isoformat(),
+                "action": rec.action,
+                "conviction": rec.conviction,
+                "r:r": rec.risk_reward,
+            }
+        )
+        outcomes.append(outcome)
+    return {"outcomes": outcomes, "summary": replay_summary(outcomes)}
+
+
+def tunable_knobs() -> list[dict[str, Any]]:
+    """Return the period knobs tuning searches over, with their ranges."""
+    # The knob table is pure data; reading it does not import tuneta.
+    from openbb_techtrade.tuning.tuneta_adapter import (  # pylint: disable=import-outside-toplevel
+        KNOB_TABLE,
+    )
+
+    return [
+        {"field": field, "indicator": indicator, "low": low, "high": high}
+        for field, indicator, (low, high) in KNOB_TABLE
+    ]
+
+
 def _known_knobs(candidate: dict[str, Any]) -> dict[str, Any]:
     unknown = sorted(set(candidate) - set(default_config()))
     if unknown:
@@ -401,35 +438,15 @@ def build_router() -> APIRouter:  # noqa: PLR0915
         otherwise the position is marked to market. Returns each outcome and
         the win rate, expectancy in R and a breakdown by conviction.
         """
-        outcomes = []
-        for rec in request.recommendations:
-            fields = rec.model_dump()
-            try:
-                bars = _forward_bars(
-                    rec.symbol.upper(), request.as_of, request.days_ahead
-                )
-                outcome = replay_recommendation(fields, bars)
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.warning("story replay fetch failed for %s: %s", rec.symbol, exc)
-                outcome = {"status": "fetch-failed"}
-            outcome.update(
-                {
-                    "symbol": rec.symbol.upper(),
-                    "as_of": request.as_of.isoformat(),
-                    "action": rec.action,
-                    "conviction": rec.conviction,
-                    "r:r": rec.risk_reward,
-                }
-            )
-            outcomes.append(outcome)
-        return {"outcomes": outcomes, "summary": replay_summary(outcomes)}
+        return run_replay(request)
 
     @_route("/indicator_config", "story_indicator_config")
     def story_indicator_config(request: IndicatorConfigRequest) -> dict[str, Any]:
         """Return the default indicator config, tuned segments and a candidate's diff.
 
-        Lists each segment tuned on this server with its verdict, and the
-        indicator-panel builder's parameters.
+        Lists each segment tuned on this server with its verdict, the knobs
+        tuning searches over with their ranges, and the indicator-panel
+        builder's parameters.
         """
         tuned = read_tuned() or {}
         segments = [
@@ -444,6 +461,7 @@ def build_router() -> APIRouter:  # noqa: PLR0915
         return {
             "defaults": defaults,
             "tuned_segments": segments,
+            "tunable_knobs": tunable_knobs(),
             "diff": (
                 config_diff(defaults, request.candidate) if request.candidate else []
             ),

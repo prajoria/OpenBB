@@ -919,6 +919,9 @@ def load_default_sources(
             )
 
             app = compose_story_artifacts_app(app, principal="inventory")
+            from openbb_mcp_server.story_adapters.jobs import compose_story_jobs_app
+
+            app = compose_story_jobs_app(app, principal="inventory")
             from openbb_mcp_server.story_adapters.analytics import (
                 compose_story_analytics_app,
             )

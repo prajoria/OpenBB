@@ -32,7 +32,7 @@ from pydantic import (
 
 MAX_PREVIEW_COLUMNS = 50
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-ArtifactKind = Literal["table", "chart", "report", "workbook"]
+ArtifactKind = Literal["table", "chart", "report", "workbook", "result"]
 
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 # Excel's own sheet-name rules: 1-31 characters, none of []:*?/\ .
