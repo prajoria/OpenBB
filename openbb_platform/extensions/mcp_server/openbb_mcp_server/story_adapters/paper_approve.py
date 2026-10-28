@@ -29,16 +29,26 @@ class ApprovalDenied(Exception):
     """The person declined, or the request cannot be approved."""
 
 
+def shown(value: Any) -> str:
+    """Render one value for the prompt; anything unusual is visibly escaped."""
+    text = str(value)
+    if text.isascii() and text.isprintable():
+        return text
+    # Newlines, terminal escapes and invisible or reordering characters could
+    # forge or hide lines, so they are shown as escapes on a single line.
+    return json.dumps(text, ensure_ascii=True)
+
+
 def _lines(value: Any, indent: str = "  ") -> list[str]:
     if isinstance(value, dict):
         lines = []
         for key in sorted(value):
             item = value[key]
             if isinstance(item, dict | list):
-                lines.append(f"{indent}{key}:")
+                lines.append(f"{indent}{shown(key)}:")
                 lines.extend(_lines(item, indent + "  "))
             else:
-                lines.append(f"{indent}{key}: {item}")
+                lines.append(f"{indent}{shown(key)}: {shown(item)}")
         return lines
     if isinstance(value, list):
         lines = []
@@ -46,7 +56,7 @@ def _lines(value: Any, indent: str = "  ") -> list[str]:
             lines.append(f"{indent}[{index}]")
             lines.extend(_lines(item, indent + "  "))
         return lines
-    return [f"{indent}{value}"]
+    return [f"{indent}{shown(value)}"]
 
 
 def render_summary(row: Any) -> str:
@@ -54,11 +64,11 @@ def render_summary(row: Any) -> str:
     arguments = json.loads(row["arguments"])
     return "\n".join(
         [
-            f"Story paper action: {row['action']}",
-            f"Sandbox: {row['sandbox_id']} (run {row['run_id']},"
-            f" {row['manifest_version']})",
-            f"Operation: {row['operation_id']}",
-            f"Expires: {row['expires_at']}",
+            f"Story paper action: {shown(row['action'])}",
+            f"Sandbox: {shown(row['sandbox_id'])} (run {shown(row['run_id'])},"
+            f" {shown(row['manifest_version'])})",
+            f"Operation: {shown(row['operation_id'])}",
+            f"Expires: {shown(row['expires_at'])}",
             "Arguments:",
             *_lines(arguments),
         ]

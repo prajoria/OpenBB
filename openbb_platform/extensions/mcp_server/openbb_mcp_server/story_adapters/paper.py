@@ -116,7 +116,14 @@ _Amount = Annotated[
     Decimal, Field(gt=0, max_digits=20, decimal_places=8, allow_inf_nan=False)
 ]
 # Empty, or not starting with a character a spreadsheet would evaluate.
-_Text = Annotated[str, Field(max_length=200, pattern=r"^(?:[^=+\-@\t\r][^\t\r]*)?$")]
+# Characters that could forge or hide lines in the approval prompt: C0 and C1
+# controls, DEL, line and paragraph separators, and bidirectional overrides.
+_UNSAFE = r"\x00-\x1f\x7f-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069"
+# Empty, or free of those and not starting with a spreadsheet formula lead.
+_Text = Annotated[
+    str,
+    Field(max_length=200, pattern=rf"^(?:[^=+\-@{_UNSAFE}][^{_UNSAFE}]*)?$"),
+]
 _OrderId = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")]
 
 

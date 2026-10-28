@@ -594,6 +594,15 @@ def test_a_run_holds_a_bounded_number_of_sandboxes(paper_harness, monkeypatch):
         {"symbol": "MSFT", "action": "Buy", "quantity": "-1"},
         {"symbol": "msft;", "action": "Buy", "quantity": "1"},
         {"symbol": "MSFT", "action": "Buy", "quantity": "1", "extra": True},
+        {
+            "symbol": "MSFT",
+            "action": "Buy",
+            "quantity": "1",
+            "notes": "ok\nArguments:\n  quantity: 1",
+        },
+        {"symbol": "MSFT", "action": "Buy", "quantity": "1", "notes": "x\x1b[2Ky"},
+        {"symbol": "MSFT", "action": "Buy", "quantity": "1", "notes": "x\u202ey"},
+        {"symbol": "MSFT", "action": "Buy", "quantity": "1", "notes": "x\x85y"},
     ],
 )
 def test_ticket_fields_are_validated_before_approval(paper_harness, ticket):
@@ -704,3 +713,44 @@ async def test_only_the_ops_profile_can_apply(tmp_path, monkeypatch):
     assert "story_paper_apply" not in names["portfolio-read"]
     assert "story_paper_apply" in names["portfolio-ops"]
     assert not any("approve" in name for name in names["portfolio-ops"])
+
+
+def test_the_prompt_escapes_anything_that_could_forge_a_line(paper_harness):
+    """Even a stored value that bypassed validation shows as one escaped line."""
+    request_id = paper_harness.prepare(
+        paper_harness.sandbox_id, "record_fill", paper_harness.fill_args(1000), "op-f"
+    ).json()["request_id"]
+    with sqlite3.connect(paper_harness.store) as connection:
+        arguments = json.loads(
+            connection.execute(
+                "SELECT arguments FROM story_paper_requests WHERE request_id = ?",
+                (request_id,),
+            ).fetchone()[0]
+        )
+        arguments["filled_qty"] = "1000\n  filled_qty: 1\x1b[1A\x1b[2K"
+        connection.execute(
+            "UPDATE story_paper_requests SET arguments = ? WHERE request_id = ?",
+            (json.dumps(arguments), request_id),
+        )
+    paper_harness.sign(request_id)
+    summary = paper_harness.confirmations[-1]
+    assert "\x1b" not in summary
+    assert "filled_qty: 1\n" not in summary
+    qty_lines = [line for line in summary.splitlines() if "filled_qty" in line]
+    assert len(qty_lines) == 1
+    assert "\\n" in qty_lines[0] and "\\u001b" in qty_lines[0]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("100", "100"),
+        ("buy MSFT", "buy MSFT"),
+        ("\uff11\uff10\uff10\uff10", r'"\uff11\uff10\uff10\uff10"'),
+        ("a\nb", r'"a\nb"'),
+        ("x\u202ey", r'"x\u202ey"'),
+    ],
+)
+def test_prompt_values_are_plain_ascii_or_visibly_escaped(value, expected):
+    """Look-alike digits and invisible characters cannot pass as plain text."""
+    assert paper_approve.shown(value) == expected
