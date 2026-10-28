@@ -294,10 +294,16 @@ def test_corpus_summary_publishes_gross_denominators():
     assert states["missing"] == 0
     assert states["forbidden"] == 0
     # techtrade/03 became the first fully runnable story in N05d (#2316);
-    # every other story still waits on at least one planned bridge.
+    # N07 (#2217) made four more runnable. The rest wait on N08-N10.
     ready = {m.story_id for m in manifests if check_readiness(m, catalog).ready}
-    assert ready == {"techtrade/03"}
+    assert ready == {
+        "techtrade/03",
+        "portfolio/03",
+        "portfolio/04",
+        "techtrade/02",
+        "techtrade/06",
+    }
     assert summary["ready_stories"] == len(ready)
-    # N05 (#2215) and N06 (#2216) are drained: their stages are bound to
-    # delivered tools or reviewed onto the bridge that owns them (#2321).
-    assert set(summary["planned_by_owner"]) == {"#2217", "#2218", "#2219", "#2220"}
+    # N05 (#2215), N06 (#2216) and N07 (#2217) are drained: their stages are
+    # bound to delivered tools or reviewed onto the bridge that owns them.
+    assert set(summary["planned_by_owner"]) == {"#2218", "#2219", "#2220"}

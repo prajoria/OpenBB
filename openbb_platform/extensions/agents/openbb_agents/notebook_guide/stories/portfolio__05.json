@@ -9,7 +9,7 @@
     {
       "id": "where-we-are-in-sam-s-story",
       "title": "Where we are in Sam's story",
-      "kind": "artifact",
+      "kind": "narrative",
       "cells": [
         1,
         2,
@@ -17,9 +17,7 @@
         4
       ],
       "depends_on": [],
-      "capabilities": [
-        "story:artifacts"
-      ],
+      "capabilities": [],
       "inputs": [],
       "outputs": [
         "where-we-are-in-sam-s-story-result"

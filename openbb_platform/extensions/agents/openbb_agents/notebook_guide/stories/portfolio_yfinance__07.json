@@ -89,9 +89,9 @@
         "1-scrape-record-freshness-spot-check-optional"
       ],
       "capabilities": [
+        "platform:story_artifact_report",
         "platform:story_run_checkpoint",
-        "platform:story_run_get",
-        "story:artifacts"
+        "platform:story_run_get"
       ],
       "inputs": [
         {

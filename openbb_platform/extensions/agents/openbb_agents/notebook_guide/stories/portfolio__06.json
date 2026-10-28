@@ -9,7 +9,7 @@
     {
       "id": "where-we-are-in-sam-s-story",
       "title": "Where we are in Sam's story",
-      "kind": "artifact",
+      "kind": "state",
       "cells": [
         1,
         2,
@@ -18,7 +18,8 @@
       ],
       "depends_on": [],
       "capabilities": [
-        "story:artifacts"
+        "platform:story_run_checkpoint",
+        "platform:story_run_get"
       ],
       "inputs": [
         {
@@ -28,7 +29,7 @@
         }
       ],
       "outputs": [
-        "where-we-are-in-sam-s-story-result"
+        "story_state"
       ],
       "optional": false
     },

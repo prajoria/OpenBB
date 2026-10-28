@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation_catalog": {
     "file": "capability_policy_operations.csv",
-    "sha256": "d87df30563268812db0bf52c048da47c5c5dbd88a487a5c12db2f5f34b3ac8c4"
+    "sha256": "607e10a8e5feb24b4c0f7e38594b867235444c24005a1a40fb4f5c924a452b03"
   },
   "reviewed_metadata_ids": [
     "platform:profile:platform-standard",
@@ -143,6 +143,23 @@
         "/api/v1/story/runs",
         "/api/v1/story/runs/{run_id}",
         "/api/v1/story/runs/{run_id}/checkpoint"
+      ],
+      "disposition": "direct",
+      "access_class": "story_state",
+      "admitted_profiles": ["portfolio-read", "portfolio-ops"]
+    },
+    {
+      "id": "story-run-artifacts",
+      "priority": 95,
+      "scopes": ["portfolio-venv-core-in-process"],
+      "paths": [
+        "/api/v1/story/artifacts",
+        "/api/v1/story/runs/{run_id}/artifacts/table",
+        "/api/v1/story/runs/{run_id}/artifacts/chart",
+        "/api/v1/story/runs/{run_id}/artifacts/report",
+        "/api/v1/story/runs/{run_id}/artifacts/workbook",
+        "/api/v1/story/runs/{run_id}/artifacts/techtrade_workbook",
+        "/api/v1/story/runs/{run_id}/artifacts/{artifact_id}"
       ],
       "disposition": "direct",
       "access_class": "story_state",
@@ -510,6 +527,16 @@
         "review_triggers": ["story route added", "run-state schema changed", "principal scoping changed"],
         "implementation_state": "implemented_product"
       },
+      "notebook-story-artifacts": {
+        "owner_issues": ["#2217 Produce bounded chart, table, report and XLSX artifacts"],
+        "rationale": "Portfolio profiles write and read bounded table, chart, report and workbook artifacts inside a run they own; IDs are server-issued, files are created atomically under the store root without links or overwrites, spreadsheet cells cannot hold formulas, and reads re-verify the stored hash.",
+        "source_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/artifacts.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_artifacts.py"
+        ],
+        "review_triggers": ["artifact route added", "artifact format added", "artifact limits or scoping changed"],
+        "implementation_state": "implemented_product"
+      },
       "fmp-routing-waves": {
         "owner_issues": ["#2162 Typed provider route framework", "#2171 Complete FMP parity gate"],
         "rationale": "Own every FMP Cached registration and routing gap without reducing the denominator.",
@@ -592,6 +619,7 @@
       "story-basket-analytics": "notebook-story-analytics",
       "story-registry-metadata": "notebook-story-registry",
       "story-run-state": "notebook-story-registry",
+      "story-run-artifacts": "notebook-story-artifacts",
       "deny-execution-actions": "execution-controls",
       "deny-success-shaped-intelligence-stubs": "intelligence-widgets",
       "deny-unhardened-congress-url-fetches": "url-fetch-hardening",
@@ -686,6 +714,23 @@
         "verification_evidence": [
           "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/registry.py",
           "openbb_platform/extensions/mcp_server/tests/story_adapters/test_registry.py"
+        ]
+      },
+      "platform-story-artifacts": {
+        "members": [
+          "story_artifact_table",
+          "story_artifact_chart",
+          "story_artifact_report",
+          "story_artifact_workbook",
+          "story_artifact_techtrade_workbook",
+          "story_artifact_list",
+          "story_artifact_read"
+        ],
+        "rationale": "Bounded, run-scoped story artifacts for Portfolio read and ops profiles.",
+        "verification_level": "policy_reviewed_runtime_inventory",
+        "verification_evidence": [
+          "openbb_platform/extensions/mcp_server/openbb_mcp_server/story_adapters/artifacts.py",
+          "openbb_platform/extensions/mcp_server/tests/story_adapters/test_artifacts.py"
         ]
       },
       "platform-cache-observability": {
